@@ -32,6 +32,7 @@ const mockListItem: SubmissionListItem = {
 const mockDetail: SubmissionDetail = {
   ...mockListItem,
   form_version_id: 'v1',
+  score_breakdown: null,
   answers: [{ field_key: 'extintor_ok', field_type: 'boolean', value: true }],
 }
 

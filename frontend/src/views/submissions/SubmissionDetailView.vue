@@ -216,7 +216,32 @@ async function handleExport() {
         <strong class="mt-2 block text-3xl font-semibold text-sa-text">
           {{ submission.score }}%
         </strong>
-        <p class="mt-1 text-sm text-sa-muted">Baseado nos campos booleanos respondidos.</p>
+        <template v-if="submission.score_breakdown">
+          <div class="mt-4 grid grid-cols-3 gap-3">
+            <div class="rounded-2xl border border-[color:var(--sa-line)] bg-white/70 p-3 text-center">
+              <p class="eyebrow">Conformes</p>
+              <strong class="mt-1 block text-xl font-semibold text-sa-text">
+                {{ submission.score_breakdown.conformes }}
+              </strong>
+            </div>
+            <div class="rounded-2xl border border-[color:var(--sa-line)] bg-white/70 p-3 text-center">
+              <p class="eyebrow">Não conformes</p>
+              <strong class="mt-1 block text-xl font-semibold text-sa-text">
+                {{ submission.score_breakdown.nao_conformes }}
+              </strong>
+            </div>
+            <div class="rounded-2xl border border-[color:var(--sa-line)] bg-white/70 p-3 text-center">
+              <p class="eyebrow">Sem resposta</p>
+              <strong class="mt-1 block text-xl font-semibold text-sa-text">
+                {{ submission.score_breakdown.sem_resposta }}
+              </strong>
+            </div>
+          </div>
+          <p class="mt-2 text-sm text-sa-muted">
+            {{ submission.score_breakdown.total_boolean }} campos booleanos avaliados.
+          </p>
+        </template>
+        <p v-else class="mt-1 text-sm text-sa-muted">Baseado nos campos booleanos respondidos.</p>
       </section>
 
       <section class="surface-panel p-5 sm:p-6">

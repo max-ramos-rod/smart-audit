@@ -14,8 +14,16 @@ export interface SubmissionListItem {
   finished_at: string | null
 }
 
+export interface ScoreBreakdown {
+  total_boolean: number
+  conformes: number
+  nao_conformes: number
+  sem_resposta: number
+}
+
 export interface SubmissionDetail extends SubmissionListItem {
   form_version_id: string
+  score_breakdown: ScoreBreakdown | null
   answers: SubmissionAnswer[]
 }
 
