@@ -54,6 +54,22 @@ class SubmissionRepository(SQLAlchemyRepository[Submission]):
         )
         return await self._paginate_select(db, statement, params)
 
+    async def get_submission_for_export(
+        self, db: AsyncSession, company_id: str, submission_id: str
+    ) -> Submission | None:
+        statement = (
+            select(Submission)
+            .where(Submission.company_id == company_id, Submission.id == submission_id)
+            .options(
+                selectinload(Submission.form_version).selectinload(FormVersion.fields),
+                selectinload(Submission.form_version).selectinload(FormVersion.form),
+                selectinload(Submission.values),
+                selectinload(Submission.creator),
+                selectinload(Submission.company),
+            )
+        )
+        return await self._get_one(db, statement)
+
     async def get_submission_value_by_field_id(
         self,
         db: AsyncSession,

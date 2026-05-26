@@ -39,3 +39,10 @@ export async function finishSubmission(submissionId: string) {
   )
   return response.data.data
 }
+
+export async function exportSubmissionPdf(submissionId: string): Promise<Blob> {
+  const response = await http.get(`/submissions/${submissionId}/export`, {
+    responseType: 'blob',
+  })
+  return response.data as Blob
+}

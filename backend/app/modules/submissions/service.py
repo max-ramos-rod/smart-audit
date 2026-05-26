@@ -11,6 +11,7 @@ from app.db.models.memberships import Membership
 from app.db.models.submission_values import SubmissionValue
 from app.db.models.submissions import Submission
 from app.db.models.users import User
+from app.modules.submissions.pdf import generate_submission_pdf
 from app.modules.submissions.repository import SubmissionRepository
 from app.modules.submissions.schemas import (
     CompanyStatsResponse,
@@ -152,7 +153,8 @@ class SubmissionService:
                 submission_value.value_text = normalized_value
 
             await self.repository.save_submission_value(db, submission_value)
-            answers_snapshot[field.key] = self.serialize_raw_value(field.field_type, normalized_value)
+            raw = self.serialize_raw_value(field.field_type, normalized_value)
+            answers_snapshot[field.key] = raw
 
         submission.answers_json = answers_snapshot
         submission.status = "in_progress"
@@ -197,6 +199,44 @@ class SubmissionService:
             db, str(membership.company_id), submission_id
         )
         return self.serialize_submission(updated)
+
+    async def export_pdf(
+        self, db: AsyncSession, membership: Membership, submission_id: str
+    ) -> bytes:
+        submission = await self.repository.get_submission_for_export(
+            db, str(membership.company_id), submission_id
+        )
+        if submission is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Inspecao nao encontrada."
+            )
+
+        values_by_field_id = {str(v.form_field_id): v for v in submission.values}
+
+        sorted_fields = sorted(submission.form_version.fields, key=lambda f: f.position)
+        fields_with_answers = [
+            {
+                "position": f.position,
+                "label": f.label,
+                "field_type": f.field_type,
+                "value": self.extract_value(values_by_field_id[str(f.id)], f.field_type)
+                if str(f.id) in values_by_field_id
+                else None,
+            }
+            for f in sorted_fields
+        ]
+
+        return generate_submission_pdf(
+            company_name=submission.company.name,
+            form_name=submission.form_version.form.name,
+            form_version=submission.form_version.version,
+            inspector_name=submission.creator.name,
+            status=submission.status,
+            score=float(submission.score) if submission.score is not None else None,
+            started_at=submission.started_at,
+            finished_at=submission.finished_at,
+            fields_with_answers=fields_with_answers,
+        )
 
     @staticmethod
     def normalize_value(field: FormField, value):

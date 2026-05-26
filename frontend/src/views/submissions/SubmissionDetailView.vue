@@ -7,6 +7,7 @@ import BaseButton from '@/components/ui/BaseButton.vue'
 import { extractProblemMessage } from '@/services/api/problem'
 import { createAttachment } from '@/services/attachments.service'
 import { fetchFormVersion } from '@/services/forms.service'
+import { exportSubmissionPdf } from '@/services/submissions.service'
 import { uploadFile } from '@/services/uploads.service'
 import { useSubmissionsStore } from '@/stores/submissions/submissions.store'
 import type { FormVersion } from '@/types/forms'
@@ -149,6 +150,24 @@ function statusLabel(status: string) {
   }
   return map[status] ?? status
 }
+
+const isExporting = ref(false)
+
+async function handleExport() {
+  if (!submission.value) return
+  isExporting.value = true
+  try {
+    const blob = await exportSubmissionPdf(submissionId.value)
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `inspecao-${submissionId.value}.pdf`
+    a.click()
+    URL.revokeObjectURL(url)
+  } finally {
+    isExporting.value = false
+  }
+}
 </script>
 
 <template>
@@ -176,6 +195,15 @@ function statusLabel(status: string) {
         >
           {{ statusLabel(submission.status) }}
         </span>
+        <BaseButton
+          v-if="isCompleted"
+          type="button"
+          variant="ghost"
+          :disabled="isExporting"
+          @click="handleExport"
+        >
+          {{ isExporting ? 'Gerando PDF...' : 'Exportar PDF' }}
+        </BaseButton>
         <BaseButton type="button" variant="ghost" @click="router.push({ name: 'submissions' })">
           Voltar
         </BaseButton>

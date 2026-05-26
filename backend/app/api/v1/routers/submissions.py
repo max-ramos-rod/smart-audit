@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.pagination import PaginationParams
@@ -63,6 +64,21 @@ async def save_answers(
 ) -> dict[str, object]:
     data = await submission_service.save_answers(db, membership, submission_id, payload)
     return success_response(data.model_dump(mode="json"))
+
+
+@router.get("/{submission_id}/export")
+async def export_submission_pdf(
+    submission_id: str,
+    membership: Membership = Depends(get_current_membership),
+    db: AsyncSession = Depends(get_db),
+    submission_service: SubmissionService = Depends(get_submission_service),
+) -> Response:
+    pdf_bytes = await submission_service.export_pdf(db, membership, submission_id)
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="inspecao-{submission_id}.pdf"'},
+    )
 
 
 @router.post("/{submission_id}/finish")
