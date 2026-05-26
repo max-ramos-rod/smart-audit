@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -41,7 +43,13 @@ class SubmissionRepository(SQLAlchemyRepository[Submission]):
         return await self._get_one(db, statement)
 
     async def list_submissions(
-        self, db: AsyncSession, company_id: str, params: PaginationParams
+        self,
+        db: AsyncSession,
+        company_id: str,
+        params: PaginationParams,
+        status: str | None = None,
+        form_id: str | None = None,
+        created_by: str | None = None,
     ) -> tuple[list[Submission], int]:
         statement = (
             select(Submission)
@@ -52,6 +60,14 @@ class SubmissionRepository(SQLAlchemyRepository[Submission]):
             )
             .order_by(Submission.created_at.desc())
         )
+        if status:
+            statement = statement.where(Submission.status == status)
+        if form_id:
+            statement = statement.join(
+                FormVersion, Submission.form_version_id == FormVersion.id
+            ).where(FormVersion.form_id == form_id)
+        if created_by:
+            statement = statement.where(Submission.created_by == created_by)
         return await self._paginate_select(db, statement, params)
 
     async def get_submission_for_export(
@@ -87,7 +103,12 @@ class SubmissionRepository(SQLAlchemyRepository[Submission]):
     ) -> SubmissionValue:
         return await self._save(db, submission_value)
 
-    async def get_company_stats(self, db: AsyncSession, company_id: str) -> dict:
+    async def get_company_stats(
+        self, db: AsyncSession, company_id: str, since: datetime | None = None
+    ) -> dict:
+        filters = [Submission.company_id == company_id]
+        if since:
+            filters.append(Submission.started_at >= since)
         result = await db.execute(
             select(
                 func.count().label("total"),
@@ -96,7 +117,7 @@ class SubmissionRepository(SQLAlchemyRepository[Submission]):
                 func.avg(
                     case((Submission.status == "completed", Submission.score))
                 ).label("avg_score"),
-            ).where(Submission.company_id == company_id)
+            ).where(*filters)
         )
         row = result.one()
         return {
@@ -107,11 +128,14 @@ class SubmissionRepository(SQLAlchemyRepository[Submission]):
         }
 
     async def list_recent(
-        self, db: AsyncSession, company_id: str, limit: int = 5
+        self, db: AsyncSession, company_id: str, limit: int = 5, since: datetime | None = None
     ) -> list[Submission]:
+        filters = [Submission.company_id == company_id]
+        if since:
+            filters.append(Submission.started_at >= since)
         statement = (
             select(Submission)
-            .where(Submission.company_id == company_id)
+            .where(*filters)
             .options(
                 selectinload(Submission.form_version).selectinload(FormVersion.form),
                 selectinload(Submission.values),

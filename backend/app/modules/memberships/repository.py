@@ -3,7 +3,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.repositories import SQLAlchemyRepository
-from app.db.models.companies import Company
 from app.db.models.memberships import Membership
 
 

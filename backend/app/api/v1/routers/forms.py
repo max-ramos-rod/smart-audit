@@ -53,6 +53,17 @@ async def create_form(
     return success_response(data.model_dump(mode="json"))
 
 
+@router.get("/{form_id}/versions")
+async def list_form_versions(
+    form_id: str,
+    membership: Membership = Depends(get_current_membership),
+    db: AsyncSession = Depends(get_db),
+    form_service: FormService = Depends(get_form_service),
+) -> dict[str, object]:
+    data = await form_service.list_versions(db, membership, form_id)
+    return success_response([item.model_dump(mode="json") for item in data])
+
+
 @router.get("/{form_id}/versions/{version_id}")
 async def get_form_version(
     form_id: str,

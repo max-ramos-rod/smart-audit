@@ -1,13 +1,15 @@
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.security import hash_password
 from app.db.models.memberships import Membership
 from app.db.models.users import User
-from app.modules.auth.schemas import AuthenticatedUserResponse
 from app.modules.auth.service import AuthService
 from app.modules.memberships.repository import MembershipRepository
 from app.modules.memberships.schemas import (
     MembershipContextResponse,
+    MeResponse,
+    MeUpdateRequest,
     UserCompanyResponse,
     UserContextResponse,
 )
@@ -16,6 +18,17 @@ from app.modules.memberships.schemas import (
 class MembershipService:
     def __init__(self, repository: MembershipRepository | None = None) -> None:
         self.repository = repository or MembershipRepository()
+
+    async def update_me(
+        self, db: AsyncSession, user: User, payload: MeUpdateRequest
+    ) -> MeResponse:
+        if payload.name is not None:
+            user.name = payload.name
+        if payload.password is not None:
+            user.password_hash = hash_password(payload.password)
+        db.add(user)
+        await db.commit()
+        return MeResponse(id=str(user.id), name=user.name, email=user.email)
 
     async def list_user_companies(
         self, db: AsyncSession, user: User
@@ -41,9 +54,15 @@ class MembershipService:
 
         return UserContextResponse(
             user=AuthService.serialize_user(user),
-            active_company=self.serialize_company(selected_membership) if selected_membership else None,
-            membership=MembershipContextResponse(role=selected_membership.role) if selected_membership else None,
-            available_companies=[self.serialize_company(membership) for membership in memberships],
+            active_company=(
+                self.serialize_company(selected_membership) if selected_membership else None
+            ),
+            membership=(
+                MembershipContextResponse(role=selected_membership.role)
+                if selected_membership
+                else None
+            ),
+            available_companies=[self.serialize_company(m) for m in memberships],
             requires_company_selection=requires_company_selection,
         )
 
@@ -53,7 +72,9 @@ class MembershipService:
         company_id: str | None,
     ) -> Membership | None:
         if company_id:
-            membership = next((item for item in memberships if str(item.company_id) == company_id), None)
+            membership = next(
+                (item for item in memberships if str(item.company_id) == company_id), None
+            )
             if membership is None:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,

@@ -1,4 +1,5 @@
 from datetime import date, datetime
+
 from pydantic import BaseModel
 
 
@@ -21,6 +22,13 @@ class SubmissionAnswerResponse(BaseModel):
     value: bool | float | str | date | dict | None
 
 
+class ScoreBreakdown(BaseModel):
+    total_boolean: int
+    conformes: int
+    nao_conformes: int
+    sem_resposta: int
+
+
 class SubmissionResponse(BaseModel):
     id: str
     form_id: str
@@ -28,6 +36,7 @@ class SubmissionResponse(BaseModel):
     form_name: str
     status: str
     score: float | None
+    score_breakdown: ScoreBreakdown | None
     started_at: datetime
     finished_at: datetime | None
     answers: list[SubmissionAnswerResponse]

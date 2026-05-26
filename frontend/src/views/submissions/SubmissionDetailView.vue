@@ -159,11 +159,8 @@ async function handleExport() {
   try {
     const blob = await exportSubmissionPdf(submissionId.value)
     const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `inspecao-${submissionId.value}.pdf`
-    a.click()
-    URL.revokeObjectURL(url)
+    window.open(url, '_blank')
+    setTimeout(() => URL.revokeObjectURL(url), 10_000)
   } finally {
     isExporting.value = false
   }

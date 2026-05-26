@@ -3,7 +3,6 @@ from fastapi import Depends, HTTPException, status
 from app.db.models.memberships import Membership
 from app.modules.memberships.dependencies import get_current_membership
 
-
 ALLOWED_ADMIN_ROLES = {"OWNER", "ADMIN"}
 ALLOWED_MANAGER_ROLES = {"OWNER", "ADMIN", "MANAGER"}
 ALLOWED_OPERATOR_ROLES = {"OWNER", "ADMIN", "MANAGER", "INSPECTOR"}

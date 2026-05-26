@@ -12,8 +12,9 @@ uploads/
 # Logs
 *.log
 
-# Cache pytest (gerado na raiz quando pytest roda a partir daqui)
+# Cache de ferramentas
 .pytest_cache/
+.ruff_cache/
 
 # Docker — overrides locais não devem ser commitados
 docker-compose.override.yml

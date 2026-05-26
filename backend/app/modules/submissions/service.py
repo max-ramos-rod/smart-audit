@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,6 +15,7 @@ from app.modules.submissions.pdf import generate_submission_pdf
 from app.modules.submissions.repository import SubmissionRepository
 from app.modules.submissions.schemas import (
     CompanyStatsResponse,
+    ScoreBreakdown,
     SubmissionAnswerResponse,
     SubmissionAnswersUpdateRequest,
     SubmissionCreateRequest,
@@ -28,11 +29,12 @@ class SubmissionService:
         self.repository = repository or SubmissionRepository()
 
     async def get_company_stats(
-        self, db: AsyncSession, membership: Membership
+        self, db: AsyncSession, membership: Membership, period: str | None = None
     ) -> CompanyStatsResponse:
         company_id = str(membership.company_id)
-        counts = await self.repository.get_company_stats(db, company_id)
-        recent = await self.repository.list_recent(db, company_id)
+        since = self.parse_period_start(period)
+        counts = await self.repository.get_company_stats(db, company_id, since=since)
+        recent = await self.repository.list_recent(db, company_id, since=since)
         return CompanyStatsResponse(
             total_submissions=counts["total"],
             completed=counts["completed"],
@@ -46,9 +48,17 @@ class SubmissionService:
         db: AsyncSession,
         membership: Membership,
         params: PaginationParams,
+        status: str | None = None,
+        form_id: str | None = None,
+        created_by: str | None = None,
     ) -> tuple[list[SubmissionListItemResponse], PageMeta]:
         submissions, total = await self.repository.list_submissions(
-            db, str(membership.company_id), params
+            db,
+            str(membership.company_id),
+            params,
+            status=status,
+            form_id=form_id,
+            created_by=created_by,
         )
         meta = PaginationMetaBuilder.build(total, params)
         return [self.serialize_submission_list_item(item) for item in submissions], meta
@@ -239,6 +249,17 @@ class SubmissionService:
         )
 
     @staticmethod
+    def parse_period_start(period: str | None) -> datetime | None:
+        now = datetime.now(UTC)
+        if period == "7d":
+            return now - timedelta(days=7)
+        if period == "30d":
+            return now - timedelta(days=30)
+        if period == "90d":
+            return now - timedelta(days=90)
+        return None
+
+    @staticmethod
     def normalize_value(field: FormField, value):
         if field.field_type == "boolean":
             if not isinstance(value, bool):
@@ -263,8 +284,15 @@ class SubmissionService:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Campo {field.key} espera data ISO.",
             )
-        if field.field_type == "select" and isinstance(value, dict):
-            return value
+        if field.field_type == "select":
+            if isinstance(value, str):
+                return {"option": value}
+            if isinstance(value, dict):
+                return value
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Campo {field.key} espera dict ou string para select.",
+            )
         if value is None:
             return None
         if not isinstance(value, str):
@@ -279,6 +307,30 @@ class SubmissionService:
         if isinstance(value, date):
             return value.isoformat()
         return value
+
+    @staticmethod
+    def calculate_score_breakdown(submission: Submission) -> ScoreBreakdown | None:
+        boolean_fields = [f for f in submission.form_version.fields if f.field_type == "boolean"]
+        if not boolean_fields:
+            return None
+        values_by_field_id = {str(v.form_field_id): v for v in submission.values}
+        conformes = 0
+        nao_conformes = 0
+        sem_resposta = 0
+        for field in boolean_fields:
+            sv = values_by_field_id.get(str(field.id))
+            if sv is None or sv.value_boolean is None:
+                sem_resposta += 1
+            elif sv.value_boolean:
+                conformes += 1
+            else:
+                nao_conformes += 1
+        return ScoreBreakdown(
+            total_boolean=len(boolean_fields),
+            conformes=conformes,
+            nao_conformes=nao_conformes,
+            sem_resposta=sem_resposta,
+        )
 
     @staticmethod
     def calculate_score(submission: Submission) -> float | None:
@@ -321,6 +373,7 @@ class SubmissionService:
             form_name=submission.form_version.form.name,
             status=submission.status,
             score=float(submission.score) if submission.score is not None else None,
+            score_breakdown=SubmissionService.calculate_score_breakdown(submission),
             started_at=submission.started_at,
             finished_at=submission.finished_at,
             answers=ordered_answers,

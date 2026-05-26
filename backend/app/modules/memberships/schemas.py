@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.modules.auth.schemas import AuthenticatedUserResponse
 
@@ -22,3 +22,14 @@ class UserContextResponse(BaseModel):
     membership: MembershipContextResponse | None
     available_companies: list[UserCompanyResponse]
     requires_company_selection: bool
+
+
+class MeUpdateRequest(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=100)
+    password: str | None = Field(default=None, min_length=8, max_length=128)
+
+
+class MeResponse(BaseModel):
+    id: str
+    name: str
+    email: str

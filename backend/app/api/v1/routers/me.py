@@ -1,10 +1,12 @@
-from fastapi import APIRouter, Depends, Header
+from fastapi import APIRouter, Depends, Header, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.responses import success_response
+from app.db.models.users import User
 from app.db.session import get_db
 from app.modules.auth.dependencies import get_current_user
 from app.modules.memberships.dependencies import get_current_membership
+from app.modules.memberships.schemas import MeUpdateRequest
 from app.modules.memberships.service import MembershipService
 from app.modules.submissions.service import SubmissionService
 
@@ -40,11 +42,23 @@ async def get_my_context(
     return success_response(data.model_dump(mode="json"))
 
 
+@router.patch("")
+async def update_me(
+    payload: MeUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    membership_service: MembershipService = Depends(get_membership_service),
+) -> dict[str, object]:
+    data = await membership_service.update_me(db, current_user, payload)
+    return success_response(data.model_dump(mode="json"))
+
+
 @router.get("/stats")
 async def get_my_stats(
+    period: str | None = Query(default=None),
     membership=Depends(get_current_membership),
     db: AsyncSession = Depends(get_db),
     submission_service: SubmissionService = Depends(get_submission_service),
 ) -> dict[str, object]:
-    data = await submission_service.get_company_stats(db, membership)
+    data = await submission_service.get_company_stats(db, membership, period=period)
     return success_response(data.model_dump(mode="json"))

@@ -1,6 +1,6 @@
-from datetime import UTC, datetime
+from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class FormFieldCreateRequest(BaseModel):
@@ -10,6 +10,17 @@ class FormFieldCreateRequest(BaseModel):
     required: bool = False
     position: int
     config_json: dict = Field(default_factory=dict)
+
+    @field_validator("config_json")
+    @classmethod
+    def validate_select_options(cls, v: dict, info) -> dict:
+        if info.data.get("field_type") == "select":
+            options = v.get("options", [])
+            if not isinstance(options, list) or len(options) == 0:
+                raise ValueError(
+                    "Campo do tipo select deve ter ao menos uma opcao em config_json.options."
+                )
+        return v
 
 
 class FormCreateRequest(BaseModel):
@@ -58,3 +69,11 @@ class FormListItemResponse(BaseModel):
     current_version_number: int
     current_version_status: str
     published_at: datetime | None
+
+
+class FormVersionListItemResponse(BaseModel):
+    id: str
+    version: int
+    status: str
+    published_at: datetime | None
+    fields_count: int

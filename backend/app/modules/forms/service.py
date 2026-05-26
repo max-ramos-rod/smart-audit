@@ -18,6 +18,7 @@ from app.modules.forms.schemas import (
     FormFieldResponse,
     FormListItemResponse,
     FormResponse,
+    FormVersionListItemResponse,
     FormVersionPublishRequest,
     FormVersionResponse,
 )
@@ -26,6 +27,28 @@ from app.modules.forms.schemas import (
 class FormService:
     def __init__(self, repository: FormRepository | None = None) -> None:
         self.repository = repository or FormRepository()
+
+    async def list_versions(
+        self, db: AsyncSession, membership: Membership, form_id: str
+    ) -> list[FormVersionListItemResponse]:
+        form = await self.repository.get_form_by_id(db, str(membership.company_id), form_id)
+        if form is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Formulario nao encontrado."
+            )
+        versions = await self.repository.list_form_versions(
+            db, str(membership.company_id), form_id
+        )
+        return [
+            FormVersionListItemResponse(
+                id=str(v.id),
+                version=v.version,
+                status=v.status,
+                published_at=v.published_at,
+                fields_count=len(v.fields),
+            )
+            for v in versions
+        ]
 
     async def list_forms(
         self,
@@ -46,7 +69,9 @@ class FormService:
             db, str(membership.company_id), form_id, version_id
         )
         if version is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Versao nao encontrada.")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Versao nao encontrada."
+            )
         return self.serialize_version(version)
 
     async def get_form(

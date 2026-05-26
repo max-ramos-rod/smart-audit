@@ -18,7 +18,9 @@ class FormRepository(SQLAlchemyRepository[Form]):
     async def create_form_version(self, db: AsyncSession, form_version: FormVersion) -> FormVersion:
         return await self._save(db, form_version)
 
-    async def create_form_fields(self, db: AsyncSession, fields: list[FormField]) -> list[FormField]:
+    async def create_form_fields(
+        self, db: AsyncSession, fields: list[FormField]
+    ) -> list[FormField]:
         return await self._save_many(db, fields)
 
     async def list_forms_by_company(
@@ -56,6 +58,18 @@ class FormRepository(SQLAlchemyRepository[Form]):
             .options(selectinload(FormVersion.fields))
         )
         return await self._get_one(db, statement)
+
+    async def list_form_versions(
+        self, db: AsyncSession, company_id: str, form_id: str
+    ) -> list[FormVersion]:
+        statement = (
+            select(FormVersion)
+            .join(Form, FormVersion.form_id == Form.id)
+            .where(Form.company_id == company_id, FormVersion.form_id == form_id)
+            .options(selectinload(FormVersion.fields))
+            .order_by(FormVersion.version.desc())
+        )
+        return await self._list_from_stmt(db, statement)
 
     async def get_next_version_number(self, db: AsyncSession, form_id: str) -> int:
         statement = select(func.max(FormVersion.version)).where(FormVersion.form_id == form_id)
