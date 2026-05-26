@@ -1,5 +1,5 @@
 from fastapi import Depends, Header, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.memberships import Membership
 from app.db.models.users import User
@@ -10,13 +10,12 @@ from app.modules.memberships.repository import MembershipRepository
 membership_repository = MembershipRepository()
 
 
-
-def get_current_membership(
+async def get_current_membership(
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     company_id: str | None = Header(default=None, alias="X-Company-Id"),
 ) -> Membership:
-    memberships = membership_repository.list_by_user_id(db, str(current_user.id))
+    memberships = await membership_repository.list_by_user_id(db, str(current_user.id))
     if not memberships:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -24,7 +23,9 @@ def get_current_membership(
         )
 
     if company_id:
-        membership = membership_repository.get_by_user_and_company(db, str(current_user.id), company_id)
+        membership = await membership_repository.get_by_user_and_company(
+            db, str(current_user.id), company_id
+        )
         if membership is None:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

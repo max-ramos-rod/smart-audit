@@ -1,8 +1,8 @@
 from backend.tests.integration.test_auth import assert_pagination_meta, assert_problem
 
 
-def test_forms_create_list_and_publish_version(client, auth_headers):
-    create_response = client.post(
+async def test_forms_create_list_and_publish_version(client, auth_headers):
+    create_response = await client.post(
         "/api/v1/forms",
         headers=auth_headers,
         json={
@@ -35,7 +35,7 @@ def test_forms_create_list_and_publish_version(client, auth_headers):
     assert form_payload["current_version"]["version"] == 1
     form_id = form_payload["id"]
 
-    list_response = client.get("/api/v1/forms?page=1&page_size=10", headers=auth_headers)
+    list_response = await client.get("/api/v1/forms?page=1&page_size=10", headers=auth_headers)
     assert list_response.status_code == 200
     list_payload = list_response.json()
     assert len(list_payload["data"]) == 1
@@ -48,7 +48,7 @@ def test_forms_create_list_and_publish_version(client, auth_headers):
         total_pages=1,
     )
 
-    publish_response = client.post(
+    publish_response = await client.post(
         f"/api/v1/forms/{form_id}/versions",
         headers=auth_headers,
         json={
@@ -87,9 +87,9 @@ def test_forms_create_list_and_publish_version(client, auth_headers):
     assert len(published_payload["current_version"]["fields"]) == 3
 
 
-def test_forms_list_supports_pagination(client, auth_headers):
+async def test_forms_list_supports_pagination(client, auth_headers):
     for index in range(3):
-        response = client.post(
+        response = await client.post(
             "/api/v1/forms",
             headers=auth_headers,
             json={
@@ -109,7 +109,7 @@ def test_forms_list_supports_pagination(client, auth_headers):
         )
         assert response.status_code == 200
 
-    response = client.get("/api/v1/forms?page=2&page_size=2", headers=auth_headers)
+    response = await client.get("/api/v1/forms?page=2&page_size=2", headers=auth_headers)
     assert response.status_code == 200
     payload = response.json()
     assert len(payload["data"]) == 1
@@ -123,8 +123,8 @@ def test_forms_list_supports_pagination(client, auth_headers):
     )
 
 
-def test_forms_reject_duplicate_field_keys(client, auth_headers):
-    response = client.post(
+async def test_forms_reject_duplicate_field_keys(client, auth_headers):
+    response = await client.post(
         "/api/v1/forms",
         headers=auth_headers,
         json={
@@ -154,8 +154,8 @@ def test_forms_reject_duplicate_field_keys(client, auth_headers):
     assert_problem(response, 400, "As chaves dos campos devem ser unicas.")
 
 
-def test_forms_reject_duplicate_positions(client, auth_headers):
-    response = client.post(
+async def test_forms_reject_duplicate_positions(client, auth_headers):
+    response = await client.post(
         "/api/v1/forms",
         headers=auth_headers,
         json={
@@ -195,8 +195,8 @@ _MINIMAL_FIELD = {
 }
 
 
-def test_get_form_version_returns_exact_version(client, auth_headers):
-    create_response = client.post(
+async def test_get_form_version_returns_exact_version(client, auth_headers):
+    create_response = await client.post(
         "/api/v1/forms",
         headers=auth_headers,
         json={
@@ -207,7 +207,7 @@ def test_get_form_version_returns_exact_version(client, auth_headers):
     form_id = create_response.json()["data"]["id"]
     v1_id = create_response.json()["data"]["current_version"]["id"]
 
-    client.post(
+    await client.post(
         f"/api/v1/forms/{form_id}/versions",
         headers=auth_headers,
         json={
@@ -225,30 +225,30 @@ def test_get_form_version_returns_exact_version(client, auth_headers):
         },
     )
 
-    response = client.get(f"/api/v1/forms/{form_id}/versions/{v1_id}", headers=auth_headers)
+    response = await client.get(f"/api/v1/forms/{form_id}/versions/{v1_id}", headers=auth_headers)
     assert response.status_code == 200
     data = response.json()["data"]
     assert data["version"] == 1
     assert len(data["fields"]) == 1
 
 
-def test_get_form_version_404_for_nonexistent(client, auth_headers):
-    create_response = client.post(
+async def test_get_form_version_404_for_nonexistent(client, auth_headers):
+    create_response = await client.post(
         "/api/v1/forms",
         headers=auth_headers,
         json={"name": "Form 404", "fields": [_MINIMAL_FIELD]},
     )
     form_id = create_response.json()["data"]["id"]
 
-    response = client.get(
+    response = await client.get(
         f"/api/v1/forms/{form_id}/versions/00000000-0000-0000-0000-000000000000",
         headers=auth_headers,
     )
     assert_problem(response, 404, "Versao nao encontrada.")
 
 
-def test_forms_create_blocked_for_inspector(client, inspector_headers):
-    response = client.post(
+async def test_forms_create_blocked_for_inspector(client, inspector_headers):
+    response = await client.post(
         "/api/v1/forms",
         headers=inspector_headers,
         json={"name": "Blocked", "fields": [_MINIMAL_FIELD]},
@@ -256,8 +256,8 @@ def test_forms_create_blocked_for_inspector(client, inspector_headers):
     assert_problem(response, 403, "Usuario sem permissao para executar esta acao.")
 
 
-def test_forms_publish_version_blocked_for_inspector(client, inspector_headers):
-    response = client.post(
+async def test_forms_publish_version_blocked_for_inspector(client, inspector_headers):
+    response = await client.post(
         "/api/v1/forms/00000000-0000-0000-0000-000000000000/versions",
         headers=inspector_headers,
         json={"fields": [_MINIMAL_FIELD]},

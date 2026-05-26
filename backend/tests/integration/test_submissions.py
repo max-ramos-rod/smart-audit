@@ -1,8 +1,8 @@
 from backend.tests.integration.test_auth import assert_pagination_meta, assert_problem
 
 
-def test_submission_flow_with_attachment(client, auth_headers):
-    form_response = client.post(
+async def test_submission_flow_with_attachment(client, auth_headers):
+    form_response = await client.post(
         "/api/v1/forms",
         headers=auth_headers,
         json={
@@ -30,7 +30,7 @@ def test_submission_flow_with_attachment(client, auth_headers):
     )
     form_id = form_response.json()["data"]["id"]
 
-    create_submission_response = client.post(
+    create_submission_response = await client.post(
         "/api/v1/submissions",
         headers=auth_headers,
         json={"form_id": form_id},
@@ -38,7 +38,7 @@ def test_submission_flow_with_attachment(client, auth_headers):
     assert create_submission_response.status_code == 200
     submission_id = create_submission_response.json()["data"]["id"]
 
-    list_submissions_response = client.get(
+    list_submissions_response = await client.get(
         "/api/v1/submissions?page=1&page_size=10",
         headers=auth_headers,
     )
@@ -54,7 +54,7 @@ def test_submission_flow_with_attachment(client, auth_headers):
         total_pages=1,
     )
 
-    answer_response = client.put(
+    answer_response = await client.put(
         f"/api/v1/submissions/{submission_id}/answers",
         headers=auth_headers,
         json={
@@ -67,7 +67,7 @@ def test_submission_flow_with_attachment(client, auth_headers):
     assert answer_response.status_code == 200
     assert len(answer_response.json()["data"]["answers"]) == 2
 
-    attachment_response = client.post(
+    attachment_response = await client.post(
         f"/api/v1/submissions/{submission_id}/attachments",
         headers=auth_headers,
         json={
@@ -81,7 +81,7 @@ def test_submission_flow_with_attachment(client, auth_headers):
     assert attachment_response.status_code == 200
     assert attachment_response.json()["data"]["field_key"] == "extintor"
 
-    finish_response = client.post(
+    finish_response = await client.post(
         f"/api/v1/submissions/{submission_id}/finish",
         headers=auth_headers,
     )
@@ -90,7 +90,7 @@ def test_submission_flow_with_attachment(client, auth_headers):
     assert finish_payload["status"] == "completed"
     assert finish_payload["score"] == 100.0
 
-    list_attachments_response = client.get(
+    list_attachments_response = await client.get(
         f"/api/v1/submissions/{submission_id}/attachments?page=1&page_size=10",
         headers=auth_headers,
     )
@@ -107,8 +107,8 @@ def test_submission_flow_with_attachment(client, auth_headers):
     )
 
 
-def test_submissions_list_supports_pagination(client, auth_headers):
-    form_response = client.post(
+async def test_submissions_list_supports_pagination(client, auth_headers):
+    form_response = await client.post(
         "/api/v1/forms",
         headers=auth_headers,
         json={
@@ -129,14 +129,14 @@ def test_submissions_list_supports_pagination(client, auth_headers):
     form_id = form_response.json()["data"]["id"]
 
     for _ in range(3):
-        response = client.post(
+        response = await client.post(
             "/api/v1/submissions",
             headers=auth_headers,
             json={"form_id": form_id},
         )
         assert response.status_code == 200
 
-    response = client.get("/api/v1/submissions?page=2&page_size=2", headers=auth_headers)
+    response = await client.get("/api/v1/submissions?page=2&page_size=2", headers=auth_headers)
     assert response.status_code == 200
     payload = response.json()
     assert len(payload["data"]) == 1
@@ -150,8 +150,8 @@ def test_submissions_list_supports_pagination(client, auth_headers):
     )
 
 
-def test_submission_cannot_finish_without_required_answers(client, auth_headers):
-    form_response = client.post(
+async def test_submission_cannot_finish_without_required_answers(client, auth_headers):
+    form_response = await client.post(
         "/api/v1/forms",
         headers=auth_headers,
         json={
@@ -179,21 +179,21 @@ def test_submission_cannot_finish_without_required_answers(client, auth_headers)
     )
     form_id = form_response.json()["data"]["id"]
 
-    create_submission_response = client.post(
+    create_submission_response = await client.post(
         "/api/v1/submissions",
         headers=auth_headers,
         json={"form_id": form_id},
     )
     submission_id = create_submission_response.json()["data"]["id"]
 
-    answer_response = client.put(
+    answer_response = await client.put(
         f"/api/v1/submissions/{submission_id}/answers",
         headers=auth_headers,
         json={"answers": [{"field_key": "extintor", "value": True}]},
     )
     assert answer_response.status_code == 200
 
-    finish_response = client.post(
+    finish_response = await client.post(
         f"/api/v1/submissions/{submission_id}/finish",
         headers=auth_headers,
     )
@@ -205,8 +205,8 @@ def test_submission_cannot_finish_without_required_answers(client, auth_headers)
     assert payload["title"] == "Bad Request"
 
 
-def test_submission_rejects_invalid_field_key(client, auth_headers):
-    form_response = client.post(
+async def test_submission_rejects_invalid_field_key(client, auth_headers):
+    form_response = await client.post(
         "/api/v1/forms",
         headers=auth_headers,
         json={
@@ -226,14 +226,14 @@ def test_submission_rejects_invalid_field_key(client, auth_headers):
     )
     form_id = form_response.json()["data"]["id"]
 
-    create_submission_response = client.post(
+    create_submission_response = await client.post(
         "/api/v1/submissions",
         headers=auth_headers,
         json={"form_id": form_id},
     )
     submission_id = create_submission_response.json()["data"]["id"]
 
-    response = client.put(
+    response = await client.put(
         f"/api/v1/submissions/{submission_id}/answers",
         headers=auth_headers,
         json={"answers": [{"field_key": "nao_existe", "value": True}]},
@@ -241,8 +241,8 @@ def test_submission_rejects_invalid_field_key(client, auth_headers):
     assert_problem(response, 400, "Campo invalido: nao_existe.")
 
 
-def test_attachment_rejects_invalid_field_key(client, auth_headers):
-    form_response = client.post(
+async def test_attachment_rejects_invalid_field_key(client, auth_headers):
+    form_response = await client.post(
         "/api/v1/forms",
         headers=auth_headers,
         json={
@@ -262,14 +262,14 @@ def test_attachment_rejects_invalid_field_key(client, auth_headers):
     )
     form_id = form_response.json()["data"]["id"]
 
-    create_submission_response = client.post(
+    create_submission_response = await client.post(
         "/api/v1/submissions",
         headers=auth_headers,
         json={"form_id": form_id},
     )
     submission_id = create_submission_response.json()["data"]["id"]
 
-    response = client.post(
+    response = await client.post(
         f"/api/v1/submissions/{submission_id}/attachments",
         headers=auth_headers,
         json={
@@ -283,8 +283,8 @@ def test_attachment_rejects_invalid_field_key(client, auth_headers):
     assert_problem(response, 400, "Campo da evidencia nao encontrado.")
 
 
-def test_submission_response_contains_form_version_id(client, auth_headers):
-    form_resp = client.post(
+async def test_submission_response_contains_form_version_id(client, auth_headers):
+    form_resp = await client.post(
         "/api/v1/forms",
         headers=auth_headers,
         json={
@@ -304,7 +304,7 @@ def test_submission_response_contains_form_version_id(client, auth_headers):
     form_id = form_resp.json()["data"]["id"]
     version_id = form_resp.json()["data"]["current_version"]["id"]
 
-    sub_resp = client.post(
+    sub_resp = await client.post(
         "/api/v1/submissions",
         headers=auth_headers,
         json={"form_id": form_id},
@@ -313,8 +313,8 @@ def test_submission_response_contains_form_version_id(client, auth_headers):
     assert sub_resp.json()["data"]["form_version_id"] == version_id
 
 
-def test_submission_create_blocked_for_viewer(client, viewer_headers):
-    response = client.post(
+async def test_submission_create_blocked_for_viewer(client, viewer_headers):
+    response = await client.post(
         "/api/v1/submissions",
         headers=viewer_headers,
         json={"form_id": "00000000-0000-0000-0000-000000000000"},
@@ -322,8 +322,8 @@ def test_submission_create_blocked_for_viewer(client, viewer_headers):
     assert_problem(response, 403, "Usuario sem permissao para executar esta acao.")
 
 
-def test_submission_answers_update_blocked_for_viewer(client, viewer_headers):
-    response = client.put(
+async def test_submission_answers_update_blocked_for_viewer(client, viewer_headers):
+    response = await client.put(
         "/api/v1/submissions/00000000-0000-0000-0000-000000000000/answers",
         headers=viewer_headers,
         json={"answers": []},
@@ -331,8 +331,8 @@ def test_submission_answers_update_blocked_for_viewer(client, viewer_headers):
     assert_problem(response, 403, "Usuario sem permissao para executar esta acao.")
 
 
-def test_submission_finish_blocked_for_viewer(client, viewer_headers):
-    response = client.post(
+async def test_submission_finish_blocked_for_viewer(client, viewer_headers):
+    response = await client.post(
         "/api/v1/submissions/00000000-0000-0000-0000-000000000000/finish",
         headers=viewer_headers,
     )

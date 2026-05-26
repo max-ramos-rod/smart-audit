@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.pagination import PaginationParams
 from app.core.responses import paginated_response, success_response
@@ -18,80 +18,80 @@ def get_team_service() -> TeamService:
 
 
 @router.get("")
-def list_teams(
+async def list_teams(
     params: PaginationParams = Depends(),
     membership: Membership = Depends(get_current_membership),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     service: TeamService = Depends(get_team_service),
 ) -> dict[str, object]:
-    data, meta = service.list_teams(db, membership, params)
+    data, meta = await service.list_teams(db, membership, params)
     return paginated_response([item.model_dump(mode="json") for item in data], meta)
 
 
 @router.post("")
-def create_team(
+async def create_team(
     payload: TeamCreateRequest,
     membership: Membership = Depends(get_manager_membership),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     service: TeamService = Depends(get_team_service),
 ) -> dict[str, object]:
-    data = service.create_team(db, membership, payload)
+    data = await service.create_team(db, membership, payload)
     return success_response(data.model_dump(mode="json"))
 
 
 @router.get("/{team_id}")
-def get_team(
+async def get_team(
     team_id: str,
     membership: Membership = Depends(get_current_membership),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     service: TeamService = Depends(get_team_service),
 ) -> dict[str, object]:
-    data = service.get_team(db, membership, team_id)
+    data = await service.get_team(db, membership, team_id)
     return success_response(data.model_dump(mode="json"))
 
 
 @router.patch("/{team_id}")
-def update_team(
+async def update_team(
     team_id: str,
     payload: TeamUpdateRequest,
     membership: Membership = Depends(get_manager_membership),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     service: TeamService = Depends(get_team_service),
 ) -> dict[str, object]:
-    data = service.update_team(db, membership, team_id, payload)
+    data = await service.update_team(db, membership, team_id, payload)
     return success_response(data.model_dump(mode="json"))
 
 
 @router.delete("/{team_id}")
-def delete_team(
+async def delete_team(
     team_id: str,
     membership: Membership = Depends(get_manager_membership),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     service: TeamService = Depends(get_team_service),
 ) -> dict[str, object]:
-    service.delete_team(db, membership, team_id)
+    await service.delete_team(db, membership, team_id)
     return success_response(None)
 
 
 @router.post("/{team_id}/members")
-def add_member(
+async def add_member(
     team_id: str,
     payload: TeamMemberAddRequest,
     membership: Membership = Depends(get_manager_membership),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     service: TeamService = Depends(get_team_service),
 ) -> dict[str, object]:
-    data = service.add_member(db, membership, team_id, payload)
+    data = await service.add_member(db, membership, team_id, payload)
     return success_response(data.model_dump(mode="json"))
 
 
 @router.delete("/{team_id}/members/{user_id}")
-def remove_member(
+async def remove_member(
     team_id: str,
     user_id: str,
     membership: Membership = Depends(get_manager_membership),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     service: TeamService = Depends(get_team_service),
 ) -> dict[str, object]:
-    data = service.remove_member(db, membership, team_id, user_id)
+    data = await service.remove_member(db, membership, team_id, user_id)
     return success_response(data.model_dump(mode="json"))

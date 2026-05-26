@@ -17,8 +17,8 @@ def assert_pagination_meta(payload, *, total, page, page_size, has_next, total_p
     assert meta["total_pages"] == total_pages
 
 
-def test_login_and_me_returns_authenticated_user(client, seeded_user):
-    login_response = client.post(
+async def test_login_and_me_returns_authenticated_user(client, seeded_user):
+    login_response = await client.post(
         "/api/v1/auth/login",
         json={
             "email": seeded_user["email"],
@@ -32,7 +32,7 @@ def test_login_and_me_returns_authenticated_user(client, seeded_user):
     assert payload["token_type"] == "bearer"
     assert payload["access_token"]
 
-    me_response = client.get(
+    me_response = await client.get(
         "/api/v1/auth/me",
         headers={"Authorization": f"Bearer {payload['access_token']}"},
     )
@@ -42,8 +42,8 @@ def test_login_and_me_returns_authenticated_user(client, seeded_user):
     assert me_payload["email"] == seeded_user["email"]
 
 
-def test_me_companies_and_context_return_single_company_context(client, seeded_user):
-    login_response = client.post(
+async def test_me_companies_and_context_return_single_company_context(client, seeded_user):
+    login_response = await client.post(
         "/api/v1/auth/login",
         json={
             "email": seeded_user["email"],
@@ -53,14 +53,14 @@ def test_me_companies_and_context_return_single_company_context(client, seeded_u
     token = login_response.json()["data"]["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
 
-    companies_response = client.get("/api/v1/me/companies", headers=headers)
+    companies_response = await client.get("/api/v1/me/companies", headers=headers)
     assert companies_response.status_code == 200
     companies_payload = companies_response.json()
     assert len(companies_payload["data"]) == 1
     assert companies_payload["data"][0]["id"] == seeded_user["company_id"]
     assert companies_payload["meta"] == {}
 
-    context_response = client.get("/api/v1/me/context", headers=headers)
+    context_response = await client.get("/api/v1/me/context", headers=headers)
     assert context_response.status_code == 200
     context_payload = context_response.json()["data"]
     assert context_payload["user"]["email"] == seeded_user["email"]
@@ -70,8 +70,8 @@ def test_me_companies_and_context_return_single_company_context(client, seeded_u
     assert context_payload["requires_company_selection"] is False
 
 
-def test_me_context_requires_selection_for_multi_company_user(client, multi_company_user):
-    login_response = client.post(
+async def test_me_context_requires_selection_for_multi_company_user(client, multi_company_user):
+    login_response = await client.post(
         "/api/v1/auth/login",
         json={
             "email": multi_company_user["email"],
@@ -81,12 +81,12 @@ def test_me_context_requires_selection_for_multi_company_user(client, multi_comp
     token = login_response.json()["data"]["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
 
-    companies_response = client.get("/api/v1/me/companies", headers=headers)
+    companies_response = await client.get("/api/v1/me/companies", headers=headers)
     assert companies_response.status_code == 200
     companies_payload = companies_response.json()["data"]
     assert len(companies_payload) == 2
 
-    context_response = client.get("/api/v1/me/context", headers=headers)
+    context_response = await client.get("/api/v1/me/context", headers=headers)
     assert context_response.status_code == 200
     context_payload = context_response.json()["data"]
     assert context_payload["active_company"] is None
@@ -94,7 +94,7 @@ def test_me_context_requires_selection_for_multi_company_user(client, multi_comp
     assert len(context_payload["available_companies"]) == 2
     assert context_payload["requires_company_selection"] is True
 
-    selected_context_response = client.get(
+    selected_context_response = await client.get(
         "/api/v1/me/context",
         headers={
             "Authorization": f"Bearer {token}",
@@ -108,8 +108,8 @@ def test_me_context_requires_selection_for_multi_company_user(client, multi_comp
     assert selected_context_payload["requires_company_selection"] is False
 
 
-def test_login_rejects_invalid_password(client, seeded_user):
-    response = client.post(
+async def test_login_rejects_invalid_password(client, seeded_user):
+    response = await client.post(
         "/api/v1/auth/login",
         json={
             "email": seeded_user["email"],
@@ -120,8 +120,8 @@ def test_login_rejects_invalid_password(client, seeded_user):
     assert_problem(response, 401, "Email ou senha invalidos.")
 
 
-def test_multi_company_user_must_inform_company_header(client, multi_company_user):
-    login_response = client.post(
+async def test_multi_company_user_must_inform_company_header(client, multi_company_user):
+    login_response = await client.post(
         "/api/v1/auth/login",
         json={
             "email": multi_company_user["email"],
@@ -130,7 +130,7 @@ def test_multi_company_user_must_inform_company_header(client, multi_company_use
     )
     token = login_response.json()["data"]["access_token"]
 
-    response = client.get(
+    response = await client.get(
         "/api/v1/forms",
         headers={"Authorization": f"Bearer {token}"},
     )

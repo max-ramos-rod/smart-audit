@@ -1,5 +1,5 @@
 from fastapi import HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import create_access_token, verify_password
 from app.db.models.users import User
@@ -11,8 +11,8 @@ class AuthService:
     def __init__(self, repository: AuthRepository | None = None) -> None:
         self.repository = repository or AuthRepository()
 
-    def login(self, db: Session, email: str, password: str) -> TokenResponse:
-        user = self.repository.get_user_by_email(db, email)
+    async def login(self, db: AsyncSession, email: str, password: str) -> TokenResponse:
+        user = await self.repository.get_user_by_email(db, email)
         if user is None or not user.is_active or not verify_password(password, user.password_hash):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -26,8 +26,8 @@ class AuthService:
             user=self.serialize_user(user),
         )
 
-    def get_current_user(self, db: Session, user_id: str) -> User:
-        user = self.repository.get_user_by_id(db, user_id)
+    async def get_current_user(self, db: AsyncSession, user_id: str) -> User:
+        user = await self.repository.get_user_by_id(db, user_id)
         if user is None or not user.is_active:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,

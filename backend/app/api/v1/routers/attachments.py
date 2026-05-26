@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.pagination import PaginationParams
 from app.core.responses import paginated_response, success_response
@@ -14,31 +14,32 @@ from app.modules.memberships.dependencies import get_current_membership
 router = APIRouter(prefix="/submissions/{submission_id}/attachments", tags=["attachments"])
 
 
-
 def get_attachment_service() -> AttachmentService:
     return AttachmentService()
 
 
 @router.get("")
-def list_attachments(
+async def list_attachments(
     submission_id: str,
     params: PaginationParams = Depends(),
     membership: Membership = Depends(get_current_membership),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     attachment_service: AttachmentService = Depends(get_attachment_service),
 ) -> dict[str, object]:
-    data, meta = attachment_service.list_attachments(db, membership, submission_id, params)
+    data, meta = await attachment_service.list_attachments(db, membership, submission_id, params)
     return paginated_response([item.model_dump(mode="json") for item in data], meta)
 
 
 @router.post("")
-def create_attachment(
+async def create_attachment(
     submission_id: str,
     payload: AttachmentCreateRequest,
     current_user: User = Depends(get_current_user),
     membership: Membership = Depends(get_current_membership),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     attachment_service: AttachmentService = Depends(get_attachment_service),
 ) -> dict[str, object]:
-    data = attachment_service.create_attachment(db, membership, current_user, submission_id, payload)
+    data = await attachment_service.create_attachment(
+        db, membership, current_user, submission_id, payload
+    )
     return success_response(data.model_dump(mode="json"))

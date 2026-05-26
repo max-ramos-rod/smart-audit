@@ -1,5 +1,5 @@
 from fastapi import HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.memberships import Membership
 from app.db.models.users import User
@@ -17,17 +17,19 @@ class MembershipService:
     def __init__(self, repository: MembershipRepository | None = None) -> None:
         self.repository = repository or MembershipRepository()
 
-    def list_user_companies(self, db: Session, user: User) -> list[UserCompanyResponse]:
-        memberships = self.repository.list_by_user_id(db, str(user.id))
+    async def list_user_companies(
+        self, db: AsyncSession, user: User
+    ) -> list[UserCompanyResponse]:
+        memberships = await self.repository.list_by_user_id(db, str(user.id))
         return [self.serialize_company(membership) for membership in memberships]
 
-    def get_user_context(
+    async def get_user_context(
         self,
-        db: Session,
+        db: AsyncSession,
         user: User,
         company_id: str | None = None,
     ) -> UserContextResponse:
-        memberships = self.repository.list_by_user_id(db, str(user.id))
+        memberships = await self.repository.list_by_user_id(db, str(user.id))
         if not memberships:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

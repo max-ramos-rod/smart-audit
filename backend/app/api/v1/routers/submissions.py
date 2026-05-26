@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.pagination import PaginationParams
 from app.core.responses import paginated_response, success_response
@@ -20,57 +20,57 @@ def get_submission_service() -> SubmissionService:
 
 
 @router.get("")
-def list_submissions(
+async def list_submissions(
     params: PaginationParams = Depends(),
     membership: Membership = Depends(get_current_membership),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     submission_service: SubmissionService = Depends(get_submission_service),
 ) -> dict[str, object]:
-    data, meta = submission_service.list_submissions(db, membership, params)
+    data, meta = await submission_service.list_submissions(db, membership, params)
     return paginated_response([item.model_dump(mode="json") for item in data], meta)
 
 
 @router.post("")
-def create_submission(
+async def create_submission(
     payload: SubmissionCreateRequest,
     current_user: User = Depends(get_current_user),
     membership: Membership = Depends(get_operator_membership),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     submission_service: SubmissionService = Depends(get_submission_service),
 ) -> dict[str, object]:
-    data = submission_service.create_submission(db, membership, current_user, payload)
+    data = await submission_service.create_submission(db, membership, current_user, payload)
     return success_response(data.model_dump(mode="json"))
 
 
 @router.get("/{submission_id}")
-def get_submission(
+async def get_submission(
     submission_id: str,
     membership: Membership = Depends(get_current_membership),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     submission_service: SubmissionService = Depends(get_submission_service),
 ) -> dict[str, object]:
-    data = submission_service.get_submission(db, membership, submission_id)
+    data = await submission_service.get_submission(db, membership, submission_id)
     return success_response(data.model_dump(mode="json"))
 
 
 @router.put("/{submission_id}/answers")
-def save_answers(
+async def save_answers(
     submission_id: str,
     payload: SubmissionAnswersUpdateRequest,
     membership: Membership = Depends(get_operator_membership),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     submission_service: SubmissionService = Depends(get_submission_service),
 ) -> dict[str, object]:
-    data = submission_service.save_answers(db, membership, submission_id, payload)
+    data = await submission_service.save_answers(db, membership, submission_id, payload)
     return success_response(data.model_dump(mode="json"))
 
 
 @router.post("/{submission_id}/finish")
-def finish_submission(
+async def finish_submission(
     submission_id: str,
     membership: Membership = Depends(get_operator_membership),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     submission_service: SubmissionService = Depends(get_submission_service),
 ) -> dict[str, object]:
-    data = submission_service.finish_submission(db, membership, submission_id)
+    data = await submission_service.finish_submission(db, membership, submission_id)
     return success_response(data.model_dump(mode="json"))

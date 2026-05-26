@@ -1,5 +1,6 @@
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.pagination import PaginationParams
 from app.core.repositories import SQLAlchemyRepository
@@ -11,34 +12,38 @@ from app.db.models.forms import Form
 class FormRepository(SQLAlchemyRepository[Form]):
     model = Form
 
-    def create_form(self, db: Session, form: Form) -> Form:
-        return self._save(db, form)
+    async def create_form(self, db: AsyncSession, form: Form) -> Form:
+        return await self._save(db, form)
 
-    def create_form_version(self, db: Session, form_version: FormVersion) -> FormVersion:
-        return self._save(db, form_version)
+    async def create_form_version(self, db: AsyncSession, form_version: FormVersion) -> FormVersion:
+        return await self._save(db, form_version)
 
-    def create_form_fields(self, db: Session, fields: list[FormField]) -> list[FormField]:
-        return self._save_many(db, fields)
+    async def create_form_fields(self, db: AsyncSession, fields: list[FormField]) -> list[FormField]:
+        return await self._save_many(db, fields)
 
-    def list_forms_by_company(self, db: Session, company_id: str, params: PaginationParams) -> tuple[list[Form], int]:
+    async def list_forms_by_company(
+        self, db: AsyncSession, company_id: str, params: PaginationParams
+    ) -> tuple[list[Form], int]:
         statement = (
             select(Form)
             .where(Form.company_id == company_id)
             .options(selectinload(Form.versions).selectinload(FormVersion.fields))
             .order_by(Form.created_at.desc())
         )
-        return self._paginate_select(db, statement, params, unique=True)
+        return await self._paginate_select(db, statement, params, unique=True)
 
-    def get_form_by_id(self, db: Session, company_id: str, form_id: str) -> Form | None:
+    async def get_form_by_id(
+        self, db: AsyncSession, company_id: str, form_id: str
+    ) -> Form | None:
         statement = (
             select(Form)
             .where(Form.company_id == company_id, Form.id == form_id)
             .options(selectinload(Form.versions).selectinload(FormVersion.fields))
         )
-        return self._get_one(db, statement)
+        return await self._get_one(db, statement)
 
-    def get_form_version_by_id(
-        self, db: Session, company_id: str, form_id: str, version_id: str
+    async def get_form_version_by_id(
+        self, db: AsyncSession, company_id: str, form_id: str, version_id: str
     ) -> FormVersion | None:
         statement = (
             select(FormVersion)
@@ -50,9 +55,9 @@ class FormRepository(SQLAlchemyRepository[Form]):
             )
             .options(selectinload(FormVersion.fields))
         )
-        return self._get_one(db, statement)
+        return await self._get_one(db, statement)
 
-    def get_next_version_number(self, db: Session, form_id: str) -> int:
+    async def get_next_version_number(self, db: AsyncSession, form_id: str) -> int:
         statement = select(func.max(FormVersion.version)).where(FormVersion.form_id == form_id)
-        current_max = db.scalar(statement) or 0
+        current_max = await db.scalar(statement) or 0
         return int(current_max) + 1

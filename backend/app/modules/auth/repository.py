@@ -1,5 +1,5 @@
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.repositories import SQLAlchemyRepository
 from app.db.models.users import User
@@ -8,10 +8,10 @@ from app.db.models.users import User
 class AuthRepository(SQLAlchemyRepository[User]):
     model = User
 
-    def get_user_by_email(self, db: Session, email: str) -> User | None:
+    async def get_user_by_email(self, db: AsyncSession, email: str) -> User | None:
         statement = select(User).where(User.email == email)
-        return self._get_one(db, statement)
+        return await self._get_one(db, statement)
 
-    def get_user_by_id(self, db: Session, user_id: str) -> User | None:
+    async def get_user_by_id(self, db: AsyncSession, user_id: str) -> User | None:
         statement = select(User).where(User.id == user_id)
-        return self._get_one(db, statement)
+        return await self._get_one(db, statement)

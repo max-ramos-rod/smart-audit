@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.pagination import PaginationParams
 from app.core.responses import paginated_response, success_response
@@ -20,59 +20,59 @@ def get_form_service() -> FormService:
 
 
 @router.get("")
-def list_forms(
+async def list_forms(
     params: PaginationParams = Depends(),
     membership: Membership = Depends(get_current_membership),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     form_service: FormService = Depends(get_form_service),
 ) -> dict[str, object]:
-    data, meta = form_service.list_forms(db, membership, params)
+    data, meta = await form_service.list_forms(db, membership, params)
     return paginated_response([item.model_dump(mode="json") for item in data], meta)
 
 
 @router.get("/{form_id}")
-def get_form(
+async def get_form(
     form_id: str,
     membership: Membership = Depends(get_current_membership),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     form_service: FormService = Depends(get_form_service),
 ) -> dict[str, object]:
-    data = form_service.get_form(db, membership, form_id)
+    data = await form_service.get_form(db, membership, form_id)
     return success_response(data.model_dump(mode="json"))
 
 
 @router.post("")
-def create_form(
+async def create_form(
     payload: FormCreateRequest,
     current_user: User = Depends(get_current_user),
     membership: Membership = Depends(get_manager_membership),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     form_service: FormService = Depends(get_form_service),
 ) -> dict[str, object]:
-    data = form_service.create_form(db, membership, current_user, payload)
+    data = await form_service.create_form(db, membership, current_user, payload)
     return success_response(data.model_dump(mode="json"))
 
 
 @router.get("/{form_id}/versions/{version_id}")
-def get_form_version(
+async def get_form_version(
     form_id: str,
     version_id: str,
     membership: Membership = Depends(get_current_membership),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     form_service: FormService = Depends(get_form_service),
 ) -> dict[str, object]:
-    data = form_service.get_version(db, membership, form_id, version_id)
+    data = await form_service.get_version(db, membership, form_id, version_id)
     return success_response(data.model_dump(mode="json"))
 
 
 @router.post("/{form_id}/versions")
-def publish_new_version(
+async def publish_new_version(
     form_id: str,
     payload: FormVersionPublishRequest,
     current_user: User = Depends(get_current_user),
     membership: Membership = Depends(get_manager_membership),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     form_service: FormService = Depends(get_form_service),
 ) -> dict[str, object]:
-    data = form_service.publish_new_version(db, membership, current_user, form_id, payload)
+    data = await form_service.publish_new_version(db, membership, current_user, form_id, payload)
     return success_response(data.model_dump(mode="json"))

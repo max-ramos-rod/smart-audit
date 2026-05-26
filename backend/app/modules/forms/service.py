@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from fastapi import HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.pagination import PageMeta, PaginationMetaBuilder, PaginationParams
 from app.db.models.form_fields import FormField
@@ -27,33 +27,45 @@ class FormService:
     def __init__(self, repository: FormRepository | None = None) -> None:
         self.repository = repository or FormRepository()
 
-    def list_forms(
+    async def list_forms(
         self,
-        db: Session,
+        db: AsyncSession,
         membership: Membership,
         params: PaginationParams,
     ) -> tuple[list[FormListItemResponse], PageMeta]:
-        forms, total = self.repository.list_forms_by_company(db, str(membership.company_id), params)
+        forms, total = await self.repository.list_forms_by_company(
+            db, str(membership.company_id), params
+        )
         meta = PaginationMetaBuilder.build(total, params)
         return [self.serialize_form_list_item(form) for form in forms], meta
 
-    def get_version(
-        self, db: Session, membership: Membership, form_id: str, version_id: str
+    async def get_version(
+        self, db: AsyncSession, membership: Membership, form_id: str, version_id: str
     ) -> FormVersionResponse:
-        version = self.repository.get_form_version_by_id(
+        version = await self.repository.get_form_version_by_id(
             db, str(membership.company_id), form_id, version_id
         )
         if version is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Versao nao encontrada.")
         return self.serialize_version(version)
 
-    def get_form(self, db: Session, membership: Membership, form_id: str) -> FormResponse:
-        form = self.repository.get_form_by_id(db, str(membership.company_id), form_id)
+    async def get_form(
+        self, db: AsyncSession, membership: Membership, form_id: str
+    ) -> FormResponse:
+        form = await self.repository.get_form_by_id(db, str(membership.company_id), form_id)
         if form is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Formulario nao encontrado.")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Formulario nao encontrado."
+            )
         return self.serialize_form(form)
 
-    def create_form(self, db: Session, membership: Membership, current_user: User, payload: FormCreateRequest) -> FormResponse:
+    async def create_form(
+        self,
+        db: AsyncSession,
+        membership: Membership,
+        current_user: User,
+        payload: FormCreateRequest,
+    ) -> FormResponse:
         self.validate_fields(payload.fields)
 
         form = Form(
@@ -63,7 +75,7 @@ class FormService:
             is_active=True,
             created_by=current_user.id,
         )
-        self.repository.create_form(db, form)
+        await self.repository.create_form(db, form)
 
         form_version = FormVersion(
             form_id=form.id,
@@ -72,7 +84,7 @@ class FormService:
             published_at=datetime.now(UTC),
             created_by=current_user.id,
         )
-        self.repository.create_form_version(db, form_version)
+        await self.repository.create_form_version(db, form_version)
 
         fields = [
             FormField(
@@ -86,26 +98,30 @@ class FormService:
             )
             for item in payload.fields
         ]
-        self.repository.create_form_fields(db, fields)
-        db.commit()
+        await self.repository.create_form_fields(db, fields)
+        await db.commit()
 
-        created_form = self.repository.get_form_by_id(db, str(membership.company_id), str(form.id))
+        created_form = await self.repository.get_form_by_id(
+            db, str(membership.company_id), str(form.id)
+        )
         return self.serialize_form(created_form)
 
-    def publish_new_version(
+    async def publish_new_version(
         self,
-        db: Session,
+        db: AsyncSession,
         membership: Membership,
         current_user: User,
         form_id: str,
         payload: FormVersionPublishRequest,
     ) -> FormResponse:
         self.validate_fields(payload.fields)
-        form = self.repository.get_form_by_id(db, str(membership.company_id), form_id)
+        form = await self.repository.get_form_by_id(db, str(membership.company_id), form_id)
         if form is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Formulario nao encontrado.")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Formulario nao encontrado."
+            )
 
-        next_version = self.repository.get_next_version_number(db, form_id)
+        next_version = await self.repository.get_next_version_number(db, form_id)
         form_version = FormVersion(
             form_id=form.id,
             version=next_version,
@@ -113,7 +129,7 @@ class FormService:
             published_at=datetime.now(UTC),
             created_by=current_user.id,
         )
-        self.repository.create_form_version(db, form_version)
+        await self.repository.create_form_version(db, form_version)
 
         fields = [
             FormField(
@@ -127,23 +143,33 @@ class FormService:
             )
             for item in payload.fields
         ]
-        self.repository.create_form_fields(db, fields)
-        db.commit()
+        await self.repository.create_form_fields(db, fields)
+        await db.commit()
 
-        updated_form = self.repository.get_form_by_id(db, str(membership.company_id), form_id)
+        updated_form = await self.repository.get_form_by_id(
+            db, str(membership.company_id), form_id
+        )
         return self.serialize_form(updated_form)
 
     @staticmethod
     def validate_fields(fields: list[FormFieldCreateRequest]) -> None:
         if not fields:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Informe ao menos um campo.")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Informe ao menos um campo."
+            )
 
         keys = [field.key for field in fields]
         positions = [field.position for field in fields]
         if len(keys) != len(set(keys)):
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="As chaves dos campos devem ser unicas.")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="As chaves dos campos devem ser unicas.",
+            )
         if len(positions) != len(set(positions)):
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="As posicoes dos campos devem ser unicas.")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="As posicoes dos campos devem ser unicas.",
+            )
 
     @staticmethod
     def serialize_form(form: Form) -> FormResponse:

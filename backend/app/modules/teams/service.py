@@ -1,5 +1,5 @@
 from fastapi import HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.pagination import PageMeta, PaginationMetaBuilder, PaginationParams
 from app.db.models.memberships import Membership
@@ -25,25 +25,31 @@ class TeamService:
         self.repository = repository or TeamRepository()
         self.membership_repository = membership_repository or MembershipRepository()
 
-    def list_teams(
+    async def list_teams(
         self,
-        db: Session,
+        db: AsyncSession,
         membership: Membership,
         params: PaginationParams,
     ) -> tuple[list[TeamListItemResponse], PageMeta]:
-        teams, total = self.repository.list_by_company(db, str(membership.company_id), params)
+        teams, total = await self.repository.list_by_company(
+            db, str(membership.company_id), params
+        )
         meta = PaginationMetaBuilder.build(total, params)
         return [self._serialize_list_item(t) for t in teams], meta
 
-    def get_team(self, db: Session, membership: Membership, team_id: str) -> TeamResponse:
-        team = self.repository.get_with_members(db, team_id, str(membership.company_id))
+    async def get_team(
+        self, db: AsyncSession, membership: Membership, team_id: str
+    ) -> TeamResponse:
+        team = await self.repository.get_with_members(db, team_id, str(membership.company_id))
         if team is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Equipe nao encontrada.")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Equipe nao encontrada."
+            )
         return self._serialize(team)
 
-    def create_team(
+    async def create_team(
         self,
-        db: Session,
+        db: AsyncSession,
         membership: Membership,
         payload: TeamCreateRequest,
     ) -> TeamResponse:
@@ -52,45 +58,53 @@ class TeamService:
             name=payload.name,
             created_by=membership.user_id,
         )
-        self.repository.create_team(db, team)
-        db.commit()
-        team = self.repository.get_with_members(db, str(team.id), str(membership.company_id))
+        await self.repository.create_team(db, team)
+        await db.commit()
+        team = await self.repository.get_with_members(db, str(team.id), str(membership.company_id))
         return self._serialize(team)
 
-    def update_team(
+    async def update_team(
         self,
-        db: Session,
+        db: AsyncSession,
         membership: Membership,
         team_id: str,
         payload: TeamUpdateRequest,
     ) -> TeamResponse:
-        team = self.repository.get_with_members(db, team_id, str(membership.company_id))
+        team = await self.repository.get_with_members(db, team_id, str(membership.company_id))
         if team is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Equipe nao encontrada.")
-        self.repository.update_fields(db, team, {"name": payload.name})
-        db.commit()
-        team = self.repository.get_with_members(db, team_id, str(membership.company_id))
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Equipe nao encontrada."
+            )
+        await self.repository.update_fields(db, team, {"name": payload.name})
+        await db.commit()
+        team = await self.repository.get_with_members(db, team_id, str(membership.company_id))
         return self._serialize(team)
 
-    def delete_team(self, db: Session, membership: Membership, team_id: str) -> None:
-        team = self.repository.get(db, team_id)
+    async def delete_team(
+        self, db: AsyncSession, membership: Membership, team_id: str
+    ) -> None:
+        team = await self.repository.get(db, team_id)
         if team is None or str(team.company_id) != str(membership.company_id):
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Equipe nao encontrada.")
-        self.repository.delete(db, team)
-        db.commit()
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Equipe nao encontrada."
+            )
+        await self.repository.delete(db, team)
+        await db.commit()
 
-    def add_member(
+    async def add_member(
         self,
-        db: Session,
+        db: AsyncSession,
         membership: Membership,
         team_id: str,
         payload: TeamMemberAddRequest,
     ) -> TeamResponse:
-        team = self.repository.get(db, team_id)
+        team = await self.repository.get(db, team_id)
         if team is None or str(team.company_id) != str(membership.company_id):
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Equipe nao encontrada.")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Equipe nao encontrada."
+            )
 
-        target = self.membership_repository.get_by_user_and_company(
+        target = await self.membership_repository.get_by_user_and_company(
             db, payload.user_id, str(membership.company_id)
         )
         if target is None:
@@ -99,7 +113,7 @@ class TeamService:
                 detail="Usuario nao pertence a esta empresa.",
             )
 
-        existing = self.repository.get_member(db, team_id, payload.user_id)
+        existing = await self.repository.get_member(db, team_id, payload.user_id)
         if existing is not None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -107,32 +121,34 @@ class TeamService:
             )
 
         member = TeamMember(team_id=team_id, user_id=payload.user_id)
-        self.repository.create_member(db, member)
-        db.commit()
-        team = self.repository.get_with_members(db, team_id, str(membership.company_id))
+        await self.repository.create_member(db, member)
+        await db.commit()
+        team = await self.repository.get_with_members(db, team_id, str(membership.company_id))
         return self._serialize(team)
 
-    def remove_member(
+    async def remove_member(
         self,
-        db: Session,
+        db: AsyncSession,
         membership: Membership,
         team_id: str,
         user_id: str,
     ) -> TeamResponse:
-        team = self.repository.get(db, team_id)
+        team = await self.repository.get(db, team_id)
         if team is None or str(team.company_id) != str(membership.company_id):
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Equipe nao encontrada.")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Equipe nao encontrada."
+            )
 
-        member = self.repository.get_member(db, team_id, user_id)
+        member = await self.repository.get_member(db, team_id, user_id)
         if member is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Usuario nao e membro desta equipe.",
             )
 
-        self.repository.delete(db, member)
-        db.commit()
-        team = self.repository.get_with_members(db, team_id, str(membership.company_id))
+        await self.repository.delete(db, member)
+        await db.commit()
+        team = await self.repository.get_with_members(db, team_id, str(membership.company_id))
         return self._serialize(team)
 
     @staticmethod

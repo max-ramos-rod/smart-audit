@@ -1,5 +1,5 @@
 from fastapi import HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.pagination import PageMeta, PaginationMetaBuilder, PaginationParams
 from app.core.security import hash_password
@@ -20,28 +20,38 @@ class UserService:
     def __init__(self, repository: UserRepository | None = None) -> None:
         self.repository = repository or UserRepository()
 
-    def list_users(
+    async def list_users(
         self,
-        db: Session,
+        db: AsyncSession,
         membership: Membership,
         params: PaginationParams,
     ) -> tuple[list[UserListItemResponse], PageMeta]:
-        memberships, total = self.repository.list_users_by_company(db, str(membership.company_id), params)
+        memberships, total = await self.repository.list_users_by_company(
+            db, str(membership.company_id), params
+        )
         meta = PaginationMetaBuilder.build(total, params)
         return [self.serialize_user_list_item(item) for item in memberships], meta
 
-    def get_user(self, db: Session, membership: Membership, user_id: str) -> UserResponse:
-        target_membership = self.repository.get_company_user(db, str(membership.company_id), user_id)
+    async def get_user(
+        self, db: AsyncSession, membership: Membership, user_id: str
+    ) -> UserResponse:
+        target_membership = await self.repository.get_company_user(
+            db, str(membership.company_id), user_id
+        )
         if target_membership is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario nao encontrado.")
         return self.serialize_user(target_membership)
 
-    def create_user(self, db: Session, membership: Membership, payload: UserCreateRequest) -> UserResponse:
+    async def create_user(
+        self, db: AsyncSession, membership: Membership, payload: UserCreateRequest
+    ) -> UserResponse:
         self.validate_role(payload.role)
 
-        existing_user = self.repository.get_user_by_email(db, payload.email)
+        existing_user = await self.repository.get_user_by_email(db, payload.email)
         if existing_user is not None:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Ja existe usuario com esse email.")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Ja existe usuario com esse email."
+            )
 
         user = User(
             name=payload.name,
@@ -49,27 +59,31 @@ class UserService:
             password_hash=hash_password(payload.password),
             is_active=payload.is_active,
         )
-        self.repository.create_user(db, user)
+        await self.repository.create_user(db, user)
 
         created_membership = Membership(
             company_id=membership.company_id,
             user_id=user.id,
             role=payload.role,
         )
-        self.repository.create_membership(db, created_membership)
-        db.commit()
+        await self.repository.create_membership(db, created_membership)
+        await db.commit()
 
-        target_membership = self.repository.get_company_user(db, str(membership.company_id), str(user.id))
+        target_membership = await self.repository.get_company_user(
+            db, str(membership.company_id), str(user.id)
+        )
         return self.serialize_user(target_membership)
 
-    def update_user(
+    async def update_user(
         self,
-        db: Session,
+        db: AsyncSession,
         membership: Membership,
         user_id: str,
         payload: UserUpdateRequest,
     ) -> UserResponse:
-        target_membership = self.repository.get_company_user(db, str(membership.company_id), user_id)
+        target_membership = await self.repository.get_company_user(
+            db, str(membership.company_id), user_id
+        )
         if target_membership is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario nao encontrado.")
 
@@ -81,14 +95,16 @@ class UserService:
         if payload.is_active is not None:
             user_updates["is_active"] = payload.is_active
         if user_updates:
-            self.repository.update_fields(db, target_membership.user, user_updates)
+            await self.repository.update_fields(db, target_membership.user, user_updates)
 
         if payload.role is not None:
             self.validate_role(payload.role)
-            self.repository.update_fields(db, target_membership, {"role": payload.role})
+            await self.repository.update_fields(db, target_membership, {"role": payload.role})
 
-        db.commit()
-        updated_membership = self.repository.get_company_user(db, str(membership.company_id), user_id)
+        await db.commit()
+        updated_membership = await self.repository.get_company_user(
+            db, str(membership.company_id), user_id
+        )
         return self.serialize_user(updated_membership)
 
     @staticmethod

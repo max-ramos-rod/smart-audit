@@ -1,8 +1,8 @@
 from backend.tests.integration.test_auth import assert_pagination_meta, assert_problem
 
 
-def test_teams_create_list_detail_update_and_delete(client, auth_headers):
-    create_response = client.post(
+async def test_teams_create_list_detail_update_and_delete(client, auth_headers):
+    create_response = await client.post(
         "/api/v1/teams",
         headers=auth_headers,
         json={"name": "Equipe Eletrica"},
@@ -13,20 +13,20 @@ def test_teams_create_list_detail_update_and_delete(client, auth_headers):
     assert created["members"] == []
     team_id = created["id"]
 
-    list_response = client.get("/api/v1/teams?page=1&page_size=10", headers=auth_headers)
+    list_response = await client.get("/api/v1/teams?page=1&page_size=10", headers=auth_headers)
     assert list_response.status_code == 200
     list_payload = list_response.json()
     assert len(list_payload["data"]) == 1
     assert list_payload["data"][0]["member_count"] == 0
     assert_pagination_meta(list_payload, total=1, page=1, page_size=10, has_next=False, total_pages=1)
 
-    detail_response = client.get(f"/api/v1/teams/{team_id}", headers=auth_headers)
+    detail_response = await client.get(f"/api/v1/teams/{team_id}", headers=auth_headers)
     assert detail_response.status_code == 200
     detail = detail_response.json()["data"]
     assert detail["name"] == "Equipe Eletrica"
     assert detail["members"] == []
 
-    update_response = client.patch(
+    update_response = await client.patch(
         f"/api/v1/teams/{team_id}",
         headers=auth_headers,
         json={"name": "Equipe Manutencao"},
@@ -34,25 +34,25 @@ def test_teams_create_list_detail_update_and_delete(client, auth_headers):
     assert update_response.status_code == 200
     assert update_response.json()["data"]["name"] == "Equipe Manutencao"
 
-    delete_response = client.delete(f"/api/v1/teams/{team_id}", headers=auth_headers)
+    delete_response = await client.delete(f"/api/v1/teams/{team_id}", headers=auth_headers)
     assert delete_response.status_code == 200
 
     assert_problem(
-        client.get(f"/api/v1/teams/{team_id}", headers=auth_headers),
+        await client.get(f"/api/v1/teams/{team_id}", headers=auth_headers),
         404,
         "Equipe nao encontrada.",
     )
 
 
-def test_teams_add_and_remove_member(client, auth_headers, seeded_user):
-    team_response = client.post(
+async def test_teams_add_and_remove_member(client, auth_headers, seeded_user):
+    team_response = await client.post(
         "/api/v1/teams",
         headers=auth_headers,
         json={"name": "Equipe Seguranca"},
     )
     team_id = team_response.json()["data"]["id"]
 
-    add_response = client.post(
+    add_response = await client.post(
         f"/api/v1/teams/{team_id}/members",
         headers=auth_headers,
         json={"user_id": seeded_user["user_id"]},
@@ -62,7 +62,7 @@ def test_teams_add_and_remove_member(client, auth_headers, seeded_user):
     assert len(members) == 1
     assert members[0]["user_id"] == seeded_user["user_id"]
 
-    remove_response = client.delete(
+    remove_response = await client.delete(
         f"/api/v1/teams/{team_id}/members/{seeded_user['user_id']}",
         headers=auth_headers,
     )
@@ -70,21 +70,23 @@ def test_teams_add_and_remove_member(client, auth_headers, seeded_user):
     assert remove_response.json()["data"]["members"] == []
 
 
-def test_teams_add_duplicate_member_is_rejected(client, auth_headers, seeded_user):
-    team_id = client.post(
-        "/api/v1/teams",
-        headers=auth_headers,
-        json={"name": "Equipe Duplicata"},
+async def test_teams_add_duplicate_member_is_rejected(client, auth_headers, seeded_user):
+    team_id = (
+        await client.post(
+            "/api/v1/teams",
+            headers=auth_headers,
+            json={"name": "Equipe Duplicata"},
+        )
     ).json()["data"]["id"]
 
-    client.post(
+    await client.post(
         f"/api/v1/teams/{team_id}/members",
         headers=auth_headers,
         json={"user_id": seeded_user["user_id"]},
     )
 
     assert_problem(
-        client.post(
+        await client.post(
             f"/api/v1/teams/{team_id}/members",
             headers=auth_headers,
             json={"user_id": seeded_user["user_id"]},
@@ -94,15 +96,19 @@ def test_teams_add_duplicate_member_is_rejected(client, auth_headers, seeded_use
     )
 
 
-def test_teams_add_member_from_another_company_is_rejected(client, auth_headers, viewer_user):
-    team_id = client.post(
-        "/api/v1/teams",
-        headers=auth_headers,
-        json={"name": "Equipe Isolada"},
+async def test_teams_add_member_from_another_company_is_rejected(
+    client, auth_headers, viewer_user
+):
+    team_id = (
+        await client.post(
+            "/api/v1/teams",
+            headers=auth_headers,
+            json={"name": "Equipe Isolada"},
+        )
     ).json()["data"]["id"]
 
     assert_problem(
-        client.post(
+        await client.post(
             f"/api/v1/teams/{team_id}/members",
             headers=auth_headers,
             json={"user_id": viewer_user["user_id"]},
@@ -112,15 +118,17 @@ def test_teams_add_member_from_another_company_is_rejected(client, auth_headers,
     )
 
 
-def test_teams_remove_nonexistent_member_returns_404(client, auth_headers):
-    team_id = client.post(
-        "/api/v1/teams",
-        headers=auth_headers,
-        json={"name": "Equipe Vazia"},
+async def test_teams_remove_nonexistent_member_returns_404(client, auth_headers):
+    team_id = (
+        await client.post(
+            "/api/v1/teams",
+            headers=auth_headers,
+            json={"name": "Equipe Vazia"},
+        )
     ).json()["data"]["id"]
 
     assert_problem(
-        client.delete(
+        await client.delete(
             f"/api/v1/teams/{team_id}/members/00000000-0000-0000-0000-000000000000",
             headers=auth_headers,
         ),
@@ -129,25 +137,25 @@ def test_teams_remove_nonexistent_member_returns_404(client, auth_headers):
     )
 
 
-def test_teams_create_blocked_for_inspector(client, inspector_headers):
+async def test_teams_create_blocked_for_inspector(client, inspector_headers):
     assert_problem(
-        client.post("/api/v1/teams", headers=inspector_headers, json={"name": "Negada"}),
+        await client.post("/api/v1/teams", headers=inspector_headers, json={"name": "Negada"}),
         403,
         "Usuario sem permissao para executar esta acao.",
     )
 
 
-def test_teams_get_nonexistent_returns_404(client, auth_headers):
+async def test_teams_get_nonexistent_returns_404(client, auth_headers):
     assert_problem(
-        client.get("/api/v1/teams/00000000-0000-0000-0000-000000000000", headers=auth_headers),
+        await client.get("/api/v1/teams/00000000-0000-0000-0000-000000000000", headers=auth_headers),
         404,
         "Equipe nao encontrada.",
     )
 
 
-def test_teams_requires_auth(client):
+async def test_teams_requires_auth(client):
     assert_problem(
-        client.get("/api/v1/teams"),
+        await client.get("/api/v1/teams"),
         401,
         "Token de acesso nao informado.",
     )

@@ -1,10 +1,10 @@
-from collections.abc import Generator
+from collections.abc import AsyncGenerator
 from uuid import uuid4
 
 import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import Connection
-from sqlalchemy.orm import Session
+import pytest_asyncio
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import AsyncConnection, AsyncSession
 
 from app.core.limiter import limiter
 from app.core.security import hash_password
@@ -20,44 +20,48 @@ def disable_rate_limiting():
     limiter.enabled = True
 
 
-@pytest.fixture()
-def db_connection() -> Generator[Connection, None, None]:
-    connection = engine.connect()
-    transaction = connection.begin()
+@pytest_asyncio.fixture()
+async def db_connection() -> AsyncGenerator[AsyncConnection, None]:
+    connection = await engine.connect()
+    transaction = await connection.begin()
     try:
         yield connection
     finally:
-        transaction.rollback()
-        connection.close()
+        await transaction.rollback()
+        await connection.close()
 
 
-@pytest.fixture()
-def db_session(db_connection: Connection) -> Generator[Session, None, None]:
-    session = Session(
+@pytest_asyncio.fixture()
+async def db_session(db_connection: AsyncConnection) -> AsyncGenerator[AsyncSession, None]:
+    session = AsyncSession(
         bind=db_connection,
         join_transaction_mode="create_savepoint",
+        expire_on_commit=False,
     )
     try:
         yield session
     finally:
-        session.close()
+        await session.close()
 
 
-@pytest.fixture()
-def client(db_session: Session, disable_rate_limiting) -> Generator[TestClient, None, None]:
-    def override_get_db() -> Generator[Session, None, None]:
+@pytest_asyncio.fixture()
+async def client(
+    db_session: AsyncSession, disable_rate_limiting
+) -> AsyncGenerator[AsyncClient, None]:
+    async def override_get_db() -> AsyncGenerator[AsyncSession, None]:
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
     try:
-        with TestClient(app) as test_client:
-            yield test_client
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            yield ac
     finally:
         app.dependency_overrides.clear()
 
 
-@pytest.fixture()
-def seeded_user(db_session: Session) -> dict[str, str]:
+@pytest_asyncio.fixture()
+async def seeded_user(db_session: AsyncSession) -> dict[str, str]:
     unique_suffix = uuid4().hex[:8]
     user = User(
         name="Test User",
@@ -72,7 +76,7 @@ def seeded_user(db_session: Session) -> dict[str, str]:
         is_active=True,
     )
     db_session.add_all([user, company])
-    db_session.flush()
+    await db_session.flush()
 
     membership = Membership(
         company_id=company.id,
@@ -80,7 +84,7 @@ def seeded_user(db_session: Session) -> dict[str, str]:
         role="OWNER",
     )
     db_session.add(membership)
-    db_session.commit()
+    await db_session.commit()
 
     return {
         "user_id": str(user.id),
@@ -90,8 +94,8 @@ def seeded_user(db_session: Session) -> dict[str, str]:
     }
 
 
-@pytest.fixture()
-def inspector_user(db_session: Session) -> dict[str, str]:
+@pytest_asyncio.fixture()
+async def inspector_user(db_session: AsyncSession) -> dict[str, str]:
     unique_suffix = uuid4().hex[:8]
     user = User(
         name="Inspector User",
@@ -106,7 +110,7 @@ def inspector_user(db_session: Session) -> dict[str, str]:
         is_active=True,
     )
     db_session.add_all([user, company])
-    db_session.flush()
+    await db_session.flush()
 
     membership = Membership(
         company_id=company.id,
@@ -114,7 +118,7 @@ def inspector_user(db_session: Session) -> dict[str, str]:
         role="INSPECTOR",
     )
     db_session.add(membership)
-    db_session.commit()
+    await db_session.commit()
 
     return {
         "user_id": str(user.id),
@@ -124,8 +128,8 @@ def inspector_user(db_session: Session) -> dict[str, str]:
     }
 
 
-@pytest.fixture()
-def multi_company_user(db_session: Session) -> dict[str, str]:
+@pytest_asyncio.fixture()
+async def multi_company_user(db_session: AsyncSession) -> dict[str, str]:
     unique_suffix = uuid4().hex[:8]
     user = User(
         name="Multi Company User",
@@ -146,7 +150,7 @@ def multi_company_user(db_session: Session) -> dict[str, str]:
         is_active=True,
     )
     db_session.add_all([user, company_a, company_b])
-    db_session.flush()
+    await db_session.flush()
 
     db_session.add_all(
         [
@@ -154,7 +158,7 @@ def multi_company_user(db_session: Session) -> dict[str, str]:
             Membership(company_id=company_b.id, user_id=user.id, role="OWNER"),
         ]
     )
-    db_session.commit()
+    await db_session.commit()
 
     return {
         "email": user.email,
@@ -164,8 +168,8 @@ def multi_company_user(db_session: Session) -> dict[str, str]:
     }
 
 
-@pytest.fixture()
-def viewer_user(db_session: Session) -> dict[str, str]:
+@pytest_asyncio.fixture()
+async def viewer_user(db_session: AsyncSession) -> dict[str, str]:
     unique_suffix = uuid4().hex[:8]
     user = User(
         name="Viewer User",
@@ -180,7 +184,7 @@ def viewer_user(db_session: Session) -> dict[str, str]:
         is_active=True,
     )
     db_session.add_all([user, company])
-    db_session.flush()
+    await db_session.flush()
 
     membership = Membership(
         company_id=company.id,
@@ -188,7 +192,7 @@ def viewer_user(db_session: Session) -> dict[str, str]:
         role="VIEWER",
     )
     db_session.add(membership)
-    db_session.commit()
+    await db_session.commit()
 
     return {
         "user_id": str(user.id),
@@ -198,9 +202,9 @@ def viewer_user(db_session: Session) -> dict[str, str]:
     }
 
 
-@pytest.fixture()
-def viewer_headers(client: TestClient, viewer_user: dict[str, str]) -> dict[str, str]:
-    response = client.post(
+@pytest_asyncio.fixture()
+async def viewer_headers(client: AsyncClient, viewer_user: dict[str, str]) -> dict[str, str]:
+    response = await client.post(
         "/api/v1/auth/login",
         json={
             "email": viewer_user["email"],
@@ -215,9 +219,9 @@ def viewer_headers(client: TestClient, viewer_user: dict[str, str]) -> dict[str,
     }
 
 
-@pytest.fixture()
-def auth_headers(client: TestClient, seeded_user: dict[str, str]) -> dict[str, str]:
-    response = client.post(
+@pytest_asyncio.fixture()
+async def auth_headers(client: AsyncClient, seeded_user: dict[str, str]) -> dict[str, str]:
+    response = await client.post(
         "/api/v1/auth/login",
         json={
             "email": seeded_user["email"],
@@ -232,9 +236,11 @@ def auth_headers(client: TestClient, seeded_user: dict[str, str]) -> dict[str, s
     }
 
 
-@pytest.fixture()
-def inspector_headers(client: TestClient, inspector_user: dict[str, str]) -> dict[str, str]:
-    response = client.post(
+@pytest_asyncio.fixture()
+async def inspector_headers(
+    client: AsyncClient, inspector_user: dict[str, str]
+) -> dict[str, str]:
+    response = await client.post(
         "/api/v1/auth/login",
         json={
             "email": inspector_user["email"],

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.pagination import PaginationParams
 from app.core.responses import paginated_response, success_response
@@ -12,51 +12,50 @@ from app.modules.users.service import UserService
 router = APIRouter(prefix="/users", tags=["users"])
 
 
-
 def get_user_service() -> UserService:
     return UserService()
 
 
 @router.get("")
-def list_users(
+async def list_users(
     params: PaginationParams = Depends(),
     membership: Membership = Depends(get_admin_membership),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     user_service: UserService = Depends(get_user_service),
 ) -> dict[str, object]:
-    data, meta = user_service.list_users(db, membership, params)
+    data, meta = await user_service.list_users(db, membership, params)
     return paginated_response([item.model_dump(mode="json") for item in data], meta)
 
 
 @router.get("/{user_id}")
-def get_user(
+async def get_user(
     user_id: str,
     membership: Membership = Depends(get_admin_membership),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     user_service: UserService = Depends(get_user_service),
 ) -> dict[str, object]:
-    data = user_service.get_user(db, membership, user_id)
+    data = await user_service.get_user(db, membership, user_id)
     return success_response(data.model_dump(mode="json"))
 
 
 @router.post("")
-def create_user(
+async def create_user(
     payload: UserCreateRequest,
     membership: Membership = Depends(get_admin_membership),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     user_service: UserService = Depends(get_user_service),
 ) -> dict[str, object]:
-    data = user_service.create_user(db, membership, payload)
+    data = await user_service.create_user(db, membership, payload)
     return success_response(data.model_dump(mode="json"))
 
 
 @router.patch("/{user_id}")
-def update_user(
+async def update_user(
     user_id: str,
     payload: UserUpdateRequest,
     membership: Membership = Depends(get_admin_membership),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     user_service: UserService = Depends(get_user_service),
 ) -> dict[str, object]:
-    data = user_service.update_user(db, membership, user_id, payload)
+    data = await user_service.update_user(db, membership, user_id, payload)
     return success_response(data.model_dump(mode="json"))
