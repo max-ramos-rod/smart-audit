@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import AppShell from '@/components/layout/AppShell.vue'
@@ -13,8 +13,22 @@ const activeCompany = computed(() => context.value?.active_company)
 const membership = computed(() => context.value?.membership)
 const stats = computed(() => contextStore.stats)
 
+const activePeriod = ref<string>('all')
+
+const PERIOD_OPTIONS = [
+  { label: '7 dias', value: '7d' },
+  { label: '30 dias', value: '30d' },
+  { label: '90 dias', value: '90d' },
+  { label: 'Tudo', value: 'all' },
+]
+
+async function setPeriod(period: string) {
+  activePeriod.value = period
+  await contextStore.loadStats(period)
+}
+
 onMounted(() => {
-  contextStore.loadStats()
+  contextStore.loadStats(activePeriod.value)
 })
 
 function statusLabel(status: string) {
@@ -71,8 +85,25 @@ function statusLabel(status: string) {
     </section>
 
     <!-- metricas de inspecoes -->
+    <section class="flex items-center justify-between gap-3 px-1">
+      <p class="eyebrow">Métricas de inspeções</p>
+      <div class="flex gap-1">
+        <button
+          v-for="opt in PERIOD_OPTIONS"
+          :key="opt.value"
+          type="button"
+          class="rounded-xl px-3 py-1.5 text-xs font-semibold transition"
+          :class="activePeriod === opt.value
+            ? 'bg-gradient-to-br from-sa-brand to-sa-brand-strong text-white shadow-sm'
+            : 'text-sa-muted hover:bg-white/70 hover:text-sa-text'"
+          @click="setPeriod(opt.value)"
+        >
+          {{ opt.label }}
+        </button>
+      </div>
+    </section>
+
     <section>
-      <p class="eyebrow mb-3 px-1">Métricas de inspeções</p>
       <div
         v-if="contextStore.isLoadingStats"
         class="surface-panel p-5 text-center text-sm text-sa-muted"

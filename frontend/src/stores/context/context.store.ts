@@ -43,12 +43,12 @@ export const useContextStore = defineStore('context', () => {
     }
   }
 
-  async function loadStats() {
+  async function loadStats(period?: string) {
     isLoadingStats.value = true
     try {
-      stats.value = await fetchMyStats()
+      stats.value = await fetchMyStats(period)
     } catch {
-      // stats are best-effort — não bloqueia a UI
+      // stats são best-effort — não bloqueia a UI
     } finally {
       isLoadingStats.value = false
     }

@@ -15,8 +15,9 @@ export async function fetchMyContext(companyId?: string | null) {
   return response.data.data
 }
 
-export async function fetchMyStats() {
-  const response = await http.get<ApiEnvelope<CompanyStats>>('/me/stats')
+export async function fetchMyStats(period?: string) {
+  const params = period && period !== 'all' ? { period } : {}
+  const response = await http.get<ApiEnvelope<CompanyStats>>('/me/stats', { params })
   return response.data.data
 }
 
