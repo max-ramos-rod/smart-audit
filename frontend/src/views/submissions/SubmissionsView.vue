@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import AppShell from '@/components/layout/AppShell.vue'
@@ -16,15 +16,23 @@ const showComposer = ref(false)
 const selectedFormId = ref('')
 const createError = ref<string | null>(null)
 
-const completedCount = computed(
-  () => submissionsStore.items.filter((s) => s.status === 'completed').length,
-)
-
 const currentPage = ref(1)
+const activeStatus = ref<string | undefined>(undefined)
 
-async function loadPage(page: number) {
+const STATUS_OPTIONS = [
+  { label: 'Todas', value: undefined },
+  { label: 'Em andamento', value: 'in_progress' },
+  { label: 'Concluídas', value: 'completed' },
+] as const
+
+async function loadPage(page: number, status?: string) {
   currentPage.value = page
-  await submissionsStore.load(page)
+  await submissionsStore.load(page, 20, status)
+}
+
+async function setStatus(status: string | undefined) {
+  activeStatus.value = status
+  await loadPage(1, status)
 }
 
 onMounted(() => {
@@ -90,7 +98,9 @@ function statusLabel(status: string) {
       </article>
       <article class="surface-panel p-4">
         <span class="eyebrow">Concluídas</span>
-        <strong class="mt-2 block text-2xl font-semibold text-sa-text">{{ completedCount }}</strong>
+        <strong class="mt-2 block text-2xl font-semibold text-sa-text">
+          {{ activeStatus === 'completed' ? submissionsStore.meta?.total ?? '—' : '—' }}
+        </strong>
       </article>
       <article class="surface-panel p-4">
         <span class="eyebrow">Página</span>
@@ -152,6 +162,21 @@ function statusLabel(status: string) {
       Carregando inspeções...
     </p>
 
+    <section class="flex gap-2">
+      <button
+        v-for="opt in STATUS_OPTIONS"
+        :key="String(opt.value)"
+        type="button"
+        class="rounded-2xl px-4 py-2 text-sm font-medium transition"
+        :class="activeStatus === opt.value
+          ? 'bg-gradient-to-br from-sa-brand to-sa-brand-strong text-white shadow-lg shadow-amber-950/15'
+          : 'text-sa-text hover:bg-white/70'"
+        @click="setStatus(opt.value)"
+      >
+        {{ opt.label }}
+      </button>
+    </section>
+
     <section v-if="submissionsStore.items.length" class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
       <article
         v-for="submission in submissionsStore.items"
@@ -204,7 +229,7 @@ function statusLabel(status: string) {
         type="button"
         variant="ghost"
         :disabled="currentPage <= 1 || submissionsStore.isLoading"
-        @click="loadPage(currentPage - 1)"
+        @click="loadPage(currentPage - 1, activeStatus)"
       >
         ← Anterior
       </BaseButton>
@@ -215,7 +240,7 @@ function statusLabel(status: string) {
         type="button"
         variant="ghost"
         :disabled="!submissionsStore.meta.has_next || submissionsStore.isLoading"
-        @click="loadPage(currentPage + 1)"
+        @click="loadPage(currentPage + 1, activeStatus)"
       >
         Próxima →
       </BaseButton>

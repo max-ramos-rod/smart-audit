@@ -24,12 +24,16 @@ export const useSubmissionsStore = defineStore('submissions', () => {
   const isLoading = ref(false)
   const isSaving = ref(false)
   const error = ref<string | null>(null)
+  const status = ref<string | undefined>(undefined)
+  const formId = ref<string | undefined>(undefined)
 
-  async function load(page = 1, pageSize = 20) {
+  async function load(page = 1, pageSize = 20, statusFilter?: string, formIdFilter?: string) {
+    status.value = statusFilter
+    formId.value = formIdFilter
     isLoading.value = true
     error.value = null
     try {
-      const response = await fetchSubmissions(page, pageSize)
+      const response = await fetchSubmissions(page, pageSize, statusFilter, formIdFilter)
       items.value = response.data
       meta.value = response.meta
     } catch (err: any) {
@@ -101,5 +105,5 @@ export const useSubmissionsStore = defineStore('submissions', () => {
     error.value = null
   }
 
-  return { items, current, meta, isLoading, isSaving, error, load, loadOne, create, updateAnswers, finish, reset }
+  return { items, current, meta, isLoading, isSaving, error, load, loadOne, create, updateAnswers, finish, reset, status, formId }
 })

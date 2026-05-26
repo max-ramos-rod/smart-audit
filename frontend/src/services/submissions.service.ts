@@ -8,10 +8,18 @@ import type {
 
 import { http } from './api/http'
 
-export async function fetchSubmissions(page = 1, pageSize = 20) {
-  const response = await http.get<PaginatedEnvelope<SubmissionListItem>>('/submissions', {
-    params: { page, page_size: pageSize },
-  })
+export async function fetchSubmissions(
+  page = 1,
+  pageSize = 20,
+  status?: string,
+  formId?: string,
+  createdBy?: string,
+) {
+  const params: Record<string, unknown> = { page, page_size: pageSize }
+  if (status) params.status = status
+  if (formId) params.form_id = formId
+  if (createdBy) params.created_by = createdBy
+  const response = await http.get<PaginatedEnvelope<SubmissionListItem>>('/submissions', { params })
   return response.data
 }
 
