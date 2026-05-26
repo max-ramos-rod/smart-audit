@@ -2,9 +2,9 @@ import { ref } from 'vue'
 import { defineStore } from 'pinia'
 
 import { extractProblemMessage } from '@/services/api/problem'
-import { createForm, fetchForms, publishNewVersion } from '@/services/forms.service'
+import { createForm, fetchForms, fetchFormVersions, publishNewVersion } from '@/services/forms.service'
 import type { PaginationMeta } from '@/types/api'
-import type { FormCreatePayload, FormListItem, FormVersionPublishPayload } from '@/types/forms'
+import type { FormCreatePayload, FormListItem, FormVersionListItem, FormVersionPublishPayload } from '@/types/forms'
 
 export const useFormsStore = defineStore('forms', () => {
   const items = ref<FormListItem[]>([])
@@ -12,6 +12,8 @@ export const useFormsStore = defineStore('forms', () => {
   const isLoading = ref(false)
   const isSaving = ref(false)
   const error = ref<string | null>(null)
+  const versions = ref<FormVersionListItem[]>([])
+  const isLoadingVersions = ref(false)
 
   async function load(page = 1, pageSize = 20) {
     isLoading.value = true
@@ -58,5 +60,21 @@ export const useFormsStore = defineStore('forms', () => {
     }
   }
 
-  return { items, meta, isLoading, isSaving, error, load, create, publishVersion }
+  async function loadVersions(formId: string) {
+    isLoadingVersions.value = true
+    try {
+      versions.value = await fetchFormVersions(formId)
+    } catch (err: any) {
+      error.value = extractProblemMessage(err, 'Nao foi possivel carregar versoes.')
+      throw err
+    } finally {
+      isLoadingVersions.value = false
+    }
+  }
+
+  function clearVersions() {
+    versions.value = []
+  }
+
+  return { items, meta, isLoading, isSaving, error, load, create, publishVersion, versions, isLoadingVersions, loadVersions, clearVersions }
 })

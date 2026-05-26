@@ -6,6 +6,7 @@ import { useContextStore } from '@/stores/context/context.store'
 import CompanySelectView from '@/views/auth/CompanySelectView.vue'
 import LoginView from '@/views/auth/LoginView.vue'
 import HomeView from '@/views/dashboard/HomeView.vue'
+import FormVersionsView from '@/views/forms/FormVersionsView.vue'
 import FormsView from '@/views/forms/FormsView.vue'
 import SubmissionDetailView from '@/views/submissions/SubmissionDetailView.vue'
 import SubmissionsView from '@/views/submissions/SubmissionsView.vue'
@@ -55,6 +56,12 @@ const router = createRouter({
       path: '/submissions/:id',
       name: 'submission-detail',
       component: SubmissionDetailView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/forms/:formId/versions',
+      name: 'form-versions',
+      component: FormVersionsView,
       meta: { requiresAuth: true },
     },
     {

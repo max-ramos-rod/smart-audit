@@ -54,3 +54,11 @@ export interface FormCreatePayload {
 export interface FormVersionPublishPayload {
   fields: FormFieldCreatePayload[]
 }
+
+export interface FormVersionListItem {
+  id: string
+  version: number
+  status: string
+  published_at: string | null
+  fields_count: number
+}

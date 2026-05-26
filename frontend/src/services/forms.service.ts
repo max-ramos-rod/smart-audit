@@ -4,6 +4,7 @@ import type {
   FormDetail,
   FormListItem,
   FormVersion,
+  FormVersionListItem,
   FormVersionPublishPayload,
 } from '@/types/forms'
 
@@ -28,6 +29,13 @@ export async function createForm(payload: FormCreatePayload) {
 
 export async function fetchFormVersion(formId: string, versionId: string) {
   const response = await http.get<ApiEnvelope<FormVersion>>(`/forms/${formId}/versions/${versionId}`)
+  return response.data.data
+}
+
+export async function fetchFormVersions(formId: string) {
+  const response = await http.get<ApiEnvelope<FormVersionListItem[]>>(
+    `/forms/${formId}/versions`,
+  )
   return response.data.data
 }
 

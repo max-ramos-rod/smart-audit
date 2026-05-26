@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
 
 import AppShell from '@/components/layout/AppShell.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
@@ -8,6 +9,7 @@ import { fetchForm } from '@/services/forms.service'
 import { useFormsStore } from '@/stores/forms/forms.store'
 import type { FormFieldCreatePayload } from '@/types/forms'
 
+const router = useRouter()
 const formsStore = useFormsStore()
 
 // --- create form state ---
@@ -387,13 +389,22 @@ async function submitVersion() {
           <span class="text-sm text-sa-muted">
             {{ form.published_at ? new Date(form.published_at).toLocaleDateString('pt-BR') : 'Não publicado' }}
           </span>
-          <button
-            class="inline-action"
-            type="button"
-            @click="openVersionComposer(form.id, form.name)"
-          >
-            Nova versão →
-          </button>
+          <div class="flex items-center gap-3">
+            <button
+              class="inline-action"
+              type="button"
+              @click="router.push({ name: 'form-versions', params: { formId: form.id } })"
+            >
+              Histórico
+            </button>
+            <button
+              class="inline-action"
+              type="button"
+              @click="openVersionComposer(form.id, form.name)"
+            >
+              Nova versão →
+            </button>
+          </div>
         </footer>
       </article>
     </section>
