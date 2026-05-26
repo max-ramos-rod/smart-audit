@@ -32,6 +32,10 @@ const fields = computed(() =>
 const uploadingField = ref<string | null>(null)
 const uploadErrors = reactive<Record<string, string>>({})
 
+function selectOptions(configJson: Record<string, unknown>): string[] {
+  return Array.isArray(configJson.options) ? (configJson.options as string[]) : []
+}
+
 function populateDraft() {
   if (!submission.value) return
   for (const ans of submission.value.answers) {
@@ -304,12 +308,16 @@ async function handleExport() {
 
             <!-- select -->
             <label v-else-if="field.field_type === 'select'" class="grid gap-2">
-              <input
-                v-model="draftAnswers[field.key]"
-                type="text"
-                placeholder="Informe a opção selecionada"
-                :disabled="isCompleted"
-              />
+              <select v-model="draftAnswers[field.key]" :disabled="isCompleted">
+                <option value="">— Sem resposta —</option>
+                <option
+                  v-for="opt in selectOptions(field.config_json)"
+                  :key="opt"
+                  :value="opt"
+                >
+                  {{ opt }}
+                </option>
+              </select>
             </label>
 
             <!-- text (default) -->
