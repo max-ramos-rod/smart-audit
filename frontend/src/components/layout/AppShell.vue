@@ -92,6 +92,13 @@ function logout() {
           >
             Inspeções
           </RouterLink>
+          <RouterLink
+            to="/teams"
+            class="rounded-2xl px-4 py-3 text-center text-sm font-medium text-sa-text transition hover:bg-white/70 lg:text-left"
+            active-class="bg-gradient-to-br from-sa-brand to-sa-brand-strong text-white shadow-lg shadow-amber-950/15"
+          >
+            Equipes
+          </RouterLink>
         </nav>
       </div>
 

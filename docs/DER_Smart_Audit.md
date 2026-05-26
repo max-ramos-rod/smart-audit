@@ -167,11 +167,17 @@ Campos:
 - `user_id UUID FK -> users.id ON DELETE CASCADE`
 - `role VARCHAR(30)`
 - `created_at TIMESTAMPTZ`
+- `updated_at TIMESTAMPTZ`
 
 Restrições:
 
 - `UNIQUE(company_id, user_id)`
 - `CHECK (role IN ('OWNER', 'ADMIN', 'MANAGER', 'INSPECTOR', 'VIEWER'))`
+
+Índices:
+
+- `ix_memberships_company_id`
+- `ix_memberships_user_id`
 
 ---
 
@@ -209,6 +215,7 @@ Campos:
 - `published_at TIMESTAMPTZ NULL`
 - `created_by UUID FK -> users.id`
 - `created_at TIMESTAMPTZ`
+- `updated_at TIMESTAMPTZ`
 
 Restrições:
 
@@ -248,7 +255,6 @@ Campos:
 
 - `id UUID PK`
 - `company_id UUID FK -> companies.id`
-- `form_id UUID FK -> forms.id`
 - `form_version_id UUID FK -> form_versions.id`
 - `created_by UUID FK -> users.id`
 - `status VARCHAR(20)` — `draft | in_progress | completed | cancelled`
@@ -305,6 +311,7 @@ Campos:
 - `file_size BIGINT`
 - `uploaded_by UUID FK -> users.id`
 - `created_at TIMESTAMPTZ`
+- `updated_at TIMESTAMPTZ`
 
 Índices:
 

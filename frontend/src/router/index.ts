@@ -9,6 +9,7 @@ import HomeView from '@/views/dashboard/HomeView.vue'
 import FormsView from '@/views/forms/FormsView.vue'
 import SubmissionDetailView from '@/views/submissions/SubmissionDetailView.vue'
 import SubmissionsView from '@/views/submissions/SubmissionsView.vue'
+import TeamsView from '@/views/teams/TeamsView.vue'
 import UsersView from '@/views/users/UsersView.vue'
 
 const router = createRouter({
@@ -54,6 +55,12 @@ const router = createRouter({
       path: '/submissions/:id',
       name: 'submission-detail',
       component: SubmissionDetailView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/teams',
+      name: 'teams',
+      component: TeamsView,
       meta: { requiresAuth: true },
     },
   ],

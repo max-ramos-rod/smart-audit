@@ -231,6 +231,7 @@ frontend/
       users/
       forms/
       submissions/
+      teams/
     services/
       api/
         http.ts           # cliente Axios centralizado
@@ -241,6 +242,7 @@ frontend/
       users.service.ts
       forms.service.ts
       submissions.service.ts
+      teams.service.ts
       uploads.service.ts
       attachments.service.ts
     views/
@@ -249,13 +251,14 @@ frontend/
       users/
       forms/
       submissions/
+      teams/
     components/
       layout/
         AppShell.vue      # sidebar + nav + seleção de empresa
       ui/
         BaseButton.vue
     types/
-    __tests__/            # 25 testes Vitest (problem, storage, auth.store, context.store)
+    __tests__/            # 37 testes Vitest (problem, storage, auth.store, context.store, teams.store)
 ```
 
 ## 5. Padrões de Projeto Adotados
@@ -371,7 +374,7 @@ frontend/
 ### Equipes (`/api/v1/teams`)
 
 - CRUD de equipes por empresa
-- `POST /teams/{id}/members/{user_id}` — adiciona membro (valida que pertence à empresa)
+- `POST /teams/{id}/members` — adiciona membro (body: `{user_id}`; valida que pertence à empresa)
 - `DELETE /teams/{id}/members/{user_id}` — remove membro
 - Leitura livre para qualquer membro; escrita exige `MANAGER` ou superior
 
@@ -421,13 +424,13 @@ frontend/
 
 ## 9. Estratégia de Testes
 
-### Backend — 85 testes de integração (pytest)
+### Backend — 85 testes (pytest)
 
-Configuração: `python -m pytest` na raiz do repositório. Cada teste roda em transação PostgreSQL com rollback via savepoint (`join_transaction_mode="create_savepoint"`). Nenhum mock de banco.
+Configuração: `python -m pytest` na raiz do repositório. 44 testes de integração com PostgreSQL real (savepoint isolation) + 41 testes de unidade da camada de serviço.
 
-Cobertura por módulo:
+Testes de integração (`backend/tests/integration/`):
 
-| Arquivo de teste | Testes |
+| Arquivo de teste | Cobertura |
 |---|---|
 | `test_auth.py` | login, me, token inválido |
 | `test_users.py` | CRUD, permissões por papel |
@@ -436,19 +439,28 @@ Cobertura por módulo:
 | `test_attachments.py` | criação, listagem, isolamento por empresa |
 | `test_uploads.py` | JPEG/PNG/WebP, MIME inválido, tamanho excedido, auth |
 | `test_teams.py` | CRUD, membros, duplicata rejeitada, isolamento, permissões |
+| `test_me.py` | contexto, empresas, stats |
 
-### Frontend — 25 testes (Vitest + jsdom)
+Testes de unidade (`backend/tests/unit/`):
+
+| Arquivo de teste | Cobertura |
+|---|---|
+| `test_form_service.py` | lógica de serviço de formulários, validações |
+| `test_submission_service.py` | normalização de respostas, cálculo de score, serialização por tipo |
+
+### Frontend — 37 testes (Vitest + jsdom)
 
 Configuração: `npm test` em `frontend/`. Ambiente jsdom, globals habilitados.
 
 Cobertura:
 
-| Arquivo de teste | Testes |
+| Arquivo de teste | Cobertura |
 |---|---|
 | `problem.test.ts` | todos os ramos de `extractProblemMessage` |
 | `storage.test.ts` | read/write/clear de token e company-id |
 | `auth.store.test.ts` | login, logout, setUser, isAuthenticated, persistência |
 | `context.store.test.ts` | bootstrap, selectCompany, reset, erro |
+| `teams.store.test.ts` | CRUD de equipes, addMember, removeMember, clearSelectedTeam |
 
 ## 10. Decisões Arquiteturais
 
@@ -536,10 +548,11 @@ Cobertura:
 
 ### Fase 3 — Robustez ✅
 
-- 85 testes de integração (backend)
-- 25 testes de unidade (frontend)
+- 85 testes backend (44 integração + 41 unidade)
+- 37 testes frontend (Vitest)
 - dashboard com métricas de inspeções
-- módulo de equipes (CRUD + membros)
+- módulo de equipes completo: backend (CRUD + membros) + frontend (TeamsView, teams.store, teams.service)
+- migração completa para SQLAlchemy async (asyncpg + AsyncSession)
 - paginação refinada em todos os módulos
 - correção de reidratação de usuário após refresh
 - encoding correto em toda a UI
