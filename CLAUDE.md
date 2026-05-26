@@ -63,7 +63,7 @@ The frontend expects the backend at `VITE_API_BASE_URL` (defaults to `http://127
 
 ### Tests need a real database
 
-`backend/tests/conftest.py` connects to the database configured in `.env` and uses SQLAlchemy savepoint isolation (open a connection + transaction per test, rollback at teardown). There is **no** mock/SQLite shortcut — integration tests will fail if Postgres is not reachable and migrated.
+`backend/tests/conftest.py` connects to the database configured in `.env` and uses async SQLAlchemy savepoint isolation: one `AsyncConnection` + outer transaction per test, with `join_transaction_mode="create_savepoint"` so every `db.commit()` inside service code creates a savepoint instead of a real commit. The outer transaction is rolled back at teardown — no cleanup SQL needed. There is **no** mock/SQLite shortcut — integration tests will fail if Postgres is not reachable and migrated.
 
 ```powershell
 # Before running tests for the first time:
@@ -71,13 +71,20 @@ alembic upgrade head
 python -m pytest
 ```
 
+Key test infrastructure decisions:
+- `pytest-asyncio` with `asyncio_mode = "auto"` — all `async def test_*` and `async def` fixtures run automatically.
+- `asyncio_default_fixture_loop_scope = "session"` and `asyncio_default_test_loop_scope = "session"` — all tests and fixtures share one event loop for the entire run. Required because asyncpg connections bind to an event loop at creation; a per-function loop would close the loop under the connection pool.
+- `httpx.AsyncClient` + `ASGITransport` replaces the sync `TestClient`. All HTTP calls in tests must be `await client.post(...)`.
+- `expire_on_commit=False` on the test `AsyncSession` — prevents attribute expiry after savepoint commits, which would trigger lazy-load errors in async context.
+- `populate_existing=True` in `_get_one` / `_list_from_stmt` (base repository) — forces selectinload to re-query even when the identity map already has the object. Critical for correctness after mutations: without it, stale Python-string FK values (set at object creation) would prevent selectinload from matching related objects whose PKs asyncpg returns as `uuid.UUID`.
+
 The `client` fixture disables the rate limiter automatically (`limiter.enabled = False`) — do not disable it manually in individual tests.
 
 Fixtures available in `conftest.py`:
 
 | Fixture | Role | Description |
 |---|---|---|
-| `client` | — | TestClient with DB override + rate limiter disabled |
+| `client` | — | `httpx.AsyncClient` with DB override + rate limiter disabled |
 | `auth_headers` | OWNER | JWT + X-Company-Id for a seeded OWNER user |
 | `inspector_headers` | INSPECTOR | JWT + X-Company-Id for a seeded INSPECTOR user |
 | `viewer_headers` | VIEWER | JWT + X-Company-Id for a seeded VIEWER user |
@@ -99,6 +106,17 @@ Rules enforced across the codebase:
 - **Named creation methods in repositories.** Do not call `_save` directly from services — repositories expose named methods (`create_team`, `create_member`, etc.) that call `_save` internally. This keeps the service layer free of ORM details.
 - **Response envelope is non-negotiable.** Successes return `{ "data": ..., "meta": {...} }`; paginated lists use `PageMeta` from [backend/app/core/pagination.py](backend/app/core/pagination.py); errors flow through the handlers in [backend/app/core/errors.py](backend/app/core/errors.py) and produce **RFC 7807** `application/problem+json` payloads. Tests in `backend/tests/integration/` assert this envelope shape — breaking it breaks the suite.
 - **All request schemas use Field constraints.** Every `str` field on a request schema must have `Field(min_length=..., max_length=...)`. Never use bare `name: str`.
+
+### Async SQLAlchemy — rules and pitfalls
+
+The entire backend uses `asyncpg` + `AsyncSession`. Every endpoint function, service method, repository method, and FastAPI dependency is `async def`. Key rules:
+
+- **`db.add()` and `db.add_all()` are synchronous** — no `await`. Everything else that touches the database needs `await`: `db.flush()`, `db.commit()`, `db.delete()`, `db.get()`, `db.scalar()`, `db.scalars()`, `db.execute()`.
+- **No lazy loading.** Async SQLAlchemy raises `MissingGreenlet` on any implicit lazy load. All relationships that are accessed after a query must be loaded eagerly with `selectinload` (or `joinedload`) in the same query. Add `selectinload` to the query options — never rely on attribute access triggering a load.
+- **Chained selectinload for nested relationships.** Use `.options(selectinload(Parent.children).selectinload(Child.grandchildren))` — this issues two sequential sub-queries, both within the same async context.
+- **`populate_existing=True` in base repository read methods.** `_get_one` and `_list_from_stmt` pass `.execution_options(populate_existing=True)` to every query. This forces SQLAlchemy to reload objects from the DB result even when they exist in the identity map. Without it, re-queries after mutations return stale cached state — most critically, FK columns set as Python strings at object creation would never be refreshed to the `uuid.UUID` values asyncpg returns, causing selectinload to silently fail to match related objects.
+- **Alembic runs sync inside async.** `backend/alembic/env.py` uses `asyncio.run(run_async_migrations())` → `engine.connect()` → `await connection.run_sync(do_run_migrations)`. The `run_sync` bridge allows Alembic's synchronous context to run over an async connection.
+- **`DATABASE_URL` must use the `asyncpg` driver.** Format: `postgresql+asyncpg://user:pass@host:port/db`. The `psycopg`/`psycopg-binary` packages are not installed — do not add them back.
 
 ### Multi-tenancy and auth
 
