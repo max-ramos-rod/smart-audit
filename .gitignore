@@ -26,6 +26,3 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
-
-# Documentação interna
-docs/
