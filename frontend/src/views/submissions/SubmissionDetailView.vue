@@ -43,13 +43,8 @@ function populateDraft() {
       draftAnswers[ans.field_key] = ''
     } else if (ans.field_type === 'boolean') {
       draftAnswers[ans.field_key] = ans.value ? 'true' : 'false'
-    } else if (
-      ans.field_type === 'select' &&
-      typeof ans.value === 'object' &&
-      ans.value !== null
-    ) {
-      draftAnswers[ans.field_key] =
-        ((ans.value as Record<string, unknown>).option as string) ?? ''
+    } else if (ans.field_type === 'select') {
+      draftAnswers[ans.field_key] = typeof ans.value === 'string' ? ans.value : ''
     } else {
       draftAnswers[ans.field_key] = String(ans.value)
     }
@@ -87,7 +82,7 @@ function buildPayload() {
         const n = parseFloat(raw)
         value = isNaN(n) ? null : n
       } else if (field.field_type === 'select') {
-        value = { option: raw }
+        value = raw
       } else {
         value = raw
       }
@@ -308,16 +303,25 @@ async function handleExport() {
 
             <!-- select -->
             <label v-else-if="field.field_type === 'select'" class="grid gap-2">
-              <select v-model="draftAnswers[field.key]" :disabled="isCompleted">
-                <option value="">— Sem resposta —</option>
+              <select
+                v-if="selectOptions(field.config_json).length"
+                v-model="draftAnswers[field.key]"
+                :disabled="isCompleted"
+              >
+                <option value="">— Selecione uma opção —</option>
                 <option
                   v-for="opt in selectOptions(field.config_json)"
                   :key="opt"
                   :value="opt"
-                >
-                  {{ opt }}
-                </option>
+                >{{ opt }}</option>
               </select>
+              <input
+                v-else
+                v-model="draftAnswers[field.key]"
+                type="text"
+                placeholder="Informe a opção selecionada"
+                :disabled="isCompleted"
+              />
             </label>
 
             <!-- text (default) -->

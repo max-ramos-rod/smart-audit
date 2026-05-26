@@ -45,26 +45,22 @@ function createEmptyField(position: number): FormFieldCreatePayload {
   return { key: '', label: '', field_type: 'boolean', required: false, position, config_json: {} }
 }
 
-function fieldOptions(field: FormFieldCreatePayload): string[] {
-  return Array.isArray(field.config_json.options) ? (field.config_json.options as string[]) : []
-}
-
 function onFieldTypeChange(field: FormFieldCreatePayload) {
-  if (field.field_type === 'select' && !Array.isArray(field.config_json.options)) {
-    field.config_json.options = ['']
-  }
+  if (field.field_type !== 'select') field.config_json = {}
 }
 
-function addOption(field: FormFieldCreatePayload) {
-  fieldOptions(field).push('')
+function getOptionsString(field: FormFieldCreatePayload): string {
+  return Array.isArray(field.config_json.options)
+    ? (field.config_json.options as string[]).join(', ')
+    : ''
 }
 
-function removeOption(field: FormFieldCreatePayload, index: number) {
-  fieldOptions(field).splice(index, 1)
-}
-
-function setOption(field: FormFieldCreatePayload, index: number, event: Event) {
-  fieldOptions(field)[index] = (event.target as HTMLInputElement).value
+function setOptionsFromString(field: FormFieldCreatePayload, event: Event) {
+  const opts = (event.target as HTMLInputElement).value
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean)
+  field.config_json = opts.length ? { options: opts } : {}
 }
 
 // ---- create form ----
@@ -258,34 +254,16 @@ async function submitVersion() {
                   <option :value="false">Não</option>
                 </select>
               </label>
-              <div v-if="field.field_type === 'select'" class="col-span-2 grid gap-2">
-                <span>Opções</span>
-                <div
-                  v-for="(opt, i) in fieldOptions(field)"
-                  :key="i"
-                  class="flex gap-2"
-                >
-                  <input
-                    :value="opt"
-                    type="text"
-                    placeholder="Opção..."
-                    required
-                    class="flex-1"
-                    @input="setOption(field, i, $event)"
-                  />
-                  <button
-                    type="button"
-                    class="inline-action"
-                    :disabled="fieldOptions(field).length === 1"
-                    @click="removeOption(field, i)"
-                  >
-                    ×
-                  </button>
-                </div>
-                <button type="button" class="inline-action self-start" @click="addOption(field)">
-                  + Opção
-                </button>
-              </div>
+              <label v-if="field.field_type === 'select'" class="grid gap-2 sm:col-span-2">
+                <span>Opções (separadas por vírgula)</span>
+                <input
+                  :value="getOptionsString(field)"
+                  type="text"
+                  placeholder="Ex: Conforme, Não conforme, Parcial"
+                  @input="setOptionsFromString(field, $event)"
+                />
+                <span class="text-xs text-sa-muted">Mínimo 1 opção obrigatória para campos do tipo seleção.</span>
+              </label>
             </div>
           </article>
         </div>
@@ -362,34 +340,16 @@ async function submitVersion() {
                   <option :value="false">Não</option>
                 </select>
               </label>
-              <div v-if="field.field_type === 'select'" class="col-span-2 grid gap-2">
-                <span>Opções</span>
-                <div
-                  v-for="(opt, i) in fieldOptions(field)"
-                  :key="i"
-                  class="flex gap-2"
-                >
-                  <input
-                    :value="opt"
-                    type="text"
-                    placeholder="Opção..."
-                    required
-                    class="flex-1"
-                    @input="setOption(field, i, $event)"
-                  />
-                  <button
-                    type="button"
-                    class="inline-action"
-                    :disabled="fieldOptions(field).length === 1"
-                    @click="removeOption(field, i)"
-                  >
-                    ×
-                  </button>
-                </div>
-                <button type="button" class="inline-action self-start" @click="addOption(field)">
-                  + Opção
-                </button>
-              </div>
+              <label v-if="field.field_type === 'select'" class="grid gap-2 sm:col-span-2">
+                <span>Opções (separadas por vírgula)</span>
+                <input
+                  :value="getOptionsString(field)"
+                  type="text"
+                  placeholder="Ex: Conforme, Não conforme, Parcial"
+                  @input="setOptionsFromString(field, $event)"
+                />
+                <span class="text-xs text-sa-muted">Mínimo 1 opção obrigatória para campos do tipo seleção.</span>
+              </label>
             </div>
           </article>
         </div>
