@@ -108,6 +108,12 @@ function logout() {
           <p class="eyebrow">Sessão autenticada</p>
           <strong class="block text-sm font-semibold text-sa-text">{{ authStore.user?.name }}</strong>
           <span class="block text-sm text-sa-muted">{{ authStore.user?.email }}</span>
+          <RouterLink
+            to="/profile"
+            class="mt-1 block text-sm font-medium text-sa-brand hover:underline"
+          >
+            Meu perfil
+          </RouterLink>
         </div>
         <BaseButton type="button" variant="ghost" :full-width="true" @click="logout">Sair</BaseButton>
       </div>

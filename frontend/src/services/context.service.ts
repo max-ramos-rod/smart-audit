@@ -19,3 +19,16 @@ export async function fetchMyStats() {
   const response = await http.get<ApiEnvelope<CompanyStats>>('/me/stats')
   return response.data.data
 }
+
+export interface MeUpdatePayload {
+  name?: string
+  password?: string
+}
+
+export async function updateMe(payload: MeUpdatePayload) {
+  const response = await http.patch<ApiEnvelope<{ id: string; name: string; email: string }>>(
+    '/me',
+    payload,
+  )
+  return response.data.data
+}

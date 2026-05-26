@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/auth/auth.store'
 import { useContextStore } from '@/stores/context/context.store'
 import CompanySelectView from '@/views/auth/CompanySelectView.vue'
 import LoginView from '@/views/auth/LoginView.vue'
+import ProfileView from '@/views/auth/ProfileView.vue'
 import HomeView from '@/views/dashboard/HomeView.vue'
 import FormVersionsView from '@/views/forms/FormVersionsView.vue'
 import FormsView from '@/views/forms/FormsView.vue'
@@ -62,6 +63,12 @@ const router = createRouter({
       path: '/forms/:formId/versions',
       name: 'form-versions',
       component: FormVersionsView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/profile',
+      name: 'profile',
+      component: ProfileView,
       meta: { requiresAuth: true },
     },
     {

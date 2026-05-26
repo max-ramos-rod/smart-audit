@@ -1,7 +1,14 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 
-import { fetchMyCompanies, fetchMyContext, fetchMyStats } from '@/services/context.service'
+import { extractProblemMessage } from '@/services/api/problem'
+import {
+  fetchMyCompanies,
+  fetchMyContext,
+  fetchMyStats,
+  updateMe,
+  type MeUpdatePayload,
+} from '@/services/context.service'
 import { clearCompanyId, readCompanyId, writeCompanyId } from '@/services/api/storage'
 import type { CompanyStats, UserCompany, UserContext } from '@/types/context'
 
@@ -12,7 +19,9 @@ export const useContextStore = defineStore('context', () => {
   const selectedCompanyId = ref<string | null>(readCompanyId())
   const isLoading = ref(false)
   const isLoadingStats = ref(false)
+  const isUpdatingProfile = ref(false)
   const error = ref<string | null>(null)
+  const updateProfileError = ref<string | null>(null)
 
   const activeCompany = computed(() => context.value?.active_company ?? null)
 
@@ -53,6 +62,23 @@ export const useContextStore = defineStore('context', () => {
     loadStats()
   }
 
+  async function updateProfile(payload: MeUpdatePayload) {
+    isUpdatingProfile.value = true
+    updateProfileError.value = null
+    try {
+      const updated = await updateMe(payload)
+      if (context.value?.user) {
+        context.value = { ...context.value, user: { ...context.value.user, name: updated.name } }
+      }
+      return updated
+    } catch (err: any) {
+      updateProfileError.value = extractProblemMessage(err, 'Não foi possível atualizar o perfil.')
+      throw err
+    } finally {
+      isUpdatingProfile.value = false
+    }
+  }
+
   function reset() {
     companies.value = []
     context.value = null
@@ -70,10 +96,13 @@ export const useContextStore = defineStore('context', () => {
     activeCompany,
     isLoading,
     isLoadingStats,
+    isUpdatingProfile,
     error,
+    updateProfileError,
     bootstrap,
     loadStats,
     selectCompany,
+    updateProfile,
     reset,
   }
 })
