@@ -29,6 +29,8 @@ const fields = computed(() =>
   [...(formVersion.value?.fields ?? [])].sort((a, b) => a.position - b.position),
 )
 
+const pendingRequiredFields = ref<string[]>([])
+
 const uploadingField = ref<string | null>(null)
 const uploadErrors = reactive<Record<string, string>>({})
 
@@ -68,6 +70,18 @@ watch(
     if (newId === submissionId.value) populateDraft()
   },
 )
+
+function validateRequiredFields(): boolean {
+  const missing = fields.value
+    .filter(field => field.required)
+    .filter(field => {
+      const val = draftAnswers[field.key]
+      return !val || val === ''
+    })
+    .map(field => field.key)
+  pendingRequiredFields.value = missing
+  return missing.length === 0
+}
 
 function buildPayload() {
   return fields.value
@@ -123,6 +137,7 @@ async function handleSave() {
   try {
     await submissionsStore.updateAnswers(submissionId.value, { answers: buildPayload() })
     savedOnce.value = true
+    pendingRequiredFields.value = []
   } catch (err: any) {
     saveError.value = extractProblemMessage(err, 'Não foi possível salvar as respostas.')
   }
@@ -132,6 +147,13 @@ async function handleFinish() {
   finishError.value = null
   saveError.value = null
   savedOnce.value = false
+  pendingRequiredFields.value = []
+
+  if (!validateRequiredFields()) {
+    finishError.value = `Campos obrigatórios pendentes: ${pendingRequiredFields.value.join(', ')}`
+    return
+  }
+
   try {
     await submissionsStore.updateAnswers(submissionId.value, { answers: buildPayload() })
     await submissionsStore.finish(submissionId.value)
@@ -254,7 +276,10 @@ async function handleExport() {
           <article
             v-for="field in fields"
             :key="field.id"
-            class="rounded-3xl border border-[color:var(--sa-line)] bg-white/70 p-4"
+            class="rounded-3xl border p-4"
+            :class="pendingRequiredFields.includes(field.key)
+              ? 'border-sa-danger bg-red-50/60'
+              : 'border-[color:var(--sa-line)] bg-white/70'"
           >
             <div class="mb-3 flex items-start justify-between gap-3">
               <div>
@@ -263,6 +288,13 @@ async function handleExport() {
               </div>
               <span v-if="field.required" class="status-chip text-[0.65rem]">Obrigatório</span>
             </div>
+
+            <p
+              v-if="pendingRequiredFields.includes(field.key)"
+              class="mb-3 text-xs font-semibold text-sa-danger"
+            >
+              ⚠ Campo obrigatório não preenchido
+            </p>
 
             <!-- boolean -->
             <label v-if="field.field_type === 'boolean'" class="grid gap-2">
