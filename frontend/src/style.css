@@ -1,0 +1,111 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: light;
+  --sa-bg: #f4efe6;
+  --sa-bg-accent: #e5dcc8;
+  --sa-panel: rgba(255, 251, 245, 0.88);
+  --sa-panel-strong: #fffaf0;
+  --sa-text: #1f1a17;
+  --sa-muted: #6f645b;
+  --sa-line: rgba(87, 67, 47, 0.14);
+  --sa-brand: #b45309;
+  --sa-brand-strong: #7c2d12;
+  --sa-brand-soft: #fbbf24;
+  --sa-danger: #b42318;
+  --sa-shadow: 0 20px 60px rgba(85, 51, 24, 0.12);
+}
+
+@theme {
+  --color-sa-bg: #f4efe6;
+  --color-sa-bg-accent: #e5dcc8;
+  --color-sa-panel: #fffaf0;
+  --color-sa-text: #1f1a17;
+  --color-sa-muted: #6f645b;
+  --color-sa-line: #d7cabb;
+  --color-sa-brand: #b45309;
+  --color-sa-brand-strong: #7c2d12;
+  --color-sa-danger: #b42318;
+}
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    @apply bg-sa-bg text-sa-text;
+    font-family: 'Segoe UI Variable', 'Aptos', 'Trebuchet MS', sans-serif;
+  }
+
+  body {
+    @apply m-0 min-h-screen min-w-80 bg-[radial-gradient(circle_at_top_left,rgba(251,191,36,0.25),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(180,83,9,0.18),transparent_24%),linear-gradient(135deg,#f4efe6,#f8f4ed_48%,#e5dcc8)] text-sa-text;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+
+  button {
+    @apply cursor-pointer;
+  }
+
+  input,
+  select,
+  textarea {
+    @apply w-full rounded-2xl border border-[color:var(--sa-line)] bg-white/85 px-4 py-3 text-sm text-sa-text outline-none transition focus:border-sa-brand focus:ring-2 focus:ring-amber-200;
+  }
+
+  label span {
+    @apply text-sm text-sa-muted;
+  }
+
+  h1,
+  h2,
+  h3,
+  p {
+    @apply mt-0;
+  }
+
+  table {
+    @apply w-full border-collapse;
+  }
+
+  th,
+  td {
+    @apply border-b border-[color:var(--sa-line)] px-4 py-4 text-left align-top;
+  }
+
+  th {
+    @apply text-sm font-semibold text-sa-muted;
+  }
+}
+
+@layer components {
+  .surface-panel {
+    @apply rounded-[28px] border border-white/50 bg-white/70 shadow-[0_20px_60px_rgba(85,51,24,0.12)] backdrop-blur-xl;
+  }
+
+  .eyebrow {
+    @apply text-[0.68rem] font-bold uppercase tracking-[0.16em] text-sa-brand-strong;
+  }
+
+  .muted-copy {
+    @apply text-sm text-sa-muted;
+  }
+
+  .status-chip {
+    @apply rounded-full bg-amber-300/25 px-3 py-1.5 text-[0.72rem] font-bold uppercase tracking-[0.08em] text-sa-brand-strong;
+  }
+
+  .status-chip--inactive {
+    @apply bg-red-200/50 text-sa-danger;
+  }
+
+  .inline-action {
+    @apply border-none bg-transparent p-0 text-sm font-semibold text-sa-brand-strong;
+  }
+}

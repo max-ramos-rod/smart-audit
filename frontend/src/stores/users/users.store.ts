@@ -1,0 +1,95 @@
+import { ref } from 'vue'
+import { defineStore } from 'pinia'
+
+import { extractProblemMessage } from '@/services/api/problem'
+import { createUser, fetchUser, fetchUsers, updateUser } from '@/services/users.service'
+import type { PaginationMeta } from '@/types/api'
+import type { UserCreatePayload, UserDetail, UserListItem, UserUpdatePayload } from '@/types/users'
+
+export const useUsersStore = defineStore('users', () => {
+  const items = ref<UserListItem[]>([])
+  const selectedUser = ref<UserDetail | null>(null)
+  const meta = ref<PaginationMeta | null>(null)
+  const isLoading = ref(false)
+  const isSaving = ref(false)
+  const error = ref<string | null>(null)
+
+  async function load(page = 1, pageSize = 20) {
+    isLoading.value = true
+    error.value = null
+    try {
+      const response = await fetchUsers(page, pageSize)
+      items.value = response.data
+      meta.value = response.meta
+    } catch (err: any) {
+      error.value = extractProblemMessage(err, 'Nao foi possivel carregar usuarios.')
+      throw err
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  async function loadUser(userId: string) {
+    isLoading.value = true
+    error.value = null
+    try {
+      selectedUser.value = await fetchUser(userId)
+      return selectedUser.value
+    } catch (err: any) {
+      error.value = extractProblemMessage(err, 'Nao foi possivel carregar o usuario.')
+      throw err
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  async function create(payload: UserCreatePayload) {
+    isSaving.value = true
+    error.value = null
+    try {
+      const created = await createUser(payload)
+      await load(meta.value?.page ?? 1, meta.value?.page_size ?? 20)
+      selectedUser.value = created
+      return created
+    } catch (err: any) {
+      error.value = extractProblemMessage(err, 'Nao foi possivel criar o usuario.')
+      throw err
+    } finally {
+      isSaving.value = false
+    }
+  }
+
+  async function update(userId: string, payload: UserUpdatePayload) {
+    isSaving.value = true
+    error.value = null
+    try {
+      const updated = await updateUser(userId, payload)
+      await load(meta.value?.page ?? 1, meta.value?.page_size ?? 20)
+      selectedUser.value = updated
+      return updated
+    } catch (err: any) {
+      error.value = extractProblemMessage(err, 'Nao foi possivel atualizar o usuario.')
+      throw err
+    } finally {
+      isSaving.value = false
+    }
+  }
+
+  function clearSelectedUser() {
+    selectedUser.value = null
+  }
+
+  return {
+    items,
+    selectedUser,
+    meta,
+    isLoading,
+    isSaving,
+    error,
+    load,
+    loadUser,
+    create,
+    update,
+    clearSelectedUser,
+  }
+})

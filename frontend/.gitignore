@@ -1,0 +1,15 @@
+# Dependências
+node_modules/
+
+# Build
+dist/
+
+# Cache do Vite
+.vite/
+
+# Testes e cobertura
+coverage/
+
+# Variáveis de ambiente locais
+.env.local
+.env.*.local

@@ -1,0 +1,78 @@
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
+
+from app.core.pagination import PaginationParams
+from app.core.responses import paginated_response, success_response
+from app.db.models.memberships import Membership
+from app.db.models.users import User
+from app.db.session import get_db
+from app.modules.auth.dependencies import get_current_user
+from app.modules.forms.schemas import FormCreateRequest, FormVersionPublishRequest
+from app.modules.forms.service import FormService
+from app.modules.memberships.dependencies import get_current_membership
+from app.modules.memberships.permissions import get_manager_membership
+
+router = APIRouter(prefix="/forms", tags=["forms"])
+
+
+def get_form_service() -> FormService:
+    return FormService()
+
+
+@router.get("")
+def list_forms(
+    params: PaginationParams = Depends(),
+    membership: Membership = Depends(get_current_membership),
+    db: Session = Depends(get_db),
+    form_service: FormService = Depends(get_form_service),
+) -> dict[str, object]:
+    data, meta = form_service.list_forms(db, membership, params)
+    return paginated_response([item.model_dump(mode="json") for item in data], meta)
+
+
+@router.get("/{form_id}")
+def get_form(
+    form_id: str,
+    membership: Membership = Depends(get_current_membership),
+    db: Session = Depends(get_db),
+    form_service: FormService = Depends(get_form_service),
+) -> dict[str, object]:
+    data = form_service.get_form(db, membership, form_id)
+    return success_response(data.model_dump(mode="json"))
+
+
+@router.post("")
+def create_form(
+    payload: FormCreateRequest,
+    current_user: User = Depends(get_current_user),
+    membership: Membership = Depends(get_manager_membership),
+    db: Session = Depends(get_db),
+    form_service: FormService = Depends(get_form_service),
+) -> dict[str, object]:
+    data = form_service.create_form(db, membership, current_user, payload)
+    return success_response(data.model_dump(mode="json"))
+
+
+@router.get("/{form_id}/versions/{version_id}")
+def get_form_version(
+    form_id: str,
+    version_id: str,
+    membership: Membership = Depends(get_current_membership),
+    db: Session = Depends(get_db),
+    form_service: FormService = Depends(get_form_service),
+) -> dict[str, object]:
+    data = form_service.get_version(db, membership, form_id, version_id)
+    return success_response(data.model_dump(mode="json"))
+
+
+@router.post("/{form_id}/versions")
+def publish_new_version(
+    form_id: str,
+    payload: FormVersionPublishRequest,
+    current_user: User = Depends(get_current_user),
+    membership: Membership = Depends(get_manager_membership),
+    db: Session = Depends(get_db),
+    form_service: FormService = Depends(get_form_service),
+) -> dict[str, object]:
+    data = form_service.publish_new_version(db, membership, current_user, form_id, payload)
+    return success_response(data.model_dump(mode="json"))

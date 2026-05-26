@@ -1,0 +1,21 @@
+# Bytecode
+__pycache__/
+*.py[cod]
+
+# Artefatos de build e distribuição
+*.egg-info/
+dist/
+build/
+
+# Testes e cobertura
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Ferramentas de análise
+.ruff_cache/
+.mypy_cache/
+
+# Docker — arquivos gerados em build
+*.dockerignore.bak

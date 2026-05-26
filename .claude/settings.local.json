@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx vue-tsc *)",
+      "Bash(.venv/Scripts/python.exe -m pytest backend/tests/integration/ -q)",
+      "Bash(.venv/Scripts/python.exe -m pytest backend/tests/unit/ -v)",
+      "Bash(.venv/Scripts/python.exe -m pytest backend/tests/ -q)",
+      "Bash(.venv/Scripts/pip show *)",
+      "Bash(.venv/Scripts/pip install *)",
+      "Bash(.\\\\.venv\\\\Scripts\\\\python.exe -m pytest backend/tests/unit/ -v)",
+      "PowerShell(New-Item -ItemType Directory -Force \"c:\\\\Projetos\\\\smart-audit\\\\backend\\\\app\\\\modules\\\\teams\")",
+      "PowerShell(New-Item -ItemType File -Force \"c:\\\\Projetos\\\\smart-audit\\\\backend\\\\app\\\\modules\\\\teams\\\\__init__.py\")"
+    ]
+  }
+}
