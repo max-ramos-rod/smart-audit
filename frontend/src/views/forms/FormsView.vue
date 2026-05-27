@@ -3,7 +3,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import AppShell from '@/components/layout/AppShell.vue'
-import BaseButton from '@/components/ui/BaseButton.vue'
+import SvgIcon from '@/components/ui/SvgIcon.vue'
 import { extractProblemMessage } from '@/services/api/problem'
 import { fetchForm } from '@/services/forms.service'
 import { useFormsStore } from '@/stores/forms/forms.store'
@@ -12,7 +12,8 @@ import type { FormFieldCreatePayload } from '@/types/forms'
 const router = useRouter()
 const formsStore = useFormsStore()
 
-// --- create form state ---
+const search = ref('')
+
 const showCreateComposer = ref(false)
 const createError = ref<string | null>(null)
 const createState = reactive({
@@ -21,18 +22,30 @@ const createState = reactive({
   fields: [createEmptyField(1)],
 })
 
-// --- publish version state ---
 const showVersionComposer = ref(false)
 const versionFormId = ref<string | null>(null)
 const versionFormName = ref('')
 const versionError = ref<string | null>(null)
 const versionFields = ref<FormFieldCreatePayload[]>([createEmptyField(1)])
 
+const currentPage = ref(1)
+
 const publishedCount = computed(
   () => formsStore.items.filter((f) => f.current_version_status === 'published').length,
 )
+const draftCount = computed(
+  () => formsStore.items.filter((f) => f.current_version_status !== 'published').length,
+)
 
-const currentPage = ref(1)
+const filteredForms = computed(() => {
+  const q = search.value.toLowerCase().trim()
+  if (!q) return formsStore.items
+  return formsStore.items.filter(
+    (f) =>
+      f.name.toLowerCase().includes(q) ||
+      (f.description ?? '').toLowerCase().includes(q),
+  )
+})
 
 async function loadPage(page: number) {
   currentPage.value = page
@@ -65,8 +78,8 @@ function setOptionsFromString(field: FormFieldCreatePayload, event: Event) {
   field.config_json = opts.length ? { options: opts } : {}
 }
 
-// ---- create form ----
 function openCreateComposer() {
+  showVersionComposer.value = false
   showCreateComposer.value = true
 }
 
@@ -102,7 +115,6 @@ async function submitCreate() {
   }
 }
 
-// ---- publish new version ----
 async function openVersionComposer(formId: string, formName: string) {
   versionError.value = null
   versionFormId.value = formId
@@ -120,6 +132,7 @@ async function openVersionComposer(formId: string, formName: string) {
   } catch {
     versionFields.value = [createEmptyField(1)]
   }
+  showCreateComposer.value = false
   showVersionComposer.value = true
 }
 
@@ -158,285 +171,318 @@ async function submitVersion() {
 <template>
   <AppShell>
     <div class="page">
-    <section class="flex flex-wrap items-center justify-between gap-3 px-1">
-      <div>
-        <p class="eyebrow">Templates</p>
-        <h2 class="mt-2 text-2xl font-semibold tracking-tight text-sa-text">Formulários versionados</h2>
-        <p class="mt-2 text-sm text-sa-muted">Base atual para construção e evolução dos checklists por empresa.</p>
-      </div>
-      <BaseButton type="button" @click="openCreateComposer">Novo formulário</BaseButton>
-    </section>
 
-    <div class="stats-grid">
-      <div class="scard">
-        <div class="sc-label">Total</div>
-        <div class="sc-value">{{ formsStore.meta?.total ?? formsStore.items.length }}</div>
-      </div>
-      <div class="scard sc-ok">
-        <div class="sc-label">Publicados</div>
-        <div class="sc-value">{{ publishedCount }}</div>
-      </div>
-      <div class="scard">
-        <div class="sc-label">Página</div>
-        <div class="sc-value">{{ currentPage }} / {{ formsStore.meta?.total_pages ?? 1 }}</div>
-      </div>
-      <div class="scard">
-        <div class="sc-label">Mostrando</div>
-        <div class="sc-value">{{ formsStore.items.length }}</div>
-        <div class="sc-desc">de {{ formsStore.meta?.total ?? formsStore.items.length }}</div>
-      </div>
-    </div>
-
-    <!-- create composer -->
-    <section v-if="showCreateComposer" class="surface-panel p-5 sm:p-6">
-      <div class="flex items-center justify-between gap-3">
+      <!-- Header -->
+      <div class="phdr">
         <div>
-          <p class="eyebrow">Criação</p>
-          <h3 class="mt-2 text-xl font-semibold text-sa-text">Novo formulário</h3>
+          <p class="eyebrow">Templates</p>
+          <h2 class="page-h1">Formulários versionados</h2>
+          <p class="page-desc">Checklists e auditorias da empresa ativa.</p>
         </div>
-        <BaseButton type="button" variant="ghost" @click="closeCreateComposer">Fechar</BaseButton>
+        <button type="button" class="btn-primary btn-sm" @click="openCreateComposer">
+          + Novo formulário
+        </button>
       </div>
 
-      <form class="mt-5 grid gap-4" @submit.prevent="submitCreate">
-        <label class="grid gap-2">
-          <span>Nome</span>
-          <input v-model="createState.name" type="text" required />
-        </label>
-        <label class="grid gap-2">
-          <span>Descrição</span>
-          <input v-model="createState.description" type="text" />
-        </label>
-
-        <div class="grid gap-4">
-          <article
-            v-for="(field, index) in createState.fields"
-            :key="`c-${index}`"
-            class="rounded-3xl border border-[color:var(--sa-line)] bg-white/70 p-4"
-          >
-            <div class="flex items-center justify-between gap-3">
-              <p class="eyebrow">Campo {{ index + 1 }}</p>
-              <BaseButton
-                type="button"
-                variant="ghost"
-                :disabled="createState.fields.length === 1"
-                @click="removeCreateField(index)"
-              >
-                Remover
-              </BaseButton>
-            </div>
-            <div class="mt-4 grid gap-4 sm:grid-cols-2">
-              <label class="grid gap-2">
-                <span>Chave</span>
-                <input v-model="field.key" type="text" required />
-              </label>
-              <label class="grid gap-2">
-                <span>Label</span>
-                <input v-model="field.label" type="text" required />
-              </label>
-              <label class="grid gap-2">
-                <span>Tipo</span>
-                <select v-model="field.field_type" @change="onFieldTypeChange(field)">
-                  <option value="boolean">Boolean</option>
-                  <option value="text">Texto</option>
-                  <option value="number">Número</option>
-                  <option value="select">Seleção</option>
-                  <option value="date">Data</option>
-                  <option value="photo">Foto</option>
-                </select>
-              </label>
-              <label class="grid gap-2">
-                <span>Obrigatório</span>
-                <select v-model="field.required">
-                  <option :value="true">Sim</option>
-                  <option :value="false">Não</option>
-                </select>
-              </label>
-              <label v-if="field.field_type === 'select'" class="grid gap-2 sm:col-span-2">
-                <span>Opções (separadas por vírgula)</span>
-                <input
-                  :value="getOptionsString(field)"
-                  type="text"
-                  placeholder="Ex: Conforme, Não conforme, Parcial"
-                  @input="setOptionsFromString(field, $event)"
-                />
-                <span class="text-xs text-sa-muted">Mínimo 1 opção obrigatória para campos do tipo seleção.</span>
-              </label>
-            </div>
-          </article>
+      <!-- Stats -->
+      <div class="stats-grid" style="margin-bottom:20px;">
+        <div class="scard">
+          <div class="sc-label">Total</div>
+          <div class="sc-value">{{ formsStore.meta?.total ?? formsStore.items.length }}</div>
         </div>
-
-        <div class="flex flex-col gap-3 sm:flex-row">
-          <BaseButton type="button" variant="ghost" @click="addCreateField">
-            Adicionar campo
-          </BaseButton>
-          <BaseButton type="submit" :disabled="formsStore.isSaving">
-            {{ formsStore.isSaving ? 'Criando...' : 'Criar formulário' }}
-          </BaseButton>
+        <div class="scard sc-ok">
+          <div class="sc-label">Publicados</div>
+          <div class="sc-value">{{ publishedCount }}</div>
         </div>
-        <p v-if="createError" class="text-sm font-medium text-sa-danger">{{ createError }}</p>
-      </form>
-    </section>
-
-    <!-- version composer -->
-    <section v-if="showVersionComposer" class="surface-panel p-5 sm:p-6">
-      <div class="flex items-center justify-between gap-3">
-        <div>
-          <p class="eyebrow">Nova versão</p>
-          <h3 class="mt-2 text-xl font-semibold text-sa-text">{{ versionFormName }}</h3>
-          <p class="mt-1 text-sm text-sa-muted">
-            Edite os campos abaixo. Uma nova versão será publicada sem alterar as inspeções anteriores.
-          </p>
+        <div class="scard">
+          <div class="sc-label">Rascunhos</div>
+          <div class="sc-value">{{ draftCount }}</div>
         </div>
-        <BaseButton type="button" variant="ghost" @click="closeVersionComposer">Fechar</BaseButton>
+        <div class="scard">
+          <div class="sc-label">Página</div>
+          <div class="sc-value">{{ currentPage }}<span style="font-size:14px;font-weight:500;color:var(--sa-muted);"> / {{ formsStore.meta?.total_pages ?? 1 }}</span></div>
+        </div>
       </div>
 
-      <form class="mt-5 grid gap-4" @submit.prevent="submitVersion">
-        <div class="grid gap-4">
-          <article
-            v-for="(field, index) in versionFields"
-            :key="`v-${index}`"
-            class="rounded-3xl border border-[color:var(--sa-line)] bg-white/70 p-4"
-          >
-            <div class="flex items-center justify-between gap-3">
-              <div>
+      <!-- Create composer -->
+      <div v-if="showCreateComposer" class="card card-p" style="margin-bottom:20px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+          <div>
+            <div class="eyebrow">Criação</div>
+            <div style="font-size:17px;font-weight:700;color:var(--sa-text);margin-top:3px;">Novo formulário</div>
+          </div>
+          <button type="button" class="btn-secondary btn-sm" @click="closeCreateComposer">Fechar</button>
+        </div>
+
+        <form style="display:grid;gap:12px;" @submit.prevent="submitCreate">
+          <div style="display:grid;gap:12px;margin-bottom:4px;">
+            <label style="display:grid;gap:6px;">
+              <span>Nome do formulário</span>
+              <input v-model="createState.name" type="text" required placeholder="Ex: Checklist NR-35 Trabalho em Altura" />
+            </label>
+            <label style="display:grid;gap:6px;">
+              <span>Descrição (opcional)</span>
+              <input v-model="createState.description" type="text" placeholder="Breve descrição do formulário" />
+            </label>
+          </div>
+
+          <div class="slabel">Campos</div>
+
+          <div style="display:grid;gap:10px;">
+            <div
+              v-for="(field, index) in createState.fields"
+              :key="`c-${index}`"
+              class="card card-p"
+            >
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
                 <p class="eyebrow">Campo {{ index + 1 }}</p>
+                <button
+                  type="button"
+                  class="btn-secondary btn-sm"
+                  :disabled="createState.fields.length === 1"
+                  @click="removeCreateField(index)"
+                >
+                  Remover
+                </button>
               </div>
-              <BaseButton
-                type="button"
-                variant="ghost"
-                :disabled="versionFields.length === 1"
-                @click="removeVersionField(index)"
-              >
-                Remover
-              </BaseButton>
+              <div style="display:grid;gap:10px;grid-template-columns:1fr 1fr;">
+                <label style="display:grid;gap:6px;">
+                  <span>Chave</span>
+                  <input v-model="field.key" type="text" required />
+                </label>
+                <label style="display:grid;gap:6px;">
+                  <span>Label</span>
+                  <input v-model="field.label" type="text" required />
+                </label>
+                <label style="display:grid;gap:6px;">
+                  <span>Tipo</span>
+                  <select v-model="field.field_type" @change="onFieldTypeChange(field)">
+                    <option value="boolean">Boolean</option>
+                    <option value="text">Texto</option>
+                    <option value="number">Número</option>
+                    <option value="select">Seleção</option>
+                    <option value="date">Data</option>
+                    <option value="photo">Foto</option>
+                  </select>
+                </label>
+                <label style="display:grid;gap:6px;">
+                  <span>Obrigatório</span>
+                  <select v-model="field.required">
+                    <option :value="true">Sim</option>
+                    <option :value="false">Não</option>
+                  </select>
+                </label>
+                <label v-if="field.field_type === 'select'" style="display:grid;gap:6px;grid-column:1/-1;">
+                  <span>Opções (separadas por vírgula)</span>
+                  <input
+                    :value="getOptionsString(field)"
+                    type="text"
+                    placeholder="Ex: Conforme, Não conforme, Parcial"
+                    @input="setOptionsFromString(field, $event)"
+                  />
+                </label>
+              </div>
             </div>
-            <div class="mt-4 grid gap-4 sm:grid-cols-2">
-              <label class="grid gap-2">
-                <span>Chave</span>
-                <input v-model="field.key" type="text" required />
-              </label>
-              <label class="grid gap-2">
-                <span>Label</span>
-                <input v-model="field.label" type="text" required />
-              </label>
-              <label class="grid gap-2">
-                <span>Tipo</span>
-                <select v-model="field.field_type" @change="onFieldTypeChange(field)">
-                  <option value="boolean">Boolean</option>
-                  <option value="text">Texto</option>
-                  <option value="number">Número</option>
-                  <option value="select">Seleção</option>
-                  <option value="date">Data</option>
-                  <option value="photo">Foto</option>
-                </select>
-              </label>
-              <label class="grid gap-2">
-                <span>Obrigatório</span>
-                <select v-model="field.required">
-                  <option :value="true">Sim</option>
-                  <option :value="false">Não</option>
-                </select>
-              </label>
-              <label v-if="field.field_type === 'select'" class="grid gap-2 sm:col-span-2">
-                <span>Opções (separadas por vírgula)</span>
-                <input
-                  :value="getOptionsString(field)"
-                  type="text"
-                  placeholder="Ex: Conforme, Não conforme, Parcial"
-                  @input="setOptionsFromString(field, $event)"
-                />
-                <span class="text-xs text-sa-muted">Mínimo 1 opção obrigatória para campos do tipo seleção.</span>
-              </label>
+          </div>
+
+          <p v-if="createError" style="font-size:13px;font-weight:600;color:var(--sa-danger);">{{ createError }}</p>
+
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button type="button" class="btn-secondary btn-sm" @click="addCreateField">+ Adicionar campo</button>
+            <button type="submit" class="btn-primary" :disabled="formsStore.isSaving">
+              {{ formsStore.isSaving ? 'Criando...' : 'Criar formulário' }}
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Version composer -->
+      <div v-if="showVersionComposer" class="card card-p" style="margin-bottom:20px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+          <div>
+            <div class="eyebrow">Nova versão</div>
+            <div style="font-size:17px;font-weight:700;color:var(--sa-text);margin-top:3px;">{{ versionFormName }}</div>
+            <div style="font-size:12px;color:var(--sa-muted);margin-top:4px;">
+              Edite os campos abaixo. Uma nova versão será publicada sem alterar as inspeções anteriores.
             </div>
-          </article>
-        </div>
-
-        <div class="flex flex-col gap-3 sm:flex-row">
-          <BaseButton type="button" variant="ghost" @click="addVersionField">
-            Adicionar campo
-          </BaseButton>
-          <BaseButton type="submit" :disabled="formsStore.isSaving">
-            {{ formsStore.isSaving ? 'Publicando...' : 'Publicar nova versão' }}
-          </BaseButton>
-        </div>
-        <p v-if="versionError" class="text-sm font-medium text-sa-danger">{{ versionError }}</p>
-      </form>
-    </section>
-
-    <p v-if="formsStore.error" class="text-sm font-medium text-sa-danger">{{ formsStore.error }}</p>
-    <p v-else-if="formsStore.isLoading" class="text-sm font-medium text-sa-muted">Carregando formulários...</p>
-
-    <div v-if="formsStore.items.length" class="lstack">
-      <div
-        v-for="form in formsStore.items"
-        :key="form.id"
-        class="lrow"
-        style="align-items: flex-start; cursor: default;"
-      >
-        <div class="lrow-main">
-          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px;">
-            <div class="lrow-title">{{ form.name }}</div>
-            <span class="status-chip" :class="{ 'status-chip--inactive': !form.is_active }">
-              {{ form.is_active ? 'Ativo' : 'Inativo' }}
-            </span>
-            <span class="ver-badge">v{{ form.current_version_number }}</span>
           </div>
-          <div class="lrow-sub">
-            {{ form.description || 'Sem descrição.' }}
-            · {{ form.published_at ? new Date(form.published_at).toLocaleDateString('pt-BR') : 'Não publicado' }}
-          </div>
+          <button type="button" class="btn-secondary btn-sm" @click="closeVersionComposer">Fechar</button>
         </div>
-        <div style="display: flex; gap: 10px; flex-shrink: 0; align-items: center;">
-          <button
-            class="inline-action"
-            type="button"
-            @click="router.push({ name: 'form-versions', params: { formId: form.id } })"
-          >
-            Histórico
-          </button>
-          <button
-            class="inline-action"
-            type="button"
-            @click="openVersionComposer(form.id, form.name)"
-          >
-            Nova versão →
-          </button>
+
+        <form style="display:grid;gap:12px;" @submit.prevent="submitVersion">
+          <div class="slabel">Campos</div>
+
+          <div style="display:grid;gap:10px;">
+            <div
+              v-for="(field, index) in versionFields"
+              :key="`v-${index}`"
+              class="card card-p"
+            >
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+                <p class="eyebrow">Campo {{ index + 1 }}</p>
+                <button
+                  type="button"
+                  class="btn-secondary btn-sm"
+                  :disabled="versionFields.length === 1"
+                  @click="removeVersionField(index)"
+                >
+                  Remover
+                </button>
+              </div>
+              <div style="display:grid;gap:10px;grid-template-columns:1fr 1fr;">
+                <label style="display:grid;gap:6px;">
+                  <span>Chave</span>
+                  <input v-model="field.key" type="text" required />
+                </label>
+                <label style="display:grid;gap:6px;">
+                  <span>Label</span>
+                  <input v-model="field.label" type="text" required />
+                </label>
+                <label style="display:grid;gap:6px;">
+                  <span>Tipo</span>
+                  <select v-model="field.field_type" @change="onFieldTypeChange(field)">
+                    <option value="boolean">Boolean</option>
+                    <option value="text">Texto</option>
+                    <option value="number">Número</option>
+                    <option value="select">Seleção</option>
+                    <option value="date">Data</option>
+                    <option value="photo">Foto</option>
+                  </select>
+                </label>
+                <label style="display:grid;gap:6px;">
+                  <span>Obrigatório</span>
+                  <select v-model="field.required">
+                    <option :value="true">Sim</option>
+                    <option :value="false">Não</option>
+                  </select>
+                </label>
+                <label v-if="field.field_type === 'select'" style="display:grid;gap:6px;grid-column:1/-1;">
+                  <span>Opções (separadas por vírgula)</span>
+                  <input
+                    :value="getOptionsString(field)"
+                    type="text"
+                    placeholder="Ex: Conforme, Não conforme, Parcial"
+                    @input="setOptionsFromString(field, $event)"
+                  />
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <p v-if="versionError" style="font-size:13px;font-weight:600;color:var(--sa-danger);">{{ versionError }}</p>
+
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button type="button" class="btn-secondary btn-sm" @click="addVersionField">+ Adicionar campo</button>
+            <button type="submit" class="btn-primary" :disabled="formsStore.isSaving">
+              {{ formsStore.isSaving ? 'Publicando...' : 'Publicar nova versão' }}
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Search bar -->
+      <div class="sbar" style="margin-bottom:16px;">
+        <SvgIcon name="search" :size="16" style="color:var(--sa-muted);flex-shrink:0;" />
+        <input
+          v-model="search"
+          type="text"
+          placeholder="Buscar formulário..."
+          style="border:none;outline:none;flex:1;min-width:0;padding:0;box-shadow:none;font-size:14px;background:transparent;"
+        />
+        <button
+          v-if="search"
+          type="button"
+          style="border:none;background:none;cursor:pointer;padding:0;display:flex;align-items:center;color:var(--sa-muted);"
+          @click="search = ''"
+        >
+          <SvgIcon name="close" :size="15" />
+        </button>
+      </div>
+
+      <p v-if="formsStore.error" style="font-size:13px;font-weight:600;color:var(--sa-danger);margin-bottom:12px;">{{ formsStore.error }}</p>
+      <p v-else-if="formsStore.isLoading" style="font-size:13px;color:var(--sa-muted);margin-bottom:12px;">Carregando formulários...</p>
+
+      <!-- Forms list -->
+      <div v-if="filteredForms.length" class="lstack">
+        <div
+          v-for="form in filteredForms"
+          :key="form.id"
+          class="lrow"
+          style="align-items:flex-start;cursor:default;"
+        >
+          <div class="lrow-main">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px;">
+              <div class="lrow-title">{{ form.name }}</div>
+              <span class="status-chip" :class="{ 'status-chip--inactive': !form.is_active }">
+                {{ form.is_active ? 'Ativo' : 'Inativo' }}
+              </span>
+              <span class="ver-badge">v{{ form.current_version_number }}</span>
+            </div>
+            <div class="lrow-sub">
+              {{ form.description || 'Sem descrição cadastrada.' }}
+              · {{ form.published_at ? new Date(form.published_at).toLocaleDateString('pt-BR') : 'Não publicado' }}
+            </div>
+          </div>
+          <div style="display:flex;gap:6px;flex-shrink:0;align-items:center;flex-wrap:wrap;">
+            <button
+              type="button"
+              class="btn-secondary btn-sm"
+              @click="router.push({ name: 'form-versions', params: { formId: form.id } })"
+            >
+              Histórico
+            </button>
+            <button
+              type="button"
+              class="btn-secondary btn-sm"
+              @click="openVersionComposer(form.id, form.name)"
+            >
+              Nova versão
+            </button>
+          </div>
         </div>
       </div>
-    </div>
 
-    <section v-else-if="!formsStore.isLoading" class="surface-panel p-6 text-center">
-      <p class="eyebrow">Sem dados</p>
-      <h3 class="mt-3 text-xl font-semibold text-sa-text">Nenhum formulário cadastrado</h3>
-      <p class="mt-2 text-sm text-sa-muted">
-        Use a criação acima para começar a montar seus modelos de inspeção.
-      </p>
-    </section>
+      <!-- Empty state -->
+      <div
+        v-else-if="!formsStore.isLoading"
+        class="card card-p"
+        style="text-align:center;padding:32px 20px;"
+      >
+        <p class="eyebrow">Sem dados</p>
+        <div style="font-size:17px;font-weight:700;color:var(--sa-text);margin-top:8px;">
+          {{ search ? 'Nenhum formulário encontrado' : 'Nenhum formulário cadastrado' }}
+        </div>
+        <p style="font-size:13px;color:var(--sa-muted);margin-top:6px;">
+          {{ search ? 'Tente outro termo de busca.' : 'Use o botão acima para criar seu primeiro formulário.' }}
+        </p>
+      </div>
 
-    <nav
-      v-if="formsStore.meta && formsStore.meta.total_pages > 1"
-      class="flex items-center justify-center gap-4"
-    >
-      <BaseButton
-        type="button"
-        variant="ghost"
-        :disabled="currentPage <= 1 || formsStore.isLoading"
-        @click="loadPage(currentPage - 1)"
+      <!-- Pagination -->
+      <nav
+        v-if="formsStore.meta && formsStore.meta.total_pages > 1"
+        style="display:flex;align-items:center;justify-content:center;gap:12px;margin-top:16px;"
       >
-        ← Anterior
-      </BaseButton>
-      <span class="text-sm text-sa-muted">
-        Página {{ currentPage }} de {{ formsStore.meta.total_pages }}
-      </span>
-      <BaseButton
-        type="button"
-        variant="ghost"
-        :disabled="!formsStore.meta.has_next || formsStore.isLoading"
-        @click="loadPage(currentPage + 1)"
-      >
-        Próxima →
-      </BaseButton>
-    </nav>
+        <button
+          type="button"
+          class="btn-secondary btn-sm"
+          :disabled="currentPage <= 1 || formsStore.isLoading"
+          @click="loadPage(currentPage - 1)"
+        >
+          ← Anterior
+        </button>
+        <span style="font-size:13px;color:var(--sa-muted);">
+          Página {{ currentPage }} de {{ formsStore.meta.total_pages }}
+        </span>
+        <button
+          type="button"
+          class="btn-secondary btn-sm"
+          :disabled="!formsStore.meta.has_next || formsStore.isLoading"
+          @click="loadPage(currentPage + 1)"
+        >
+          Próxima →
+        </button>
+      </nav>
+
     </div>
   </AppShell>
 </template>

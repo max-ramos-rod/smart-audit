@@ -3,14 +3,17 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import AppShell from '@/components/layout/AppShell.vue'
+import { useAuthStore } from '@/stores/auth/auth.store'
 import { useContextStore } from '@/stores/context/context.store'
+import { useFormsStore } from '@/stores/forms/forms.store'
 
 const router = useRouter()
 const contextStore = useContextStore()
+const authStore = useAuthStore()
+const formsStore = useFormsStore()
 
 const context = computed(() => contextStore.context)
 const activeCompany = computed(() => context.value?.active_company)
-const membership = computed(() => context.value?.membership)
 const stats = computed(() => contextStore.stats)
 
 const activePeriod = ref<string>('all')
@@ -22,13 +25,25 @@ const PERIOD_OPTIONS = [
   { label: 'Tudo', value: 'all' },
 ]
 
+const greeting = computed(() => {
+  const hour = new Date().getHours()
+  const greet = hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite'
+  const firstName = authStore.user?.name?.split(' ')[0] ?? ''
+  return firstName ? `${greet}, ${firstName}` : greet
+})
+
+const activeForms = computed(() =>
+  formsStore.items.filter(f => f.is_active).slice(0, 3)
+)
+
 async function setPeriod(period: string) {
   activePeriod.value = period
   await contextStore.loadStats(period)
 }
 
-onMounted(() => {
+onMounted(async () => {
   contextStore.loadStats(activePeriod.value)
+  if (!formsStore.items.length) formsStore.load(1, 100)
 })
 
 function statusLabel(status: string) {
@@ -46,50 +61,19 @@ function statusLabel(status: string) {
   <AppShell>
     <div class="page">
 
-      <!-- header da empresa ativa -->
-      <section class="surface-panel grid gap-5 p-5 sm:p-6">
-        <div class="space-y-3">
-          <p class="eyebrow">Operação ativa</p>
-          <h2 class="text-2xl font-semibold tracking-tight text-sa-text sm:text-3xl">
-            {{ activeCompany?.name ?? 'Selecione uma empresa' }}
-          </h2>
-          <p class="muted-copy max-w-2xl text-base">
-            Painel de acompanhamento de auditorias, checklists e inspeções por empresa.
-          </p>
+      <!-- Header -->
+      <div class="phdr">
+        <div>
+          <p class="eyebrow">Operação ativa · {{ activeCompany?.name ?? '—' }}</p>
+          <h2 class="page-h1">{{ greeting }}</h2>
+          <p class="page-desc">Acompanhe o status das inspeções e checklists em tempo real.</p>
         </div>
+      </div>
 
-        <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <article class="rounded-3xl border border-[color:var(--sa-line)] bg-white/75 p-4">
-            <span class="eyebrow">Papel atual</span>
-            <strong class="mt-2 block text-xl font-semibold text-sa-text">
-              {{ membership?.role ?? '—' }}
-            </strong>
-          </article>
-          <article class="rounded-3xl border border-[color:var(--sa-line)] bg-white/75 p-4">
-            <span class="eyebrow">Plano</span>
-            <strong class="mt-2 block text-xl font-semibold text-sa-text">
-              {{ activeCompany?.plan ?? '—' }}
-            </strong>
-          </article>
-          <article class="rounded-3xl border border-[color:var(--sa-line)] bg-white/75 p-4">
-            <span class="eyebrow">Empresas disponíveis</span>
-            <strong class="mt-2 block text-xl font-semibold text-sa-text">
-              {{ context?.available_companies.length ?? 0 }}
-            </strong>
-          </article>
-          <article class="rounded-3xl border border-[color:var(--sa-line)] bg-white/75 p-4">
-            <span class="eyebrow">Seleção pendente</span>
-            <strong class="mt-2 block text-xl font-semibold text-sa-text">
-              {{ context?.requires_company_selection ? 'Sim' : 'Não' }}
-            </strong>
-          </article>
-        </div>
-      </section>
-
-      <!-- metricas de inspecoes -->
-      <section class="flex items-center justify-between gap-3 px-1" style="margin-top: 20px;">
-        <p class="eyebrow">Métricas de inspeções</p>
-        <div class="filter-tabs" style="margin-bottom: 0;">
+      <!-- Period filter + label -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <div class="slabel" style="margin-bottom:0;">Métricas</div>
+        <div class="filter-tabs" style="margin-bottom:0;">
           <button
             v-for="opt in PERIOD_OPTIONS"
             :key="opt.value"
@@ -101,32 +85,29 @@ function statusLabel(status: string) {
             {{ opt.label }}
           </button>
         </div>
-      </section>
+      </div>
 
-      <div
-        v-if="contextStore.isLoadingStats"
-        class="surface-panel p-5 text-center text-sm text-sa-muted"
-        style="margin-top: 12px;"
-      >
+      <!-- Stats -->
+      <div v-if="contextStore.isLoadingStats" style="font-size:13px;color:var(--sa-muted);text-align:center;padding:20px 0;">
         Carregando métricas...
       </div>
-      <div v-else class="stats-grid" style="margin-top: 12px;">
+      <div v-else class="stats-grid" style="margin-bottom:20px;">
         <article class="scard">
-          <div class="sc-label">Total</div>
+          <div class="sc-label">Total de inspeções</div>
           <div class="sc-value">{{ stats?.total_submissions ?? '—' }}</div>
-          <div class="sc-desc">inspeções criadas</div>
+          <div class="sc-desc">período selecionado</div>
         </article>
         <article class="scard sc-ok">
           <div class="sc-label">Concluídas</div>
           <div class="sc-value">{{ stats?.completed ?? '—' }}</div>
           <div class="sc-desc">status completed</div>
         </article>
-        <article class="scard sc-accent">
+        <article class="scard">
           <div class="sc-label">Em andamento</div>
           <div class="sc-value">{{ stats?.in_progress ?? '—' }}</div>
           <div class="sc-desc">aguardando finalização</div>
         </article>
-        <article class="scard">
+        <article class="scard sc-accent">
           <div class="sc-label">Score médio</div>
           <div class="sc-value">
             {{ stats?.avg_score !== null && stats?.avg_score !== undefined ? `${stats.avg_score}%` : '—' }}
@@ -135,10 +116,10 @@ function statusLabel(status: string) {
         </article>
       </div>
 
-      <!-- inspecoes recentes -->
-      <section v-if="stats?.recent?.length" style="margin-top: 20px;">
-        <p class="eyebrow" style="margin-bottom: 10px; padding-left: 2px;">Inspeções recentes</p>
-        <div class="lstack">
+      <!-- Inspeções recentes -->
+      <template v-if="stats?.recent?.length">
+        <div class="slabel">Inspeções recentes</div>
+        <div class="lstack" style="margin-bottom:20px;">
           <div
             v-for="submission in stats.recent"
             :key="submission.id"
@@ -147,7 +128,7 @@ function statusLabel(status: string) {
           >
             <div class="lrow-main">
               <div class="lrow-title">{{ submission.form_name }}</div>
-              <div class="lrow-sub">Iniciada {{ new Date(submission.started_at).toLocaleString('pt-BR') }}</div>
+              <div class="lrow-sub">Iniciada {{ new Date(submission.started_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) }}</div>
             </div>
             <div class="lrow-end">
               <span
@@ -162,6 +143,7 @@ function statusLabel(status: string) {
                 :class="{
                   'status-chip--warn': submission.status === 'in_progress',
                   'status-chip--inactive': submission.status === 'cancelled',
+                  'status-chip--neu': submission.status === 'draft',
                 }"
               >
                 {{ statusLabel(submission.status) }}
@@ -169,7 +151,40 @@ function statusLabel(status: string) {
             </div>
           </div>
         </div>
-      </section>
+      </template>
+
+      <!-- Formulários ativos -->
+      <template v-if="activeForms.length">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+          <div class="slabel" style="margin-bottom:0;">Formulários ativos</div>
+          <button
+            type="button"
+            @click="router.push({ name: 'forms' })"
+            style="border:none;background:none;cursor:pointer;font-size:12px;font-weight:600;color:var(--sa-brand);font-family:inherit;padding:0;"
+          >
+            Ver todos →
+          </button>
+        </div>
+        <div class="lstack">
+          <div
+            v-for="form in activeForms"
+            :key="form.id"
+            class="lrow"
+            style="cursor:default;"
+          >
+            <div class="lrow-main">
+              <div class="lrow-title">{{ form.name }}</div>
+              <div class="lrow-sub">
+                v{{ form.current_version_number }}
+                <template v-if="form.published_at"> · publicado {{ new Date(form.published_at).toLocaleDateString('pt-BR') }}</template>
+              </div>
+            </div>
+            <div class="lrow-end">
+              <span class="status-chip">Ativo</span>
+            </div>
+          </div>
+        </div>
+      </template>
 
     </div>
   </AppShell>
