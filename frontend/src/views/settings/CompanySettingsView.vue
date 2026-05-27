@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import AppShell from '@/components/layout/AppShell.vue'
+import { fetchMyCompany, updateMyCompany } from '@/services/companies.service'
 import { useContextStore } from '@/stores/context/context.store'
 import { useFormsStore } from '@/stores/forms/forms.store'
 import { useSubmissionsStore } from '@/stores/submissions/submissions.store'
@@ -15,9 +16,57 @@ const submissionsStore = useSubmissionsStore()
 const usersStore = useUsersStore()
 
 const tab = ref<'general' | 'plan' | 'usage'>('general')
-
 const company = computed(() => contextStore.activeCompany)
 const stats = computed(() => contextStore.stats)
+
+const canEdit = computed(() =>
+  ['OWNER', 'ADMIN'].includes(contextStore.context?.membership?.role ?? ''),
+)
+
+const form = reactive({
+  name: '',
+  cnpj: '',
+  timezone: 'America/Sao_Paulo',
+  contact_email: '',
+  phone: '',
+})
+
+const isSaving = ref(false)
+const savedOnce = ref(false)
+const saveError = ref<string | null>(null)
+
+onMounted(async () => {
+  try {
+    const data = await fetchMyCompany()
+    form.name = data.name
+    form.cnpj = data.cnpj ?? ''
+    form.timezone = data.timezone ?? 'America/Sao_Paulo'
+    form.contact_email = data.contact_email ?? ''
+    form.phone = data.phone ?? ''
+  } catch {
+    form.name = company.value?.name ?? ''
+  }
+})
+
+async function handleSave() {
+  isSaving.value = true
+  saveError.value = null
+  savedOnce.value = false
+  try {
+    await updateMyCompany({
+      name: form.name || undefined,
+      cnpj: form.cnpj || undefined,
+      timezone: form.timezone || undefined,
+      contact_email: form.contact_email || undefined,
+      phone: form.phone || undefined,
+    })
+    savedOnce.value = true
+  } catch (err: any) {
+    saveError.value = err.response?.data?.detail ?? 'Erro ao salvar configuracoes.'
+  } finally {
+    isSaving.value = false
+  }
+}
 
 const planFeatures = [
   'Usuarios ilimitados',
@@ -76,11 +125,6 @@ function usageColor(pct: number) {
         <button class="btn-secondary" type="button" @click="router.back()">Voltar</button>
       </div>
 
-      <div class="info-box" style="margin-bottom: 16px;">
-        Esta area ja ajuda na operacao, mas ainda nao representa um modulo administrativo completo da empresa.
-        Os blocos abaixo deixam claro o que ja e informativo hoje e o que ainda depende de backend dedicado.
-      </div>
-
       <div class="filter-tabs">
         <button class="filter-tab" :class="{ active: tab === 'general' }" type="button" @click="tab = 'general'">
           Geral
@@ -93,46 +137,66 @@ function usageColor(pct: number) {
         </button>
       </div>
 
+      <!-- Geral -->
       <div v-if="tab === 'general'" class="card card-p">
         <div class="slabel" style="margin-bottom: 16px;">Informacoes da empresa</div>
         <div style="display: grid; gap: 12px;">
           <div class="field">
             <label class="flabel">Nome da empresa</label>
-            <input :value="company?.name" disabled />
-            <span style="font-size: 11px; color: var(--sa-muted);">
-              Dado exibido a partir do contexto ativo. A edicao administrativa ainda nao esta disponivel nesta tela.
-            </span>
+            <input v-model="form.name" :disabled="!canEdit" />
           </div>
 
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
             <div class="field">
               <label class="flabel">CNPJ</label>
-              <input value="Disponivel em breve" disabled />
+              <input v-model="form.cnpj" :disabled="!canEdit" placeholder="00.000.000/0000-00" />
             </div>
             <div class="field">
               <label class="flabel">Fuso horario</label>
-              <select disabled>
-                <option>America/Sao_Paulo</option>
-                <option>America/Belem</option>
-                <option>America/Manaus</option>
+              <select v-model="form.timezone" :disabled="!canEdit">
+                <option value="America/Sao_Paulo">America/Sao_Paulo</option>
+                <option value="America/Belem">America/Belem</option>
+                <option value="America/Manaus">America/Manaus</option>
+                <option value="America/Fortaleza">America/Fortaleza</option>
+                <option value="America/Recife">America/Recife</option>
+                <option value="America/Cuiaba">America/Cuiaba</option>
+                <option value="America/Porto_Velho">America/Porto_Velho</option>
+                <option value="America/Boa_Vista">America/Boa_Vista</option>
+                <option value="America/Rio_Branco">America/Rio_Branco</option>
+                <option value="America/Noronha">America/Noronha</option>
               </select>
             </div>
           </div>
 
           <div class="field">
             <label class="flabel">E-mail de contato</label>
-            <input type="email" value="Disponivel em breve" disabled />
+            <input v-model="form.contact_email" type="email" :disabled="!canEdit" />
           </div>
 
           <div class="field">
             <label class="flabel">Telefone</label>
-            <input type="tel" value="Disponivel em breve" disabled />
+            <input v-model="form.phone" type="tel" :disabled="!canEdit" />
           </div>
 
-          <div
-            style="font-size: 12px; color: var(--sa-muted); padding: 8px 10px; background: var(--sa-warn-bg); border: 1px solid var(--sa-warn-bd, #fde68a); border-radius: 6px;"
-          >
-            A edicao dos dados institucionais sera habilitada junto do modulo administrativo completo.
+          <div v-if="!canEdit" style="font-size: 12px; color: var(--sa-muted); padding: 8px 10px; background: var(--sa-warn-bg); border: 1px solid var(--sa-warn-bd, #fde68a); border-radius: 6px;">
+            Apenas OWNER e ADMIN podem editar os dados da empresa.
+          </div>
+
+          <div v-if="canEdit" style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+            <button
+              type="button"
+              class="btn-primary btn-sm"
+              :disabled="isSaving"
+              @click="handleSave"
+            >
+              {{ isSaving ? 'Salvando...' : 'Salvar alteracoes' }}
+            </button>
+            <span v-if="savedOnce" style="font-size: 13px; font-weight: 600; color: var(--sa-ok);">
+              ✓ Configuracoes salvas.
+            </span>
+            <span v-if="saveError" style="font-size: 13px; font-weight: 600; color: var(--sa-danger);">
+              {{ saveError }}
+            </span>
           </div>
         </div>
 
@@ -152,6 +216,7 @@ function usageColor(pct: number) {
         </div>
       </div>
 
+      <!-- Plano -->
       <div v-else-if="tab === 'plan'" style="display: flex; flex-direction: column; gap: 12px;">
         <div class="card card-p" style="border-color: rgba(37,99,235,.3); background: var(--sa-brand-soft);">
           <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;">
@@ -193,6 +258,7 @@ function usageColor(pct: number) {
         </div>
       </div>
 
+      <!-- Utilizacao -->
       <div v-else-if="tab === 'usage'" class="card card-p">
         <div class="slabel" style="margin-bottom: 16px;">Utilizacao do plano</div>
 
