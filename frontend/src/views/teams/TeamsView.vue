@@ -70,7 +70,7 @@ async function submitForm() {
     }
     resetToCreate()
   } catch (err: any) {
-    formError.value = extractProblemMessage(err, 'Nao foi possivel salvar a equipe.')
+    formError.value = extractProblemMessage(err, 'Não foi possível salvar a equipe.')
   }
 }
 
@@ -91,7 +91,7 @@ async function submitAddMember() {
     await teamsStore.addMember(teamsStore.selectedTeam!.id, memberUserId.value)
     memberUserId.value = ''
   } catch (err: any) {
-    memberError.value = extractProblemMessage(err, 'Nao foi possivel adicionar membro.')
+    memberError.value = extractProblemMessage(err, 'Não foi possível adicionar membro.')
   }
 }
 
@@ -100,7 +100,7 @@ async function doRemoveMember(userId: string) {
   try {
     await teamsStore.removeMember(teamsStore.selectedTeam!.id, userId)
   } catch (err: any) {
-    memberError.value = extractProblemMessage(err, 'Nao foi possivel remover membro.')
+    memberError.value = extractProblemMessage(err, 'Não foi possível remover membro.')
   }
 }
 

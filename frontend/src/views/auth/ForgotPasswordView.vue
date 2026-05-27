@@ -12,7 +12,7 @@ const router = useRouter()
         <h2 class="lb-h">
           Recuperação de acesso.<br />
           Fluxo seguro.<br />
-          Em evolucao.
+          Em evolução.
         </h2>
         <p class="lb-p">
           Esta etapa ainda não foi integrada ao backend de identidade. Por enquanto, o acesso deve ser recuperado com o administrador da empresa.

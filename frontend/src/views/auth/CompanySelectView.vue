@@ -42,7 +42,7 @@ async function handleSelect(companyId: string) {
     await contextStore.loadStats()
     router.push({ name: 'home' })
   } catch {
-    error.value = 'Nao foi possivel selecionar a empresa. Tente novamente.'
+    error.value = 'Não foi possível selecionar a empresa. Tente novamente.'
     selecting.value = null
   }
 }
@@ -124,7 +124,7 @@ async function handleSelect(companyId: string) {
                     <strong style="color: var(--sa-text); font-variant-numeric: tabular-nums;">
                       {{ company.id === activeCompanyId && stats ? stats.total_submissions : '-' }}
                     </strong>
-                    inspecoes
+                    inspeções
                   </span>
                 </div>
               </div>

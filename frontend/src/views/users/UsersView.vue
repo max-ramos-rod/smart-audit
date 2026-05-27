@@ -87,6 +87,7 @@ async function submit() {
     }
 
     savedOnce.value = true
+    setTimeout(() => { savedOnce.value = false }, 3000)
     resetForm()
   } catch (err: any) {
     formError.value = extractProblemMessage(err, 'Não foi possível salvar o usuário.')

@@ -441,7 +441,6 @@ Ja e realidade no codigo. Qualquer documentacao antiga que ainda fale em sessao 
 
 ## 12. Principais pendencias documentais e tecnicas
 
-- corrigir mojibake/encoding em documentos e parte da UI
 - manter a documentacao sincronizada com os numeros reais de teste
 - explicitar melhor o que e tela operacional e o que e tela placeholder
 - antes de PWA, consolidar fluxos auxiliares e substituir placeholders por fluxos reais onde fizer sentido

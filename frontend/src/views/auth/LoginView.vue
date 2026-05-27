@@ -32,7 +32,7 @@ async function submit() {
           Controle operacional.
         </h2>
         <p class="lb-p">
-          Plataforma de gestao de checklists, inspecoes e evidencias para operacoes criticas.
+          Plataforma de gestão de checklists, inspeções e evidências para operações críticas.
         </p>
       </div>
       <div class="lb-pills">

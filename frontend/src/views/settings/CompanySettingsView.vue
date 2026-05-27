@@ -61,6 +61,7 @@ async function handleSave() {
       phone: form.phone || undefined,
     })
     savedOnce.value = true
+    setTimeout(() => { savedOnce.value = false }, 3000)
   } catch (err: any) {
     saveError.value = err.response?.data?.detail ?? 'Erro ao salvar configurações.'
   } finally {
@@ -152,7 +153,7 @@ function usageColor(pct: number) {
               <input v-model="form.cnpj" :disabled="!canEdit" placeholder="00.000.000/0000-00" />
             </div>
             <div class="field">
-              <label class="flabel">Fuso horario</label>
+              <label class="flabel">Fuso horário</label>
               <select v-model="form.timezone" :disabled="!canEdit">
                 <option value="America/Sao_Paulo">America/Sao_Paulo</option>
                 <option value="America/Belem">America/Belem</option>
@@ -212,7 +213,7 @@ function usageColor(pct: number) {
               Ação irreversível. Ainda não existe fluxo funcional exposto na interface.
             </div>
           </div>
-          <button type="button" class="btn-secondary btn-sm" disabled>Indisponivel</button>
+          <button type="button" class="btn-secondary btn-sm" disabled>Indisponível</button>
         </div>
       </div>
 
@@ -252,7 +253,7 @@ function usageColor(pct: number) {
           style="padding: 14px 16px; background: var(--sa-bg); border: 1px solid var(--sa-line); border-radius: 12px; text-align: center;"
         >
           <div style="font-size: 13px; color: var(--sa-muted); margin-bottom: 10px;">
-            Precisa de mais recursos ou usuarios?
+            Precisa de mais recursos ou usuários?
           </div>
           <button type="button" class="btn-secondary">Falar com o comercial</button>
         </div>
