@@ -263,6 +263,15 @@
   /* Info box */
   .info-box { background: var(--sa-brand-soft); border: 1px solid #bfdbfe; border-radius: 8px; padding: 10px 14px; font-size: 12px; color: #1d4ed8; line-height: 1.6; }
 
+  /* Empty state */
+  .empty { background: #fff; border: 1px solid var(--sa-line); border-radius: 12px; padding: 40px 24px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .empty-icon { color: var(--sa-muted); width: 36px; height: 36px; opacity: .5; }
+  .empty-h { font-size: 15px; font-weight: 700; color: var(--sa-text); }
+  .empty-p { font-size: 13px; color: var(--sa-muted); }
+
+  /* Back header */
+  .back-hdr { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+
   /* Back button */
   .back-btn { display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 8px; background: #fff; border: 1px solid var(--sa-line); cursor: pointer; color: var(--sa-muted); transition: background .15s; flex-shrink: 0; }
   .back-btn:hover { background: #f8fafc; color: var(--sa-text); }

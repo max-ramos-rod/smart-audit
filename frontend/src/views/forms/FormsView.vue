@@ -199,8 +199,9 @@ async function submitVersion() {
           <div class="sc-value">{{ draftCount }}</div>
         </div>
         <div class="scard">
-          <div class="sc-label">Página</div>
-          <div class="sc-value">{{ currentPage }}<span style="font-size:14px;font-weight:500;color:var(--sa-muted);"> / {{ formsStore.meta?.total_pages ?? 1 }}</span></div>
+          <div class="sc-label">Campos (média)</div>
+          <div class="sc-value">—</div>
+          <div class="sc-desc">por formulário</div>
         </div>
       </div>
 
@@ -235,11 +236,11 @@ async function submitVersion() {
               class="card card-p"
             >
               <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-                <p class="eyebrow">Campo {{ index + 1 }}</p>
+                <span style="font-size:11px;font-weight:700;color:var(--sa-muted);text-transform:uppercase;letter-spacing:.08em;">Campo {{ index + 1 }}</span>
                 <button
+                  v-if="createState.fields.length > 1"
                   type="button"
                   class="btn-secondary btn-sm"
-                  :disabled="createState.fields.length === 1"
                   @click="removeCreateField(index)"
                 >
                   Remover
@@ -257,7 +258,7 @@ async function submitVersion() {
                 <label style="display:grid;gap:6px;">
                   <span>Tipo</span>
                   <select v-model="field.field_type" @change="onFieldTypeChange(field)">
-                    <option value="boolean">Boolean</option>
+                    <option value="boolean">Sim / Não</option>
                     <option value="text">Texto</option>
                     <option value="number">Número</option>
                     <option value="select">Seleção</option>
@@ -319,11 +320,11 @@ async function submitVersion() {
               class="card card-p"
             >
               <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-                <p class="eyebrow">Campo {{ index + 1 }}</p>
+                <span style="font-size:11px;font-weight:700;color:var(--sa-muted);text-transform:uppercase;letter-spacing:.08em;">Campo {{ index + 1 }}</span>
                 <button
+                  v-if="versionFields.length > 1"
                   type="button"
                   class="btn-secondary btn-sm"
-                  :disabled="versionFields.length === 1"
                   @click="removeVersionField(index)"
                 >
                   Remover
@@ -341,7 +342,7 @@ async function submitVersion() {
                 <label style="display:grid;gap:6px;">
                   <span>Tipo</span>
                   <select v-model="field.field_type" @change="onFieldTypeChange(field)">
-                    <option value="boolean">Boolean</option>
+                    <option value="boolean">Sim / Não</option>
                     <option value="text">Texto</option>
                     <option value="number">Número</option>
                     <option value="select">Seleção</option>
@@ -408,13 +409,17 @@ async function submitVersion() {
           v-for="form in filteredForms"
           :key="form.id"
           class="lrow"
-          style="align-items:flex-start;cursor:default;"
+          style="align-items:flex-start;cursor:pointer;"
+          @click="router.push({ name: 'form-detail', params: { formId: form.id } })"
         >
           <div class="lrow-main">
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px;">
               <div class="lrow-title">{{ form.name }}</div>
-              <span class="status-chip" :class="{ 'status-chip--inactive': !form.is_active }">
-                {{ form.is_active ? 'Ativo' : 'Inativo' }}
+              <span
+                class="status-chip"
+                :class="{ 'status-chip--neu': form.current_version_status !== 'published' }"
+              >
+                {{ form.current_version_status === 'published' ? 'Publicado' : 'Rascunho' }}
               </span>
               <span class="ver-badge">v{{ form.current_version_number }}</span>
             </div>
@@ -423,14 +428,7 @@ async function submitVersion() {
               · {{ form.published_at ? new Date(form.published_at).toLocaleDateString('pt-BR') : 'Não publicado' }}
             </div>
           </div>
-          <div style="display:flex;gap:6px;flex-shrink:0;align-items:center;flex-wrap:wrap;">
-            <button
-              type="button"
-              class="btn-secondary btn-sm"
-              @click="router.push({ name: 'form-versions', params: { formId: form.id } })"
-            >
-              Histórico
-            </button>
+          <div style="display:flex;gap:6px;flex-shrink:0;align-items:center;" @click.stop>
             <button
               type="button"
               class="btn-secondary btn-sm"
@@ -443,16 +441,14 @@ async function submitVersion() {
       </div>
 
       <!-- Empty state -->
-      <div
-        v-else-if="!formsStore.isLoading"
-        class="card card-p"
-        style="text-align:center;padding:32px 20px;"
-      >
-        <p class="eyebrow">Sem dados</p>
-        <div style="font-size:17px;font-weight:700;color:var(--sa-text);margin-top:8px;">
+      <div v-else-if="!formsStore.isLoading" class="empty">
+        <div class="empty-icon">
+          <SvgIcon name="forms" :size="36" />
+        </div>
+        <div class="empty-h">
           {{ search ? 'Nenhum formulário encontrado' : 'Nenhum formulário cadastrado' }}
         </div>
-        <p style="font-size:13px;color:var(--sa-muted);margin-top:6px;">
+        <p class="empty-p">
           {{ search ? 'Tente outro termo de busca.' : 'Use o botão acima para criar seu primeiro formulário.' }}
         </p>
       </div>

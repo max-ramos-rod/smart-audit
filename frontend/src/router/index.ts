@@ -7,6 +7,7 @@ import CompanySelectView from '@/views/auth/CompanySelectView.vue'
 import LoginView from '@/views/auth/LoginView.vue'
 import ProfileView from '@/views/auth/ProfileView.vue'
 import HomeView from '@/views/dashboard/HomeView.vue'
+import FormDetailView from '@/views/forms/FormDetailView.vue'
 import FormVersionsView from '@/views/forms/FormVersionsView.vue'
 import FormsView from '@/views/forms/FormsView.vue'
 import SubmissionDetailView from '@/views/submissions/SubmissionDetailView.vue'
@@ -60,6 +61,12 @@ const router = createRouter({
       path: '/submissions/:id',
       name: 'submission-detail',
       component: SubmissionDetailView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/forms/:formId',
+      name: 'form-detail',
+      component: FormDetailView,
       meta: { requiresAuth: true },
     },
     {
