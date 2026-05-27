@@ -2,7 +2,6 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 
 import AppShell from '@/components/layout/AppShell.vue'
-import BaseButton from '@/components/ui/BaseButton.vue'
 import { extractProblemMessage } from '@/services/api/problem'
 import { useUsersStore } from '@/stores/users/users.store'
 import type { UserCreatePayload, UserListItem, UserUpdatePayload } from '@/types/users'
@@ -95,120 +94,101 @@ async function submit() {
 
 <template>
   <AppShell>
-    <section class="flex flex-wrap items-center justify-between gap-3 px-1">
-      <div>
-        <p class="eyebrow">Administração</p>
-        <h2 class="mt-2 text-2xl font-semibold tracking-tight text-sa-text">Usuários da empresa</h2>
+    <div class="page">
+
+      <div class="phdr">
+        <div>
+          <p class="eyebrow">Administração</p>
+          <h2 class="page-h1">Usuários da empresa</h2>
+        </div>
+        <button type="button" class="btn-secondary btn-sm" @click="resetForm">Novo usuário</button>
       </div>
-      <BaseButton type="button" @click="resetForm">Novo usuário</BaseButton>
-    </section>
 
-    <p v-if="usersStore.error" class="text-sm font-medium text-sa-danger">{{ usersStore.error }}</p>
+      <p v-if="usersStore.error" class="text-sm font-medium text-sa-danger" style="margin-bottom: 12px;">
+        {{ usersStore.error }}
+      </p>
 
-    <section class="grid gap-4 xl:grid-cols-[minmax(320px,400px)_minmax(0,1fr)]">
-      <article class="surface-panel p-5 sm:p-6">
-        <div class="flex items-center justify-between gap-3">
-          <div>
-            <p class="eyebrow">Operação</p>
-            <h3 class="mt-2 text-xl font-semibold text-sa-text">{{ title }}</h3>
+      <div class="users-layout">
+
+        <!-- Formulário -->
+        <div class="card card-p" style="align-self: flex-start; position: sticky; top: 20px;">
+          <div class="flex items-center justify-between gap-3" style="margin-bottom: 16px;">
+            <div>
+              <p class="eyebrow">Operação</p>
+              <h3 class="mt-2 text-lg font-semibold text-sa-text">{{ title }}</h3>
+            </div>
+            <span class="status-chip">{{ isEditing ? 'Edição' : 'Criação' }}</span>
           </div>
-          <span class="status-chip">{{ isEditing ? 'Edição' : 'Criação' }}</span>
-        </div>
 
-        <form class="mt-5 grid gap-4" @submit.prevent="submit">
-          <label class="grid gap-2">
-            <span>Nome</span>
-            <input v-model="form.name" type="text" minlength="2" maxlength="150" required />
-          </label>
-
-          <label class="grid gap-2">
-            <span>Email</span>
-            <input
-              v-model="form.email"
-              type="email"
-              minlength="5"
-              maxlength="255"
-              :disabled="isEditing"
-              required
-            />
-          </label>
-
-          <label class="grid gap-2">
-            <span>{{ isEditing ? 'Nova senha' : 'Senha inicial' }}</span>
-            <input
-              v-model="form.password"
-              type="password"
-              minlength="8"
-              maxlength="128"
-              :required="!isEditing"
-              :placeholder="isEditing ? 'Preencha apenas se quiser trocar' : ''"
-            />
-          </label>
-
-          <div class="grid gap-4 sm:grid-cols-2">
+          <form class="grid gap-4" @submit.prevent="submit">
             <label class="grid gap-2">
-              <span>Papel</span>
-              <select v-model="form.role">
-                <option value="OWNER">OWNER</option>
-                <option value="ADMIN">ADMIN</option>
-                <option value="MANAGER">MANAGER</option>
-                <option value="INSPECTOR">INSPECTOR</option>
-                <option value="VIEWER">VIEWER</option>
-              </select>
+              <span>Nome</span>
+              <input v-model="form.name" type="text" minlength="2" maxlength="150" required />
             </label>
 
             <label class="grid gap-2">
-              <span>Status</span>
-              <select v-model="form.is_active">
-                <option :value="true">Ativo</option>
-                <option :value="false">Inativo</option>
-              </select>
+              <span>Email</span>
+              <input
+                v-model="form.email"
+                type="email"
+                minlength="5"
+                maxlength="255"
+                :disabled="isEditing"
+                required
+              />
             </label>
-          </div>
 
-          <p v-if="formError" class="text-sm font-medium text-sa-danger">{{ formError }}</p>
+            <label class="grid gap-2">
+              <span>{{ isEditing ? 'Nova senha' : 'Senha inicial' }}</span>
+              <input
+                v-model="form.password"
+                type="password"
+                minlength="8"
+                maxlength="128"
+                :required="!isEditing"
+                :placeholder="isEditing ? 'Preencha apenas se quiser trocar' : ''"
+              />
+            </label>
 
-          <div class="flex flex-col gap-3">
-            <BaseButton type="submit" :full-width="true">
-              {{ submitLabel }}
-            </BaseButton>
-            <BaseButton
-              v-if="isEditing"
-              type="button"
-              variant="ghost"
-              :full-width="true"
-              @click="resetForm"
-            >
-              Cancelar edição
-            </BaseButton>
-          </div>
-        </form>
-      </article>
+            <div class="grid gap-4 sm:grid-cols-2">
+              <label class="grid gap-2">
+                <span>Papel</span>
+                <select v-model="form.role">
+                  <option value="OWNER">OWNER</option>
+                  <option value="ADMIN">ADMIN</option>
+                  <option value="MANAGER">MANAGER</option>
+                  <option value="INSPECTOR">INSPECTOR</option>
+                  <option value="VIEWER">VIEWER</option>
+                </select>
+              </label>
 
-      <section class="grid gap-4">
-        <div class="grid gap-3 lg:hidden">
-          <article v-for="user in usersStore.items" :key="user.id" class="surface-panel p-5">
-            <div class="flex items-start justify-between gap-3">
-              <div>
-                <p class="eyebrow">{{ user.role }}</p>
-                <h3 class="mt-2 text-lg font-semibold text-sa-text">{{ user.name }}</h3>
-              </div>
-              <span class="status-chip" :class="{ 'status-chip--inactive': !user.is_active }">
-                {{ user.is_active ? 'Ativo' : 'Inativo' }}
-              </span>
+              <label class="grid gap-2">
+                <span>Status</span>
+                <select v-model="form.is_active">
+                  <option :value="true">Ativo</option>
+                  <option :value="false">Inativo</option>
+                </select>
+              </label>
             </div>
 
-            <p class="mt-3 text-sm text-sa-muted">{{ user.email }}</p>
+            <p v-if="formError" class="text-sm font-medium text-sa-danger">{{ formError }}</p>
 
-            <div class="mt-4">
-              <BaseButton type="button" variant="ghost" :full-width="true" @click="editUser(user)">
-                Editar usuário
-              </BaseButton>
+            <div class="flex flex-col gap-3">
+              <button type="submit" class="btn-primary btn-full">{{ submitLabel }}</button>
+              <button
+                v-if="isEditing"
+                type="button"
+                class="btn-secondary btn-full"
+                @click="resetForm"
+              >
+                Cancelar edição
+              </button>
             </div>
-          </article>
+          </form>
         </div>
 
-        <section class="surface-panel hidden overflow-auto p-2 lg:block">
+        <!-- Tabela -->
+        <div class="card" style="overflow-x: auto;">
           <table>
             <thead>
               <tr>
@@ -223,16 +203,25 @@ async function submit() {
               <tr v-for="user in usersStore.items" :key="user.id">
                 <td>{{ user.name }}</td>
                 <td>{{ user.email }}</td>
-                <td>{{ user.role }}</td>
-                <td>{{ user.is_active ? 'Ativo' : 'Inativo' }}</td>
+                <td>
+                  <span class="role-badge" :class="'role-' + user.role.toLowerCase()">
+                    {{ user.role }}
+                  </span>
+                </td>
+                <td>
+                  <span class="status-chip" :class="{ 'status-chip--inactive': !user.is_active }">
+                    {{ user.is_active ? 'Ativo' : 'Inativo' }}
+                  </span>
+                </td>
                 <td>
                   <button class="inline-action" type="button" @click="editUser(user)">Editar</button>
                 </td>
               </tr>
             </tbody>
           </table>
-        </section>
-      </section>
-    </section>
+        </div>
+
+      </div>
+    </div>
   </AppShell>
 </template>

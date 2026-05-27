@@ -106,6 +106,8 @@ export const useTeamsStore = defineStore('teams', () => {
     try {
       const updated = await addTeamMember(teamId, userId)
       selectedTeam.value = updated
+      const idx = items.value.findIndex(t => t.id === teamId)
+      if (idx !== -1) items.value[idx].member_count = updated.members.length
       return updated
     } catch (err: any) {
       error.value = extractProblemMessage(err, 'Nao foi possivel adicionar membro.')
@@ -121,6 +123,8 @@ export const useTeamsStore = defineStore('teams', () => {
     try {
       const updated = await removeTeamMember(teamId, userId)
       selectedTeam.value = updated
+      const idx = items.value.findIndex(t => t.id === teamId)
+      if (idx !== -1) items.value[idx].member_count = updated.members.length
       return updated
     } catch (err: any) {
       error.value = extractProblemMessage(err, 'Nao foi possivel remover membro.')

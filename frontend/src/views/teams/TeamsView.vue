@@ -2,7 +2,6 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 
 import AppShell from '@/components/layout/AppShell.vue'
-import BaseButton from '@/components/ui/BaseButton.vue'
 import { extractProblemMessage } from '@/services/api/problem'
 import { useTeamsStore } from '@/stores/teams/teams.store'
 import { useUsersStore } from '@/stores/users/users.store'
@@ -26,6 +25,9 @@ const title = computed(() => {
   if (mode.value === 'members') return 'Membros da equipe'
   return 'Nova equipe'
 })
+
+const totalMembers  = computed(() => teamsStore.items.reduce((a, t) => a + t.member_count, 0))
+const largestTeam   = computed(() => teamsStore.items.length ? Math.max(...teamsStore.items.map(t => t.member_count)) : 0)
 
 onMounted(async () => {
   await teamsStore.load()
@@ -112,181 +114,222 @@ const submitLabel = computed(() => {
   if (teamsStore.isSaving) return mode.value === 'edit' ? 'Salvando...' : 'Criando...'
   return mode.value === 'edit' ? 'Salvar alterações' : 'Criar equipe'
 })
+
+function memberInitials(name: string) {
+  return name.split(' ').map(n => n[0]).slice(0, 2).join('')
+}
 </script>
 
 <template>
   <AppShell>
-    <section class="flex flex-wrap items-center justify-between gap-3 px-1">
-      <div>
-        <p class="eyebrow">Administração</p>
-        <h2 class="mt-2 text-2xl font-semibold tracking-tight text-sa-text">Equipes</h2>
-      </div>
-      <BaseButton type="button" @click="resetToCreate">Nova equipe</BaseButton>
-    </section>
+    <div class="page">
 
-    <p v-if="teamsStore.error" class="text-sm font-medium text-sa-danger">{{ teamsStore.error }}</p>
-
-    <section class="grid gap-4 xl:grid-cols-[minmax(320px,400px)_minmax(0,1fr)]">
-      <!-- Side panel -->
-      <article class="surface-panel p-5 sm:p-6">
-        <div class="flex items-center justify-between gap-3">
-          <div>
-            <p class="eyebrow">Operação</p>
-            <h3 class="mt-2 text-xl font-semibold text-sa-text">{{ title }}</h3>
-          </div>
-          <span class="status-chip">
-            {{ mode === 'edit' ? 'Edição' : mode === 'members' ? 'Membros' : 'Criação' }}
-          </span>
+      <div class="phdr">
+        <div>
+          <p class="eyebrow">Administração</p>
+          <h2 class="page-h1">Equipes</h2>
+          <p class="page-desc">Organize usuários em equipes operacionais para atribuição de inspeções.</p>
         </div>
+        <button type="button" class="btn-secondary btn-sm" @click="resetToCreate">+ Nova equipe</button>
+      </div>
 
-        <!-- Create / Edit form -->
-        <form v-if="mode !== 'members'" class="mt-5 grid gap-4" @submit.prevent="submitForm">
-          <label class="grid gap-2">
-            <span>Nome da equipe</span>
-            <input v-model="form.name" type="text" minlength="1" maxlength="150" required />
-          </label>
+      <!-- Stats -->
+      <div class="stats-grid" style="margin-bottom:20px;">
+        <div class="scard">
+          <div class="sc-label">Total de equipes</div>
+          <div class="sc-value">{{ teamsStore.items.length }}</div>
+        </div>
+        <div class="scard">
+          <div class="sc-label">Total de membros</div>
+          <div class="sc-value">{{ totalMembers }}</div>
+        </div>
+        <div class="scard sc-accent">
+          <div class="sc-label">Maior equipe</div>
+          <div class="sc-value">{{ largestTeam }}</div>
+          <div class="sc-desc">membros</div>
+        </div>
+        <div class="scard">
+          <div class="sc-label">Usuários disponíveis</div>
+          <div class="sc-value">{{ usersStore.items.length }}</div>
+        </div>
+      </div>
 
-          <p v-if="formError" class="text-sm font-medium text-sa-danger">{{ formError }}</p>
+      <p v-if="teamsStore.error" style="margin-bottom:12px;font-size:13px;font-weight:600;color:var(--sa-danger);">
+        {{ teamsStore.error }}
+      </p>
 
-          <div class="flex flex-col gap-3">
-            <BaseButton type="submit" :full-width="true" :disabled="teamsStore.isSaving">
-              {{ submitLabel }}
-            </BaseButton>
-            <BaseButton
-              v-if="mode === 'edit'"
-              type="button"
-              variant="ghost"
-              :full-width="true"
-              @click="resetToCreate"
+      <div class="users-layout">
+
+        <!-- Side panel -->
+        <div class="card card-p" style="align-self:flex-start;position:sticky;top:20px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+            <div>
+              <div class="eyebrow">{{ mode === 'members' && teamsStore.selectedTeam ? teamsStore.selectedTeam.name : 'Operação' }}</div>
+              <div style="font-size:16px;font-weight:700;color:var(--sa-text);margin-top:3px;">{{ title }}</div>
+            </div>
+            <span
+              class="status-chip"
+              :class="{
+                'status-chip--warn': mode === 'edit',
+                'status-chip--neu': mode === 'members',
+              }"
             >
-              Cancelar edição
-            </BaseButton>
-          </div>
-        </form>
-
-        <!-- Members panel -->
-        <div v-else class="mt-5 grid gap-4">
-          <div v-if="teamsStore.selectedTeam">
-            <p class="text-sm font-medium text-sa-text">
-              {{ teamsStore.selectedTeam.name }}
-            </p>
-            <p class="mt-1 text-sm text-sa-muted">
-              {{ teamsStore.selectedTeam.members.length }} membro(s)
-            </p>
+              {{ mode === 'edit' ? 'Edição' : mode === 'members' ? 'Membros' : 'Criação' }}
+            </span>
           </div>
 
-          <form class="grid gap-3" @submit.prevent="submitAddMember">
-            <label class="grid gap-2">
-              <span>Adicionar membro</span>
-              <select v-model="memberUserId" required>
-                <option value="" disabled>Selecione um usuário</option>
-                <option v-for="u in availableUsers" :key="u.id" :value="u.id">
-                  {{ u.name }} ({{ u.role }})
-                </option>
-              </select>
+          <!-- Create / Edit form -->
+          <form v-if="mode !== 'members'" style="display:grid;gap:12px;" @submit.prevent="submitForm">
+            <label style="display:grid;gap:6px;">
+              <span style="font-size:12px;font-weight:600;color:var(--sa-muted);">Nome da equipe</span>
+              <input v-model="form.name" type="text" minlength="1" maxlength="150" required placeholder="Ex: Auditoria Norte" />
             </label>
-            <BaseButton
-              type="submit"
-              :full-width="true"
-              :disabled="!memberUserId || teamsStore.isSaving"
-            >
-              {{ teamsStore.isSaving ? 'Adicionando...' : 'Adicionar' }}
-            </BaseButton>
+
+            <p v-if="formError" style="font-size:13px;font-weight:600;color:var(--sa-danger);">{{ formError }}</p>
+
+            <div style="display:grid;gap:8px;">
+              <button type="submit" class="btn-primary btn-full" :disabled="teamsStore.isSaving">
+                {{ submitLabel }}
+              </button>
+              <button
+                v-if="mode === 'edit'"
+                type="button"
+                class="btn-secondary btn-full"
+                @click="resetToCreate"
+              >
+                Cancelar edição
+              </button>
+            </div>
           </form>
 
-          <p v-if="memberError" class="text-sm font-medium text-sa-danger">{{ memberError }}</p>
+          <!-- Members panel -->
+          <div v-else style="display:grid;gap:14px;">
+            <div style="font-size:13px;color:var(--sa-muted);">
+              {{ teamsStore.selectedTeam?.members.length ?? 0 }} membro{{ (teamsStore.selectedTeam?.members.length ?? 0) !== 1 ? 's' : '' }} nesta equipe
+            </div>
 
-          <ul v-if="teamsStore.selectedTeam?.members.length" class="grid gap-2">
-            <li
-              v-for="member in teamsStore.selectedTeam.members"
-              :key="member.user_id"
-              class="flex items-center justify-between gap-3 rounded-2xl border border-[color:var(--sa-line)] px-4 py-3"
-            >
-              <div>
-                <p class="text-sm font-medium text-sa-text">{{ member.name }}</p>
-                <p class="text-xs text-sa-muted">{{ member.email }}</p>
-              </div>
+            <form v-if="availableUsers.length > 0" style="display:grid;gap:10px;" @submit.prevent="submitAddMember">
+              <label style="display:grid;gap:6px;">
+                <span style="font-size:12px;font-weight:600;color:var(--sa-muted);">Adicionar membro</span>
+                <select v-model="memberUserId" required>
+                  <option value="" disabled>Selecione um usuário</option>
+                  <option v-for="u in availableUsers" :key="u.id" :value="u.id">
+                    {{ u.name }} ({{ u.role }})
+                  </option>
+                </select>
+              </label>
               <button
-                class="inline-action"
-                type="button"
-                :disabled="teamsStore.isSaving"
-                @click="doRemoveMember(member.user_id)"
+                type="submit"
+                class="btn-primary btn-full"
+                :disabled="!memberUserId || teamsStore.isSaving"
               >
-                Remover
+                {{ teamsStore.isSaving ? 'Adicionando...' : 'Adicionar' }}
               </button>
-            </li>
-          </ul>
-          <p v-else class="text-sm text-sa-muted">Nenhum membro nesta equipe.</p>
+            </form>
+            <div v-else class="info-box">Todos os usuários já são membros desta equipe.</div>
 
-          <BaseButton type="button" variant="ghost" :full-width="true" @click="resetToCreate">
-            Voltar
-          </BaseButton>
-        </div>
-      </article>
+            <p v-if="memberError" style="font-size:13px;font-weight:600;color:var(--sa-danger);">{{ memberError }}</p>
 
-      <!-- List -->
-      <section class="grid gap-4">
-        <div class="grid gap-3 lg:hidden">
-          <article v-for="team in teamsStore.items" :key="team.id" class="surface-panel p-5">
-            <div class="flex items-start justify-between gap-3">
-              <div>
-                <p class="eyebrow">Equipe</p>
-                <h3 class="mt-2 text-lg font-semibold text-sa-text">{{ team.name }}</h3>
-              </div>
-              <span class="status-chip">{{ team.member_count }} membro(s)</span>
-            </div>
-            <div class="mt-4 flex flex-col gap-2">
-              <BaseButton type="button" variant="ghost" :full-width="true" @click="openMembers(team)">
-                Gerenciar membros
-              </BaseButton>
-              <BaseButton type="button" variant="ghost" :full-width="true" @click="openEdit(team)">
-                Editar
-              </BaseButton>
-              <BaseButton
-                type="button"
-                variant="danger"
-                :full-width="true"
-                @click="confirmDelete(team)"
+            <!-- Members list -->
+            <div v-if="teamsStore.selectedTeam?.members.length" style="display:flex;flex-direction:column;gap:8px;">
+              <div
+                v-for="member in teamsStore.selectedTeam.members"
+                :key="member.user_id"
+                style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:#f8fafc;border:1px solid var(--sa-line);border-radius:8px;"
               >
-                Excluir
-              </BaseButton>
+                <div style="width:28px;height:28px;border-radius:50%;background:var(--sa-brand-soft);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:var(--sa-brand);flex-shrink:0;">
+                  {{ memberInitials(member.name) }}
+                </div>
+                <div style="flex:1;min-width:0;">
+                  <div style="font-size:13px;font-weight:600;color:var(--sa-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ member.name }}</div>
+                  <div style="font-size:11px;color:var(--sa-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ member.email }}</div>
+                </div>
+                <button
+                  type="button"
+                  style="border:none;background:none;cursor:pointer;font-size:11px;font-weight:600;color:var(--sa-danger);font-family:inherit;flex-shrink:0;padding:0;"
+                  :disabled="teamsStore.isSaving"
+                  @click="doRemoveMember(member.user_id)"
+                >
+                  Remover
+                </button>
+              </div>
             </div>
-          </article>
+            <p v-else style="font-size:13px;color:var(--sa-muted);">Nenhum membro nesta equipe.</p>
+
+            <button type="button" class="btn-secondary btn-full" @click="resetToCreate">← Voltar</button>
+          </div>
         </div>
 
-        <section class="surface-panel hidden overflow-auto p-2 lg:block">
-          <table>
-            <thead>
-              <tr>
-                <th>Nome</th>
-                <th>Membros</th>
-                <th>Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="team in teamsStore.items" :key="team.id">
-                <td>{{ team.name }}</td>
-                <td>{{ team.member_count }}</td>
-                <td class="flex gap-2">
-                  <button class="inline-action" type="button" @click="openMembers(team)">
-                    Membros
-                  </button>
-                  <button class="inline-action" type="button" @click="openEdit(team)">
-                    Editar
-                  </button>
-                  <button
-                    class="inline-action text-red-600"
-                    type="button"
-                    @click="confirmDelete(team)"
-                  >
-                    Excluir
-                  </button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </section>
-      </section>
-    </section>
+        <!-- Teams list -->
+        <div>
+
+          <!-- Mobile cards -->
+          <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px;" class="lg:hidden">
+            <div
+              v-for="team in teamsStore.items"
+              :key="team.id"
+              class="card card-p"
+            >
+              <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:12px;">
+                <div>
+                  <div class="eyebrow">Equipe</div>
+                  <div style="font-size:15px;font-weight:700;color:var(--sa-text);margin-top:4px;">{{ team.name }}</div>
+                </div>
+                <span class="status-chip">{{ team.member_count }} membro{{ team.member_count !== 1 ? 's' : '' }}</span>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:6px;">
+                <button type="button" class="btn-secondary btn-full btn-sm" @click="openMembers(team)">Gerenciar membros</button>
+                <button type="button" class="btn-secondary btn-full btn-sm" @click="openEdit(team)">Editar</button>
+                <button
+                  type="button"
+                  class="btn-secondary btn-full btn-sm"
+                  style="color:var(--sa-danger);border-color:var(--sa-err-bg);"
+                  @click="confirmDelete(team)"
+                >
+                  Excluir
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Desktop table -->
+          <div class="card hidden lg:block" style="overflow-x:auto;">
+            <table>
+              <thead>
+                <tr>
+                  <th>Nome da equipe</th>
+                  <th>Membros</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="team in teamsStore.items" :key="team.id">
+                  <td style="font-weight:600;color:var(--sa-text);">{{ team.name }}</td>
+                  <td>
+                    <span class="status-chip">{{ team.member_count }} membro{{ team.member_count !== 1 ? 's' : '' }}</span>
+                  </td>
+                  <td>
+                    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                      <button type="button" class="btn-secondary btn-sm" @click="openMembers(team)">Membros</button>
+                      <button type="button" class="btn-secondary btn-sm" @click="openEdit(team)">Editar</button>
+                      <button
+                        type="button"
+                        class="btn-secondary btn-sm"
+                        style="color:var(--sa-danger);border-color:var(--sa-err-bg);"
+                        @click="confirmDelete(team)"
+                      >
+                        Excluir
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
   </AppShell>
 </template>

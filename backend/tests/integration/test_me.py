@@ -92,3 +92,42 @@ async def test_me_stats_respects_company_isolation(client, auth_headers, inspect
 async def test_me_stats_requires_auth(client):
     response = await client.get("/api/v1/me/stats")
     assert_problem(response, 401, "Token de acesso nao informado.")
+
+
+async def test_patch_me_updates_name(client, auth_headers):
+    """PATCH /me atualiza o nome do usuário logado."""
+    new_name = "Nome Atualizado Teste"
+    res = await client.patch("/api/v1/me", headers=auth_headers, json={"name": new_name})
+    assert res.status_code == 200
+    data = res.json()["data"]
+    assert data["name"] == new_name
+    assert "email" in data
+    assert "id" in data
+
+
+async def test_patch_me_password_too_short_returns_422(client, auth_headers):
+    """PATCH /me com senha curta retorna 422."""
+    res = await client.patch("/api/v1/me", headers=auth_headers, json={"password": "123"})
+    assert res.status_code == 422
+
+
+async def test_stats_with_period(client, auth_headers):
+    """GET /me/stats?period= retorna stats filtradas por período."""
+    for period in ["7d", "30d", "90d", "all"]:
+        res = await client.get(f"/api/v1/me/stats?period={period}", headers=auth_headers)
+        assert res.status_code == 200
+        data = res.json()["data"]
+        assert "total_submissions" in data
+        assert "completed" in data
+        assert "in_progress" in data
+        assert "avg_score" in data
+        assert "recent" in data
+        assert isinstance(data["recent"], list)
+
+
+async def test_stats_without_period_still_works(client, auth_headers):
+    """GET /me/stats sem parâmetro continua funcionando."""
+    res = await client.get("/api/v1/me/stats", headers=auth_headers)
+    assert res.status_code == 200
+    data = res.json()["data"]
+    assert "total_submissions" in data

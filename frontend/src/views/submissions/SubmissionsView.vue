@@ -3,7 +3,6 @@ import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import AppShell from '@/components/layout/AppShell.vue'
-import BaseButton from '@/components/ui/BaseButton.vue'
 import { extractProblemMessage } from '@/services/api/problem'
 import { useFormsStore } from '@/stores/forms/forms.store'
 import { useSubmissionsStore } from '@/stores/submissions/submissions.store'
@@ -80,170 +79,152 @@ function statusLabel(status: string) {
 
 <template>
   <AppShell>
-    <section class="flex flex-wrap items-center justify-between gap-3 px-1">
-      <div>
-        <p class="eyebrow">Execução</p>
-        <h2 class="mt-2 text-2xl font-semibold tracking-tight text-sa-text">Inspeções recentes</h2>
-        <p class="mt-2 text-sm text-sa-muted">Acompanhe status, início de execução e score operacional.</p>
-      </div>
-      <BaseButton type="button" @click="openComposer">Nova inspeção</BaseButton>
-    </section>
+    <div class="page">
 
-    <section class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      <article class="surface-panel p-4">
-        <span class="eyebrow">Total</span>
-        <strong class="mt-2 block text-2xl font-semibold text-sa-text">
-          {{ submissionsStore.meta?.total ?? submissionsStore.items.length }}
-        </strong>
-      </article>
-      <article class="surface-panel p-4">
-        <span class="eyebrow">Concluídas</span>
-        <strong class="mt-2 block text-2xl font-semibold text-sa-text">
-          {{ activeStatus === 'completed' ? submissionsStore.meta?.total ?? '—' : '—' }}
-        </strong>
-      </article>
-      <article class="surface-panel p-4">
-        <span class="eyebrow">Página</span>
-        <strong class="mt-2 block text-2xl font-semibold text-sa-text">
-          {{ currentPage }} / {{ submissionsStore.meta?.total_pages ?? 1 }}
-        </strong>
-      </article>
-      <article class="surface-panel p-4">
-        <span class="eyebrow">Mostrando</span>
-        <strong class="mt-2 block text-2xl font-semibold text-sa-text">
-          {{ submissionsStore.items.length }}
-        </strong>
-        <p class="mt-1 text-sm text-sa-muted">de {{ submissionsStore.meta?.total ?? submissionsStore.items.length }}</p>
-      </article>
-    </section>
-
-    <section v-if="showComposer" class="surface-panel p-5 sm:p-6">
-      <div class="flex items-center justify-between gap-3">
+      <div class="phdr">
         <div>
-          <p class="eyebrow">Nova inspeção</p>
-          <h3 class="mt-2 text-xl font-semibold text-sa-text">Selecione o formulário</h3>
+          <p class="eyebrow">Execução</p>
+          <h2 class="page-h1">Inspeções</h2>
+          <p class="page-desc">Acompanhe status, início de execução e score operacional.</p>
         </div>
-        <BaseButton type="button" variant="ghost" @click="closeComposer">Fechar</BaseButton>
+        <button type="button" class="btn-primary" @click="openComposer">Nova inspeção</button>
       </div>
 
-      <form class="mt-5 grid gap-4" @submit.prevent="handleCreate">
-        <div v-if="formsStore.isLoading" class="text-sm text-sa-muted">
-          Carregando formulários...
-        </div>
-        <div v-else-if="!formsStore.items.length" class="text-sm text-sa-muted">
-          Nenhum formulário disponível. Crie um formulário antes de iniciar uma inspeção.
-        </div>
-        <template v-else>
-          <label class="grid gap-2">
-            <span>Formulário</span>
-            <select v-model="selectedFormId" required>
-              <option value="" disabled>Selecione um formulário</option>
-              <option v-for="form in formsStore.items" :key="form.id" :value="form.id">
-                {{ form.name }} — v{{ form.current_version_number }}
-              </option>
-            </select>
-          </label>
-
-          <div class="flex gap-3">
-            <BaseButton type="submit" :disabled="submissionsStore.isSaving || !selectedFormId">
-              {{ submissionsStore.isSaving ? 'Criando...' : 'Iniciar inspeção' }}
-            </BaseButton>
-          </div>
-        </template>
-
-        <p v-if="createError" class="text-sm font-medium text-sa-danger">{{ createError }}</p>
-      </form>
-    </section>
-
-    <p v-if="submissionsStore.error" class="text-sm font-medium text-sa-danger">
-      {{ submissionsStore.error }}
-    </p>
-    <p v-else-if="submissionsStore.isLoading" class="text-sm font-medium text-sa-muted">
-      Carregando inspeções...
-    </p>
-
-    <section class="flex gap-2">
-      <button
-        v-for="opt in STATUS_OPTIONS"
-        :key="String(opt.value)"
-        type="button"
-        class="rounded-2xl px-4 py-2 text-sm font-medium transition"
-        :class="activeStatus === opt.value
-          ? 'bg-gradient-to-br from-sa-brand to-sa-brand-strong text-white shadow-lg shadow-amber-950/15'
-          : 'text-sa-text hover:bg-white/70'"
-        @click="setStatus(opt.value)"
-      >
-        {{ opt.label }}
-      </button>
-    </section>
-
-    <section v-if="submissionsStore.items.length" class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-      <article
-        v-for="submission in submissionsStore.items"
-        :key="submission.id"
-        class="surface-panel p-5"
-      >
-        <div class="flex items-start justify-between gap-3">
+      <!-- composer -->
+      <section v-if="showComposer" class="surface-panel p-5 sm:p-6" style="margin-bottom: 16px;">
+        <div class="flex items-center justify-between gap-3">
           <div>
-            <p class="eyebrow">{{ statusLabel(submission.status) }}</p>
-            <h3 class="mt-3 text-xl font-semibold text-sa-text">{{ submission.form_name }}</h3>
+            <p class="eyebrow">Nova inspeção</p>
+            <h3 class="mt-2 text-xl font-semibold text-sa-text">Selecione o formulário</h3>
           </div>
-          <span
-            class="status-chip"
-            :class="{ 'status-chip--inactive': submission.status !== 'completed' }"
-          >
-            {{ submission.score !== null ? `${submission.score}%` : 'N/A' }}
-          </span>
+          <button type="button" class="btn-secondary btn-sm" @click="closeComposer">Fechar</button>
         </div>
-        <p class="mt-3 text-sm leading-6 text-sa-muted">
-          Início: {{ new Date(submission.started_at).toLocaleString('pt-BR') }}
-        </p>
-        <footer class="mt-5 flex items-center justify-between gap-3">
-          <span class="text-sm text-sa-muted">
-            {{ submission.finished_at ? new Date(submission.finished_at).toLocaleString('pt-BR') : 'Em andamento' }}
-          </span>
-          <button
-            class="inline-action"
-            type="button"
-            @click="router.push({ name: 'submission-detail', params: { id: submission.id } })"
-          >
-            Abrir →
-          </button>
-        </footer>
-      </article>
-    </section>
 
-    <section v-else-if="!submissionsStore.isLoading" class="surface-panel p-6 text-center">
-      <p class="eyebrow">Sem dados</p>
-      <h3 class="mt-3 text-xl font-semibold text-sa-text">Nenhuma inspeção registrada</h3>
-      <p class="mt-2 text-sm text-sa-muted">
-        Clique em "Nova inspeção" para iniciar a partir de um formulário cadastrado.
+        <form class="mt-5 grid gap-4" @submit.prevent="handleCreate">
+          <div v-if="formsStore.isLoading" class="text-sm text-sa-muted">
+            Carregando formulários...
+          </div>
+          <div v-else-if="!formsStore.items.length" class="text-sm text-sa-muted">
+            Nenhum formulário disponível. Crie um formulário antes de iniciar uma inspeção.
+          </div>
+          <template v-else>
+            <label class="grid gap-2">
+              <span>Formulário</span>
+              <select v-model="selectedFormId" required>
+                <option value="" disabled>Selecione um formulário</option>
+                <option v-for="form in formsStore.items" :key="form.id" :value="form.id">
+                  {{ form.name }} — v{{ form.current_version_number }}
+                </option>
+              </select>
+            </label>
+
+            <div class="flex gap-3">
+              <button
+                type="submit"
+                class="btn-primary"
+                :disabled="submissionsStore.isSaving || !selectedFormId"
+              >
+                {{ submissionsStore.isSaving ? 'Criando...' : 'Iniciar inspeção' }}
+              </button>
+            </div>
+          </template>
+
+          <p v-if="createError" class="text-sm font-medium text-sa-danger">{{ createError }}</p>
+        </form>
+      </section>
+
+      <p v-if="submissionsStore.error" class="text-sm font-medium text-sa-danger" style="margin-bottom: 8px;">
+        {{ submissionsStore.error }}
       </p>
-    </section>
+      <p v-else-if="submissionsStore.isLoading" class="text-sm font-medium text-sa-muted" style="margin-bottom: 8px;">
+        Carregando inspeções...
+      </p>
 
-    <nav
-      v-if="submissionsStore.meta && submissionsStore.meta.total_pages > 1"
-      class="flex items-center justify-center gap-4"
-    >
-      <BaseButton
-        type="button"
-        variant="ghost"
-        :disabled="currentPage <= 1 || submissionsStore.isLoading"
-        @click="loadPage(currentPage - 1, activeStatus)"
+      <!-- filter tabs -->
+      <div class="filter-tabs">
+        <button
+          v-for="opt in STATUS_OPTIONS"
+          :key="String(opt.value)"
+          type="button"
+          class="filter-tab"
+          :class="{ active: activeStatus === opt.value }"
+          @click="setStatus(opt.value)"
+        >
+          {{ opt.label }}
+        </button>
+      </div>
+
+      <!-- list -->
+      <div v-if="submissionsStore.items.length" class="lstack">
+        <div
+          v-for="submission in submissionsStore.items"
+          :key="submission.id"
+          class="lrow"
+          @click="router.push({ name: 'submission-detail', params: { id: submission.id } })"
+        >
+          <div class="lrow-main">
+            <div class="lrow-title">{{ submission.form_name }}</div>
+            <div class="lrow-sub">
+              {{ submission.finished_at
+                ? 'Concluída ' + new Date(submission.finished_at).toLocaleString('pt-BR')
+                : 'Início ' + new Date(submission.started_at).toLocaleString('pt-BR') }}
+            </div>
+          </div>
+          <div class="lrow-end">
+            <span
+              v-if="submission.score !== null"
+              class="score-val"
+              :class="submission.score >= 85 ? 'ok' : submission.score >= 65 ? 'warn' : 'err'"
+            >
+              {{ submission.score }}%
+            </span>
+            <span
+              class="status-chip"
+              :class="{
+                'status-chip--warn': submission.status === 'in_progress',
+                'status-chip--inactive': submission.status === 'cancelled',
+              }"
+            >
+              {{ statusLabel(submission.status) }}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div v-else-if="!submissionsStore.isLoading" class="surface-panel p-6 text-center">
+        <p class="eyebrow">Sem dados</p>
+        <h3 class="mt-3 text-xl font-semibold text-sa-text">Nenhuma inspeção registrada</h3>
+        <p class="mt-2 text-sm text-sa-muted">
+          Clique em "Nova inspeção" para iniciar a partir de um formulário cadastrado.
+        </p>
+      </div>
+
+      <nav
+        v-if="submissionsStore.meta && submissionsStore.meta.total_pages > 1"
+        class="flex items-center justify-center gap-4"
+        style="margin-top: 16px;"
       >
-        ← Anterior
-      </BaseButton>
-      <span class="text-sm text-sa-muted">
-        Página {{ currentPage }} de {{ submissionsStore.meta.total_pages }}
-      </span>
-      <BaseButton
-        type="button"
-        variant="ghost"
-        :disabled="!submissionsStore.meta.has_next || submissionsStore.isLoading"
-        @click="loadPage(currentPage + 1, activeStatus)"
-      >
-        Próxima →
-      </BaseButton>
-    </nav>
+        <button
+          type="button"
+          class="btn-secondary btn-sm"
+          :disabled="currentPage <= 1 || submissionsStore.isLoading"
+          @click="loadPage(currentPage - 1, activeStatus)"
+        >
+          ← Anterior
+        </button>
+        <span class="text-sm text-sa-muted">
+          Página {{ currentPage }} de {{ submissionsStore.meta.total_pages }}
+        </span>
+        <button
+          type="button"
+          class="btn-secondary btn-sm"
+          :disabled="!submissionsStore.meta.has_next || submissionsStore.isLoading"
+          @click="loadPage(currentPage + 1, activeStatus)"
+        >
+          Próxima →
+        </button>
+      </nav>
+
+    </div>
   </AppShell>
 </template>

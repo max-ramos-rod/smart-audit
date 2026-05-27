@@ -11,6 +11,9 @@ import FormVersionsView from '@/views/forms/FormVersionsView.vue'
 import FormsView from '@/views/forms/FormsView.vue'
 import SubmissionDetailView from '@/views/submissions/SubmissionDetailView.vue'
 import SubmissionsView from '@/views/submissions/SubmissionsView.vue'
+import CompanySettingsView from '@/views/settings/CompanySettingsView.vue'
+import NotificationsView from '@/views/notifications/NotificationsView.vue'
+import SearchView from '@/views/search/SearchView.vue'
 import TeamsView from '@/views/teams/TeamsView.vue'
 import UsersView from '@/views/users/UsersView.vue'
 
@@ -69,6 +72,24 @@ const router = createRouter({
       path: '/profile',
       name: 'profile',
       component: ProfileView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/company-settings',
+      name: 'company-settings',
+      component: CompanySettingsView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/notifications',
+      name: 'notifications',
+      component: NotificationsView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/search',
+      name: 'search',
+      component: SearchView,
       meta: { requiresAuth: true },
     },
     {

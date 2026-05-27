@@ -157,6 +157,7 @@ async function submitVersion() {
 
 <template>
   <AppShell>
+    <div class="page">
     <section class="flex flex-wrap items-center justify-between gap-3 px-1">
       <div>
         <p class="eyebrow">Templates</p>
@@ -166,31 +167,25 @@ async function submitVersion() {
       <BaseButton type="button" @click="openCreateComposer">Novo formulário</BaseButton>
     </section>
 
-    <section class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      <article class="surface-panel p-4">
-        <span class="eyebrow">Total</span>
-        <strong class="mt-2 block text-2xl font-semibold text-sa-text">
-          {{ formsStore.meta?.total ?? formsStore.items.length }}
-        </strong>
-      </article>
-      <article class="surface-panel p-4">
-        <span class="eyebrow">Publicados</span>
-        <strong class="mt-2 block text-2xl font-semibold text-sa-text">{{ publishedCount }}</strong>
-      </article>
-      <article class="surface-panel p-4">
-        <span class="eyebrow">Página</span>
-        <strong class="mt-2 block text-2xl font-semibold text-sa-text">
-          {{ currentPage }} / {{ formsStore.meta?.total_pages ?? 1 }}
-        </strong>
-      </article>
-      <article class="surface-panel p-4">
-        <span class="eyebrow">Mostrando</span>
-        <strong class="mt-2 block text-2xl font-semibold text-sa-text">
-          {{ formsStore.items.length }}
-        </strong>
-        <p class="mt-1 text-sm text-sa-muted">de {{ formsStore.meta?.total ?? formsStore.items.length }}</p>
-      </article>
-    </section>
+    <div class="stats-grid">
+      <div class="scard">
+        <div class="sc-label">Total</div>
+        <div class="sc-value">{{ formsStore.meta?.total ?? formsStore.items.length }}</div>
+      </div>
+      <div class="scard sc-ok">
+        <div class="sc-label">Publicados</div>
+        <div class="sc-value">{{ publishedCount }}</div>
+      </div>
+      <div class="scard">
+        <div class="sc-label">Página</div>
+        <div class="sc-value">{{ currentPage }} / {{ formsStore.meta?.total_pages ?? 1 }}</div>
+      </div>
+      <div class="scard">
+        <div class="sc-label">Mostrando</div>
+        <div class="sc-value">{{ formsStore.items.length }}</div>
+        <div class="sc-desc">de {{ formsStore.meta?.total ?? formsStore.items.length }}</div>
+      </div>
+    </div>
 
     <!-- create composer -->
     <section v-if="showCreateComposer" class="surface-panel p-5 sm:p-6">
@@ -371,43 +366,44 @@ async function submitVersion() {
     <p v-if="formsStore.error" class="text-sm font-medium text-sa-danger">{{ formsStore.error }}</p>
     <p v-else-if="formsStore.isLoading" class="text-sm font-medium text-sa-muted">Carregando formulários...</p>
 
-    <section v-if="formsStore.items.length" class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-      <article v-for="form in formsStore.items" :key="form.id" class="surface-panel p-5">
-        <div class="flex items-start justify-between gap-3">
-          <div>
-            <p class="eyebrow">Versão {{ form.current_version_number }}</p>
-            <h3 class="mt-3 text-xl font-semibold text-sa-text">{{ form.name }}</h3>
+    <div v-if="formsStore.items.length" class="lstack">
+      <div
+        v-for="form in formsStore.items"
+        :key="form.id"
+        class="lrow"
+        style="align-items: flex-start; cursor: default;"
+      >
+        <div class="lrow-main">
+          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px;">
+            <div class="lrow-title">{{ form.name }}</div>
+            <span class="status-chip" :class="{ 'status-chip--inactive': !form.is_active }">
+              {{ form.is_active ? 'Ativo' : 'Inativo' }}
+            </span>
+            <span class="ver-badge">v{{ form.current_version_number }}</span>
           </div>
-          <span class="status-chip" :class="{ 'status-chip--inactive': !form.is_active }">
-            {{ form.is_active ? 'Ativo' : 'Inativo' }}
-          </span>
+          <div class="lrow-sub">
+            {{ form.description || 'Sem descrição.' }}
+            · {{ form.published_at ? new Date(form.published_at).toLocaleDateString('pt-BR') : 'Não publicado' }}
+          </div>
         </div>
-        <p class="mt-3 text-sm leading-6 text-sa-muted">
-          {{ form.description || 'Sem descrição cadastrada.' }}
-        </p>
-        <footer class="mt-5 flex items-center justify-between gap-3">
-          <span class="text-sm text-sa-muted">
-            {{ form.published_at ? new Date(form.published_at).toLocaleDateString('pt-BR') : 'Não publicado' }}
-          </span>
-          <div class="flex items-center gap-3">
-            <button
-              class="inline-action"
-              type="button"
-              @click="router.push({ name: 'form-versions', params: { formId: form.id } })"
-            >
-              Histórico
-            </button>
-            <button
-              class="inline-action"
-              type="button"
-              @click="openVersionComposer(form.id, form.name)"
-            >
-              Nova versão →
-            </button>
-          </div>
-        </footer>
-      </article>
-    </section>
+        <div style="display: flex; gap: 10px; flex-shrink: 0; align-items: center;">
+          <button
+            class="inline-action"
+            type="button"
+            @click="router.push({ name: 'form-versions', params: { formId: form.id } })"
+          >
+            Histórico
+          </button>
+          <button
+            class="inline-action"
+            type="button"
+            @click="openVersionComposer(form.id, form.name)"
+          >
+            Nova versão →
+          </button>
+        </div>
+      </div>
+    </div>
 
     <section v-else-if="!formsStore.isLoading" class="surface-panel p-6 text-center">
       <p class="eyebrow">Sem dados</p>
@@ -441,5 +437,6 @@ async function submitVersion() {
         Próxima →
       </BaseButton>
     </nav>
+    </div>
   </AppShell>
 </template>

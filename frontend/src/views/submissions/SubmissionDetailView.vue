@@ -238,31 +238,20 @@ async function handleExport() {
         <strong class="mt-2 block text-3xl font-semibold text-sa-text">
           {{ submission.score }}%
         </strong>
-        <template v-if="submission.score_breakdown">
-          <div class="mt-4 grid grid-cols-3 gap-3">
-            <div class="rounded-2xl border border-[color:var(--sa-line)] bg-white/70 p-3 text-center">
-              <p class="eyebrow">Conformes</p>
-              <strong class="mt-1 block text-xl font-semibold text-sa-text">
-                {{ submission.score_breakdown.conformes }}
-              </strong>
-            </div>
-            <div class="rounded-2xl border border-[color:var(--sa-line)] bg-white/70 p-3 text-center">
-              <p class="eyebrow">Não conformes</p>
-              <strong class="mt-1 block text-xl font-semibold text-sa-text">
-                {{ submission.score_breakdown.nao_conformes }}
-              </strong>
-            </div>
-            <div class="rounded-2xl border border-[color:var(--sa-line)] bg-white/70 p-3 text-center">
-              <p class="eyebrow">Sem resposta</p>
-              <strong class="mt-1 block text-xl font-semibold text-sa-text">
-                {{ submission.score_breakdown.sem_resposta }}
-              </strong>
-            </div>
+        <div v-if="submission.score_breakdown" class="score-breakdown-grid">
+          <div class="sbd-card ok">
+            <div class="sbd-label">Conformes</div>
+            <div class="sbd-val">{{ submission.score_breakdown.conformes }}</div>
           </div>
-          <p class="mt-2 text-sm text-sa-muted">
-            {{ submission.score_breakdown.total_boolean }} campos booleanos avaliados.
-          </p>
-        </template>
+          <div class="sbd-card err">
+            <div class="sbd-label">Não conformes</div>
+            <div class="sbd-val">{{ submission.score_breakdown.nao_conformes }}</div>
+          </div>
+          <div class="sbd-card neu">
+            <div class="sbd-label">Sem resposta</div>
+            <div class="sbd-val">{{ submission.score_breakdown.sem_resposta }}</div>
+          </div>
+        </div>
         <p v-else class="mt-1 text-sm text-sa-muted">Baseado nos campos booleanos respondidos.</p>
       </section>
 
@@ -359,7 +348,7 @@ async function handleExport() {
             </div>
 
             <!-- select -->
-            <label v-else-if="field.field_type === 'select'" class="grid gap-2">
+            <template v-else-if="field.field_type === 'select'">
               <select
                 v-if="selectOptions(field.config_json).length"
                 v-model="draftAnswers[field.key]"
@@ -379,7 +368,7 @@ async function handleExport() {
                 placeholder="Informe a opção selecionada"
                 :disabled="isCompleted"
               />
-            </label>
+            </template>
 
             <!-- text (default) -->
             <label v-else class="grid gap-2">
@@ -393,29 +382,27 @@ async function handleExport() {
           </article>
         </div>
 
-        <div v-if="!isCompleted" class="mt-6 flex flex-wrap gap-3">
-          <BaseButton
+        <p v-if="saveError" class="mt-4 text-sm font-medium text-sa-danger">{{ saveError }}</p>
+        <p v-if="finishError" class="mt-4 text-sm font-medium text-sa-danger">{{ finishError }}</p>
+
+        <div v-if="!isCompleted" class="sticky-act">
+          <button
             type="button"
-            variant="ghost"
+            class="btn-secondary"
             :disabled="submissionsStore.isSaving"
             @click="handleSave"
           >
-            {{ submissionsStore.isSaving ? 'Salvando...' : 'Salvar rascunho' }}
-          </BaseButton>
-          <BaseButton
+            {{ submissionsStore.isSaving ? 'Salvando...' : savedOnce ? '✓ Salvo' : 'Salvar rascunho' }}
+          </button>
+          <button
             type="button"
+            class="btn-primary"
             :disabled="submissionsStore.isSaving"
             @click="handleFinish"
           >
             {{ submissionsStore.isSaving ? 'Finalizando...' : 'Finalizar inspeção' }}
-          </BaseButton>
+          </button>
         </div>
-
-        <p v-if="saveError" class="mt-3 text-sm font-medium text-sa-danger">{{ saveError }}</p>
-        <p v-if="finishError" class="mt-3 text-sm font-medium text-sa-danger">{{ finishError }}</p>
-        <p v-if="savedOnce && !saveError && !submissionsStore.isSaving" class="mt-3 text-sm font-medium text-sa-brand">
-          Respostas salvas com sucesso.
-        </p>
       </section>
     </template>
 

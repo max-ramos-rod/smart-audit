@@ -1,3 +1,5 @@
+import pytest
+
 from backend.tests.integration.test_auth import assert_pagination_meta, assert_problem
 
 
@@ -263,3 +265,71 @@ async def test_forms_publish_version_blocked_for_inspector(client, inspector_hea
         json={"fields": [_MINIMAL_FIELD]},
     )
     assert_problem(response, 403, "Usuario sem permissao para executar esta acao.")
+
+
+async def test_list_form_versions(client, auth_headers):
+    """GET /forms/{id}/versions retorna lista de versões com fields_count."""
+    # Criar formulário
+    create_res = await client.post(
+        "/api/v1/forms",
+        headers=auth_headers,
+        json={
+            "name": "Formulário para teste de versões",
+            "fields": [
+                {
+                    "key": "campo_v1",
+                    "label": "Campo v1",
+                    "field_type": "boolean",
+                    "required": True,
+                    "position": 1,
+                    "config_json": {},
+                }
+            ],
+        },
+    )
+    assert create_res.status_code == 200
+    form_id = create_res.json()["data"]["id"]
+
+    # Publicar nova versão
+    await client.post(
+        f"/api/v1/forms/{form_id}/versions",
+        headers=auth_headers,
+        json={
+            "fields": [
+                {
+                    "key": "campo_v2_a",
+                    "label": "Campo v2 A",
+                    "field_type": "boolean",
+                    "required": True,
+                    "position": 1,
+                    "config_json": {},
+                },
+                {
+                    "key": "campo_v2_b",
+                    "label": "Campo v2 B",
+                    "field_type": "text",
+                    "required": False,
+                    "position": 2,
+                    "config_json": {},
+                },
+            ],
+        },
+    )
+
+    # Listar versões
+    res = await client.get(f"/api/v1/forms/{form_id}/versions", headers=auth_headers)
+    assert res.status_code == 200
+    versions = res.json()["data"]
+
+    assert len(versions) == 2
+    # Ordenadas por versão decrescente
+    assert versions[0]["version"] > versions[1]["version"]
+    # Campos corretos
+    for v in versions:
+        assert "id" in v
+        assert "version" in v
+        assert "status" in v
+        assert "published_at" in v
+        assert "fields_count" in v
+        assert isinstance(v["fields_count"], int)
+        assert v["fields_count"] > 0

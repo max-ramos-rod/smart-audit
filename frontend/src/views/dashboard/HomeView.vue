@@ -44,148 +44,133 @@ function statusLabel(status: string) {
 
 <template>
   <AppShell>
-    <!-- header da empresa ativa -->
-    <section class="surface-panel grid gap-5 p-5 sm:p-6">
-      <div class="space-y-3">
-        <p class="eyebrow">Operação ativa</p>
-        <h2 class="text-2xl font-semibold tracking-tight text-sa-text sm:text-3xl">
-          {{ activeCompany?.name ?? 'Selecione uma empresa' }}
-        </h2>
-        <p class="muted-copy max-w-2xl text-base">
-          Painel de acompanhamento de auditorias, checklists e inspeções por empresa.
-        </p>
-      </div>
+    <div class="page">
 
-      <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <article class="rounded-3xl border border-[color:var(--sa-line)] bg-white/75 p-4">
-          <span class="eyebrow">Papel atual</span>
-          <strong class="mt-2 block text-xl font-semibold text-sa-text">
-            {{ membership?.role ?? '—' }}
-          </strong>
-        </article>
-        <article class="rounded-3xl border border-[color:var(--sa-line)] bg-white/75 p-4">
-          <span class="eyebrow">Plano</span>
-          <strong class="mt-2 block text-xl font-semibold text-sa-text">
-            {{ activeCompany?.plan ?? '—' }}
-          </strong>
-        </article>
-        <article class="rounded-3xl border border-[color:var(--sa-line)] bg-white/75 p-4">
-          <span class="eyebrow">Empresas disponíveis</span>
-          <strong class="mt-2 block text-xl font-semibold text-sa-text">
-            {{ context?.available_companies.length ?? 0 }}
-          </strong>
-        </article>
-        <article class="rounded-3xl border border-[color:var(--sa-line)] bg-white/75 p-4">
-          <span class="eyebrow">Seleção pendente</span>
-          <strong class="mt-2 block text-xl font-semibold text-sa-text">
-            {{ context?.requires_company_selection ? 'Sim' : 'Não' }}
-          </strong>
-        </article>
-      </div>
-    </section>
+      <!-- header da empresa ativa -->
+      <section class="surface-panel grid gap-5 p-5 sm:p-6">
+        <div class="space-y-3">
+          <p class="eyebrow">Operação ativa</p>
+          <h2 class="text-2xl font-semibold tracking-tight text-sa-text sm:text-3xl">
+            {{ activeCompany?.name ?? 'Selecione uma empresa' }}
+          </h2>
+          <p class="muted-copy max-w-2xl text-base">
+            Painel de acompanhamento de auditorias, checklists e inspeções por empresa.
+          </p>
+        </div>
 
-    <!-- metricas de inspecoes -->
-    <section class="flex items-center justify-between gap-3 px-1">
-      <p class="eyebrow">Métricas de inspeções</p>
-      <div class="flex gap-1">
-        <button
-          v-for="opt in PERIOD_OPTIONS"
-          :key="opt.value"
-          type="button"
-          class="rounded-xl px-3 py-1.5 text-xs font-semibold transition"
-          :class="activePeriod === opt.value
-            ? 'bg-gradient-to-br from-sa-brand to-sa-brand-strong text-white shadow-sm'
-            : 'text-sa-muted hover:bg-white/70 hover:text-sa-text'"
-          @click="setPeriod(opt.value)"
-        >
-          {{ opt.label }}
-        </button>
-      </div>
-    </section>
+        <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <article class="rounded-3xl border border-[color:var(--sa-line)] bg-white/75 p-4">
+            <span class="eyebrow">Papel atual</span>
+            <strong class="mt-2 block text-xl font-semibold text-sa-text">
+              {{ membership?.role ?? '—' }}
+            </strong>
+          </article>
+          <article class="rounded-3xl border border-[color:var(--sa-line)] bg-white/75 p-4">
+            <span class="eyebrow">Plano</span>
+            <strong class="mt-2 block text-xl font-semibold text-sa-text">
+              {{ activeCompany?.plan ?? '—' }}
+            </strong>
+          </article>
+          <article class="rounded-3xl border border-[color:var(--sa-line)] bg-white/75 p-4">
+            <span class="eyebrow">Empresas disponíveis</span>
+            <strong class="mt-2 block text-xl font-semibold text-sa-text">
+              {{ context?.available_companies.length ?? 0 }}
+            </strong>
+          </article>
+          <article class="rounded-3xl border border-[color:var(--sa-line)] bg-white/75 p-4">
+            <span class="eyebrow">Seleção pendente</span>
+            <strong class="mt-2 block text-xl font-semibold text-sa-text">
+              {{ context?.requires_company_selection ? 'Sim' : 'Não' }}
+            </strong>
+          </article>
+        </div>
+      </section>
 
-    <section>
+      <!-- metricas de inspecoes -->
+      <section class="flex items-center justify-between gap-3 px-1" style="margin-top: 20px;">
+        <p class="eyebrow">Métricas de inspeções</p>
+        <div class="filter-tabs" style="margin-bottom: 0;">
+          <button
+            v-for="opt in PERIOD_OPTIONS"
+            :key="opt.value"
+            type="button"
+            class="filter-tab"
+            :class="{ active: activePeriod === opt.value }"
+            @click="setPeriod(opt.value)"
+          >
+            {{ opt.label }}
+          </button>
+        </div>
+      </section>
+
       <div
         v-if="contextStore.isLoadingStats"
         class="surface-panel p-5 text-center text-sm text-sa-muted"
+        style="margin-top: 12px;"
       >
         Carregando métricas...
       </div>
-      <div v-else class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <article class="surface-panel p-5">
-          <span class="eyebrow">Total</span>
-          <strong class="mt-2 block text-3xl font-semibold text-sa-text">
-            {{ stats?.total_submissions ?? '—' }}
-          </strong>
-          <p class="mt-1 text-sm text-sa-muted">inspecoes criadas</p>
+      <div v-else class="stats-grid" style="margin-top: 12px;">
+        <article class="scard">
+          <div class="sc-label">Total</div>
+          <div class="sc-value">{{ stats?.total_submissions ?? '—' }}</div>
+          <div class="sc-desc">inspeções criadas</div>
         </article>
-        <article class="surface-panel p-5">
-          <span class="eyebrow">Concluídas</span>
-          <strong class="mt-2 block text-3xl font-semibold text-sa-text">
-            {{ stats?.completed ?? '—' }}
-          </strong>
-          <p class="mt-1 text-sm text-sa-muted">status completed</p>
+        <article class="scard sc-ok">
+          <div class="sc-label">Concluídas</div>
+          <div class="sc-value">{{ stats?.completed ?? '—' }}</div>
+          <div class="sc-desc">status completed</div>
         </article>
-        <article class="surface-panel p-5">
-          <span class="eyebrow">Em andamento</span>
-          <strong class="mt-2 block text-3xl font-semibold text-sa-text">
-            {{ stats?.in_progress ?? '—' }}
-          </strong>
-          <p class="mt-1 text-sm text-sa-muted">aguardando finalização</p>
+        <article class="scard sc-accent">
+          <div class="sc-label">Em andamento</div>
+          <div class="sc-value">{{ stats?.in_progress ?? '—' }}</div>
+          <div class="sc-desc">aguardando finalização</div>
         </article>
-        <article class="surface-panel p-5">
-          <span class="eyebrow">Score médio</span>
-          <strong class="mt-2 block text-3xl font-semibold text-sa-text">
+        <article class="scard">
+          <div class="sc-label">Score médio</div>
+          <div class="sc-value">
             {{ stats?.avg_score !== null && stats?.avg_score !== undefined ? `${stats.avg_score}%` : '—' }}
-          </strong>
-          <p class="mt-1 text-sm text-sa-muted">inspeções concluídas</p>
+          </div>
+          <div class="sc-desc">inspeções concluídas</div>
         </article>
       </div>
-    </section>
 
-    <!-- inspecoes recentes -->
-    <section v-if="stats?.recent?.length">
-      <p class="eyebrow mb-3 px-1">Inspeções recentes</p>
-      <div class="surface-panel overflow-hidden">
-        <table>
-          <thead>
-            <tr>
-              <th>Formulário</th>
-              <th>Status</th>
-              <th>Score</th>
-              <th>Início</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="submission in stats.recent" :key="submission.id">
-              <td class="font-medium text-sa-text">{{ submission.form_name }}</td>
-              <td>
-                <span
-                  class="status-chip"
-                  :class="{ 'status-chip--inactive': submission.status !== 'completed' }"
-                >
-                  {{ statusLabel(submission.status) }}
-                </span>
-              </td>
-              <td class="text-sa-muted">
-                {{ submission.score !== null ? `${submission.score}%` : '—' }}
-              </td>
-              <td class="text-sa-muted">
-                {{ new Date(submission.started_at).toLocaleString('pt-BR') }}
-              </td>
-              <td class="text-right">
-                <button
-                  class="inline-action"
-                  type="button"
-                  @click="router.push({ name: 'submission-detail', params: { id: submission.id } })"
-                >
-                  Abrir →
-                </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
+      <!-- inspecoes recentes -->
+      <section v-if="stats?.recent?.length" style="margin-top: 20px;">
+        <p class="eyebrow" style="margin-bottom: 10px; padding-left: 2px;">Inspeções recentes</p>
+        <div class="lstack">
+          <div
+            v-for="submission in stats.recent"
+            :key="submission.id"
+            class="lrow"
+            @click="router.push({ name: 'submission-detail', params: { id: submission.id } })"
+          >
+            <div class="lrow-main">
+              <div class="lrow-title">{{ submission.form_name }}</div>
+              <div class="lrow-sub">Iniciada {{ new Date(submission.started_at).toLocaleString('pt-BR') }}</div>
+            </div>
+            <div class="lrow-end">
+              <span
+                v-if="submission.score !== null"
+                class="score-val"
+                :class="submission.score >= 85 ? 'ok' : submission.score >= 65 ? 'warn' : 'err'"
+              >
+                {{ submission.score }}%
+              </span>
+              <span
+                class="status-chip"
+                :class="{
+                  'status-chip--warn': submission.status === 'in_progress',
+                  'status-chip--inactive': submission.status === 'cancelled',
+                }"
+              >
+                {{ statusLabel(submission.status) }}
+              </span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div>
   </AppShell>
 </template>

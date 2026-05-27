@@ -2,12 +2,13 @@
 import { ref } from 'vue'
 
 import AppShell from '@/components/layout/AppShell.vue'
-import BaseButton from '@/components/ui/BaseButton.vue'
 import { useAuthStore } from '@/stores/auth/auth.store'
 import { useContextStore } from '@/stores/context/context.store'
 
 const authStore = useAuthStore()
 const contextStore = useContextStore()
+
+const tab = ref<'profile' | 'companies' | 'security'>('profile')
 
 const name = ref(authStore.user?.name ?? '')
 const password = ref('')
@@ -25,10 +26,10 @@ async function handleSubmit() {
   }
 
   const payload: { name?: string; password?: string } = {}
-  if (name.value.trim() && name.value.trim() !== authStore.user?.name) {
+  if (tab.value === 'profile' && name.value.trim() && name.value.trim() !== authStore.user?.name) {
     payload.name = name.value.trim()
   }
-  if (password.value) {
+  if (tab.value === 'security' && password.value) {
     payload.password = password.value
   }
 
@@ -52,73 +53,129 @@ async function handleSubmit() {
 
 <template>
   <AppShell>
-    <section class="px-1">
-      <p class="eyebrow">Conta</p>
-      <h2 class="mt-2 text-2xl font-semibold tracking-tight text-sa-text">Meu perfil</h2>
-      <p class="mt-2 text-sm text-sa-muted">Atualize seu nome e senha de acesso.</p>
-    </section>
+    <div class="page">
 
-    <div class="surface-panel max-w-md p-6">
-      <form class="space-y-4" @submit.prevent="handleSubmit">
-        <div class="grid gap-1.5">
-          <label class="text-sm font-medium text-sa-text" for="profile-email">E-mail</label>
-          <input
-            id="profile-email"
-            type="email"
-            :value="authStore.user?.email"
-            disabled
-            class="opacity-60"
-          />
+      <div class="phdr">
+        <div>
+          <p class="eyebrow">Conta</p>
+          <h2 class="page-h1">Meu perfil</h2>
         </div>
+      </div>
 
-        <div class="grid gap-1.5">
-          <label class="text-sm font-medium text-sa-text" for="profile-name">Nome</label>
-          <input
-            id="profile-name"
-            v-model="name"
-            type="text"
-            placeholder="Seu nome"
-            maxlength="100"
-          />
-        </div>
+      <div class="filter-tabs" style="max-width: 480px;">
+        <button
+          class="filter-tab"
+          :class="{ active: tab === 'profile' }"
+          @click="tab = 'profile'; localError = null; successMessage = null"
+        >
+          Meu perfil
+        </button>
+        <button
+          class="filter-tab"
+          :class="{ active: tab === 'companies' }"
+          @click="tab = 'companies'; localError = null; successMessage = null"
+        >
+          Empresas
+        </button>
+        <button
+          class="filter-tab"
+          :class="{ active: tab === 'security' }"
+          @click="tab = 'security'; localError = null; successMessage = null"
+        >
+          Segurança
+        </button>
+      </div>
 
-        <div class="grid gap-1.5">
-          <label class="text-sm font-medium text-sa-text" for="profile-password">
-            Nova senha
-            <span class="font-normal text-sa-muted">(deixe em branco para não alterar)</span>
+      <!-- tab: perfil -->
+      <div v-if="tab === 'profile'" class="card card-p" style="max-width: 480px;">
+        <form class="grid gap-4" @submit.prevent="handleSubmit">
+          <label class="grid gap-2">
+            <span>E-mail</span>
+            <input type="email" :value="authStore.user?.email" disabled />
           </label>
-          <input
-            id="profile-password"
-            v-model="password"
-            type="password"
-            placeholder="Mínimo 8 caracteres"
-            autocomplete="new-password"
-          />
-        </div>
 
-        <div class="grid gap-1.5">
-          <label class="text-sm font-medium text-sa-text" for="profile-confirm">
-            Confirmar nova senha
+          <label class="grid gap-2">
+            <span>Nome</span>
+            <input v-model="name" type="text" placeholder="Seu nome" maxlength="100" />
           </label>
-          <input
-            id="profile-confirm"
-            v-model="confirmPassword"
-            type="password"
-            placeholder="Repita a nova senha"
-            autocomplete="new-password"
-          />
-        </div>
 
-        <p v-if="localError" class="text-sm text-red-600">{{ localError }}</p>
-        <p v-else-if="contextStore.updateProfileError" class="text-sm text-red-600">
-          {{ contextStore.updateProfileError }}
-        </p>
-        <p v-if="successMessage" class="text-sm text-green-700">{{ successMessage }}</p>
+          <p v-if="localError" class="text-sm text-sa-danger">{{ localError }}</p>
+          <p v-else-if="contextStore.updateProfileError" class="text-sm text-sa-danger">
+            {{ contextStore.updateProfileError }}
+          </p>
+          <p v-if="successMessage" class="text-sm" style="color: var(--sa-ok);">{{ successMessage }}</p>
 
-        <BaseButton type="submit" :disabled="contextStore.isUpdatingProfile">
-          {{ contextStore.isUpdatingProfile ? 'Salvando...' : 'Salvar alterações' }}
-        </BaseButton>
-      </form>
+          <button type="submit" class="btn-primary" :disabled="contextStore.isUpdatingProfile">
+            {{ contextStore.isUpdatingProfile ? 'Salvando...' : 'Salvar alterações' }}
+          </button>
+        </form>
+      </div>
+
+      <!-- tab: empresas -->
+      <div v-else-if="tab === 'companies'" class="card" style="overflow-x: auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>Empresa</th>
+              <th>Plano</th>
+              <th>Papel</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="company in contextStore.companies" :key="company.id">
+              <td class="font-medium">{{ company.name }}</td>
+              <td>{{ company.plan }}</td>
+              <td>
+                <span class="role-badge" :class="'role-' + company.role.toLowerCase()">
+                  {{ company.role }}
+                </span>
+              </td>
+              <td>
+                <span class="status-chip" :class="{ 'status-chip--inactive': !company.is_active }">
+                  {{ company.is_active ? 'Ativa' : 'Inativa' }}
+                </span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- tab: segurança -->
+      <div v-else-if="tab === 'security'" class="card card-p" style="max-width: 480px;">
+        <form class="grid gap-4" @submit.prevent="handleSubmit">
+          <label class="grid gap-2">
+            <span>Nova senha <span style="font-weight: 400;">(mínimo 8 caracteres)</span></span>
+            <input
+              v-model="password"
+              type="password"
+              placeholder="••••••••"
+              autocomplete="new-password"
+            />
+          </label>
+
+          <label class="grid gap-2">
+            <span>Confirmar nova senha</span>
+            <input
+              v-model="confirmPassword"
+              type="password"
+              placeholder="Repita a nova senha"
+              autocomplete="new-password"
+            />
+          </label>
+
+          <p v-if="localError" class="text-sm text-sa-danger">{{ localError }}</p>
+          <p v-else-if="contextStore.updateProfileError" class="text-sm text-sa-danger">
+            {{ contextStore.updateProfileError }}
+          </p>
+          <p v-if="successMessage" class="text-sm" style="color: var(--sa-ok);">{{ successMessage }}</p>
+
+          <button type="submit" class="btn-primary" :disabled="contextStore.isUpdatingProfile">
+            {{ contextStore.isUpdatingProfile ? 'Salvando...' : 'Alterar senha' }}
+          </button>
+        </form>
+      </div>
+
     </div>
   </AppShell>
 </template>
