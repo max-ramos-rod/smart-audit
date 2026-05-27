@@ -23,7 +23,7 @@ async function handleSubmit() {
   successMessage.value = null
 
   if (password.value && password.value !== confirmPassword.value) {
-    localError.value = 'As senhas nao coincidem.'
+    localError.value = 'As senhas não coincidem.'
     return
   }
 

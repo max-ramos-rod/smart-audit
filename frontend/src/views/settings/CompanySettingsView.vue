@@ -287,7 +287,7 @@ function usageColor(pct: number) {
         </div>
 
         <div style="font-size: 12px; color: var(--sa-muted); margin-top: 8px;">
-          Dados exibidos a partir da sessao atual e atualizados conforme os modulos carregados.
+          Dados exibidos a partir da sessão atual e atualizados conforme os módulos carregados.
         </div>
       </div>
     </div>

@@ -15,7 +15,7 @@ const router = useRouter()
           Em evolucao.
         </h2>
         <p class="lb-p">
-          Esta etapa ainda nao foi integrada ao backend de identidade. Por enquanto, o acesso deve ser recuperado com o administrador da empresa.
+          Esta etapa ainda não foi integrada ao backend de identidade. Por enquanto, o acesso deve ser recuperado com o administrador da empresa.
         </p>
       </div>
       <div class="lb-pills">
@@ -34,7 +34,7 @@ const router = useRouter()
 
         <h1 class="lf-h">Recuperação de senha</h1>
         <p class="lf-sub">
-          Este fluxo ainda nao esta disponivel. Se precisar acessar a plataforma agora, fale com o administrador da sua empresa.
+          Este fluxo ainda não está disponível. Se precisar acessar a plataforma agora, fale com o administrador da sua empresa.
         </p>
 
         <div class="info-box" style="margin-bottom: 16px;">

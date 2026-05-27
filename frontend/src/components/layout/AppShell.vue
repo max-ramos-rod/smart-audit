@@ -43,14 +43,14 @@ function logout() {
       <nav class="sb-nav">
         <div class="sb-sec">Principal</div>
         <RouterLink to="/" class="nav-btn" exact-active-class="active"><SvgIcon name="home" />Resumo</RouterLink>
-        <RouterLink to="/forms" class="nav-btn" active-class="active"><SvgIcon name="forms" />Formularios</RouterLink>
-        <RouterLink to="/submissions" class="nav-btn" active-class="active"><SvgIcon name="submissions" />Inspecoes</RouterLink>
+        <RouterLink to="/forms" class="nav-btn" active-class="active"><SvgIcon name="forms" />Formulários</RouterLink>
+        <RouterLink to="/submissions" class="nav-btn" active-class="active"><SvgIcon name="submissions" />Inspeções</RouterLink>
         <RouterLink to="/teams" class="nav-btn" active-class="active"><SvgIcon name="teams" />Equipes</RouterLink>
-        <RouterLink to="/users" class="nav-btn" active-class="active"><SvgIcon name="users" />Usuarios</RouterLink>
+        <RouterLink to="/users" class="nav-btn" active-class="active"><SvgIcon name="users" />Usuários</RouterLink>
 
         <div class="sb-sec" style="margin-top: 8px">Ferramentas</div>
         <RouterLink to="/search" class="nav-btn" active-class="active"><SvgIcon name="search" />Buscar</RouterLink>
-        <RouterLink to="/notifications" class="nav-btn" active-class="active"><SvgIcon name="bell" />Notificacoes</RouterLink>
+        <RouterLink to="/notifications" class="nav-btn" active-class="active"><SvgIcon name="bell" />Notificações</RouterLink>
         <RouterLink to="/company-settings" class="nav-btn" active-class="active"><SvgIcon name="settings" />Config. empresa</RouterLink>
       </nav>
 
@@ -60,7 +60,7 @@ function logout() {
           class="sb-co"
           style="text-decoration: none; display: block; border-radius: var(--r3, 12px); padding: 6px 10px 4px; transition: background 0.15s; cursor: pointer;"
         >
-          <div class="sb-co-lbl">Empresa ativa | Configuracoes</div>
+          <div class="sb-co-lbl">Empresa ativa · Configurações</div>
           <div class="sb-co-name">{{ contextStore.activeCompany?.name ?? 'Sem empresa ativa' }}</div>
         </RouterLink>
         <RouterLink to="/select-company" class="nav-btn">
@@ -88,10 +88,10 @@ function logout() {
 
     <nav class="bot-nav">
       <RouterLink to="/" class="bn-item" exact-active-class="active"><SvgIcon name="home" :size="21" />Resumo</RouterLink>
-      <RouterLink to="/forms" class="bn-item" active-class="active"><SvgIcon name="forms" :size="21" />Formularios</RouterLink>
-      <RouterLink to="/submissions" class="bn-item" active-class="active"><SvgIcon name="submissions" :size="21" />Inspecoes</RouterLink>
+      <RouterLink to="/forms" class="bn-item" active-class="active"><SvgIcon name="forms" :size="21" />Formulários</RouterLink>
+      <RouterLink to="/submissions" class="bn-item" active-class="active"><SvgIcon name="submissions" :size="21" />Inspeções</RouterLink>
       <RouterLink to="/teams" class="bn-item" active-class="active"><SvgIcon name="teams" :size="21" />Equipes</RouterLink>
-      <RouterLink to="/users" class="bn-item" active-class="active"><SvgIcon name="users" :size="21" />Usuarios</RouterLink>
+      <RouterLink to="/users" class="bn-item" active-class="active"><SvgIcon name="users" :size="21" />Usuários</RouterLink>
     </nav>
   </div>
 </template>
