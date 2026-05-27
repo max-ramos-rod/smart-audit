@@ -11,6 +11,7 @@ import FormDetailView from '@/views/forms/FormDetailView.vue'
 import FormVersionsView from '@/views/forms/FormVersionsView.vue'
 import FormsView from '@/views/forms/FormsView.vue'
 import SubmissionDetailView from '@/views/submissions/SubmissionDetailView.vue'
+import SubmissionReportView from '@/views/submissions/SubmissionReportView.vue'
 import SubmissionsView from '@/views/submissions/SubmissionsView.vue'
 import CompanySettingsView from '@/views/settings/CompanySettingsView.vue'
 import NotificationsView from '@/views/notifications/NotificationsView.vue'
@@ -61,6 +62,12 @@ const router = createRouter({
       path: '/submissions/:id',
       name: 'submission-detail',
       component: SubmissionDetailView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/submissions/:id/report',
+      name: 'submission-report',
+      component: SubmissionReportView,
       meta: { requiresAuth: true },
     },
     {

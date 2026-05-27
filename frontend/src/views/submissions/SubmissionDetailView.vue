@@ -3,11 +3,10 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import AppShell from '@/components/layout/AppShell.vue'
-import BaseButton from '@/components/ui/BaseButton.vue'
+import SvgIcon from '@/components/ui/SvgIcon.vue'
 import { extractProblemMessage } from '@/services/api/problem'
 import { createAttachment } from '@/services/attachments.service'
 import { fetchFormVersion } from '@/services/forms.service'
-import { exportSubmissionPdf } from '@/services/submissions.service'
 import { uploadFile } from '@/services/uploads.service'
 import { useSubmissionsStore } from '@/stores/submissions/submissions.store'
 import type { FormVersion } from '@/types/forms'
@@ -33,6 +32,11 @@ const pendingRequiredFields = ref<string[]>([])
 
 const uploadingField = ref<string | null>(null)
 const uploadErrors = reactive<Record<string, string>>({})
+
+const TYPE_LABEL: Record<string, string> = {
+  boolean: 'Sim/Não', text: 'Texto', number: 'Número',
+  date: 'Data', photo: 'Foto', select: 'Seleção',
+}
 
 function selectOptions(configJson: Record<string, unknown>): string[] {
   return Array.isArray(configJson.options) ? (configJson.options as string[]) : []
@@ -164,130 +168,103 @@ async function handleFinish() {
 
 function statusLabel(status: string) {
   const map: Record<string, string> = {
-    in_progress: 'Em andamento',
-    completed: 'Concluída',
-    draft: 'Rascunho',
-    cancelled: 'Cancelada',
+    in_progress: 'Em andamento', completed: 'Concluída',
+    draft: 'Rascunho', cancelled: 'Cancelada',
   }
   return map[status] ?? status
 }
 
-const isExporting = ref(false)
-
-async function handleExport() {
-  if (!submission.value) return
-  isExporting.value = true
-  try {
-    const blob = await exportSubmissionPdf(submissionId.value)
-    const url = URL.createObjectURL(blob)
-    window.open(url, '_blank')
-    setTimeout(() => URL.revokeObjectURL(url), 10_000)
-  } finally {
-    isExporting.value = false
-  }
-}
 </script>
 
 <template>
   <AppShell>
-    <section class="flex flex-wrap items-center justify-between gap-3 px-1">
-      <div>
-        <p class="eyebrow">Inspeção</p>
-        <h2 class="mt-2 text-2xl font-semibold tracking-tight text-sa-text">
-          {{ submission?.form_name ?? 'Carregando...' }}
-        </h2>
-        <p class="mt-2 text-sm text-sa-muted">
-          Iniciada em
-          {{
-            submission?.started_at
-              ? new Date(submission.started_at).toLocaleString('pt-BR')
-              : '—'
-          }}
-        </p>
+    <div class="page">
+
+      <div v-if="submissionsStore.isLoading" style="font-size:13px;color:var(--sa-muted);">
+        Carregando inspeção...
       </div>
-      <div class="flex items-center gap-3">
-        <span
-          v-if="submission"
-          class="status-chip"
-          :class="{ 'status-chip--inactive': submission.status !== 'completed' }"
-        >
-          {{ statusLabel(submission.status) }}
-        </span>
-        <BaseButton
-          v-if="isCompleted"
-          type="button"
-          variant="ghost"
-          :disabled="isExporting"
-          @click="handleExport"
-        >
-          {{ isExporting ? 'Gerando PDF...' : 'Exportar PDF' }}
-        </BaseButton>
-        <BaseButton type="button" variant="ghost" @click="router.push({ name: 'submissions' })">
-          Voltar
-        </BaseButton>
-      </div>
-    </section>
 
-    <div v-if="submissionsStore.isLoading" class="surface-panel p-6 text-center">
-      <p class="text-sm text-sa-muted">Carregando inspeção...</p>
-    </div>
+      <template v-else-if="submission">
 
-    <template v-else-if="submission && fields.length">
-      <section v-if="submission.score !== null && isCompleted" class="surface-panel p-5">
-        <p class="eyebrow">Score final</p>
-        <strong class="mt-2 block text-3xl font-semibold text-sa-text">
-          {{ submission.score }}%
-        </strong>
-        <div v-if="submission.score_breakdown" class="score-breakdown-grid">
-          <div class="sbd-card ok">
-            <div class="sbd-label">Conformes</div>
-            <div class="sbd-val">{{ submission.score_breakdown.conformes }}</div>
-          </div>
-          <div class="sbd-card err">
-            <div class="sbd-label">Não conformes</div>
-            <div class="sbd-val">{{ submission.score_breakdown.nao_conformes }}</div>
-          </div>
-          <div class="sbd-card neu">
-            <div class="sbd-label">Sem resposta</div>
-            <div class="sbd-val">{{ submission.score_breakdown.sem_resposta }}</div>
-          </div>
-        </div>
-        <p v-else class="mt-1 text-sm text-sa-muted">Baseado nos campos booleanos respondidos.</p>
-      </section>
-
-      <section class="surface-panel p-5 sm:p-6">
-        <div class="mb-5">
-          <p class="eyebrow">Campos</p>
-          <h3 class="mt-2 text-xl font-semibold text-sa-text">Respostas</h3>
-        </div>
-
-        <div class="grid gap-5">
-          <article
-            v-for="field in fields"
-            :key="field.id"
-            class="rounded-3xl border p-4"
-            :class="pendingRequiredFields.includes(field.key)
-              ? 'border-sa-danger bg-red-50/60'
-              : 'border-[color:var(--sa-line)] bg-white/70'"
-          >
-            <div class="mb-3 flex items-start justify-between gap-3">
-              <div>
-                <p class="eyebrow">{{ field.field_type }}</p>
-                <h4 class="mt-1 text-base font-semibold text-sa-text">{{ field.label }}</h4>
-              </div>
-              <span v-if="field.required" class="status-chip text-[0.65rem]">Obrigatório</span>
+        <!-- Back header -->
+        <div class="back-hdr">
+          <button type="button" class="back-btn" @click="router.push({ name: 'submissions' })">
+            <SvgIcon name="back" :size="16" />
+          </button>
+          <div style="flex:1;min-width:0;">
+            <div class="eyebrow">Inspeção</div>
+            <h1 style="font-size:18px;font-weight:700;letter-spacing:-.01em;color:var(--sa-text);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+              {{ submission.form_name }}
+            </h1>
+            <div style="font-size:12px;color:var(--sa-muted);margin-top:2px;">
+              Iniciada {{ new Date(submission.started_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) }}
             </div>
+          </div>
+          <span
+            class="status-chip"
+            style="flex-shrink:0;"
+            :class="{
+              'status-chip--warn': submission.status === 'in_progress',
+              'status-chip--inactive': submission.status === 'cancelled',
+              'status-chip--neu': submission.status === 'draft',
+            }"
+          >
+            {{ statusLabel(submission.status) }}
+          </span>
+        </div>
 
-            <p
-              v-if="pendingRequiredFields.includes(field.key)"
-              class="mb-3 text-xs font-semibold text-sa-danger"
+        <!-- Score + breakdown (completed) -->
+        <div v-if="isCompleted && submission.score !== null" class="card card-p" style="margin-bottom:20px;">
+          <div class="eyebrow" style="margin-bottom:4px;">Score final</div>
+          <div :style="{
+            fontSize: '36px', fontWeight: 800, fontVariantNumeric: 'tabular-nums',
+            color: submission.score >= 85 ? 'var(--sa-ok)' : submission.score >= 65 ? 'var(--sa-warn)' : 'var(--sa-danger)',
+          }">
+            {{ submission.score }}%
+          </div>
+
+          <div v-if="submission.score_breakdown" class="score-breakdown-grid">
+            <div class="sbd-card ok">
+              <div class="sbd-label">Conformes</div>
+              <div class="sbd-val">{{ submission.score_breakdown.conformes }}</div>
+            </div>
+            <div class="sbd-card err">
+              <div class="sbd-label">Não conformes</div>
+              <div class="sbd-val">{{ submission.score_breakdown.nao_conformes }}</div>
+            </div>
+            <div class="sbd-card neu">
+              <div class="sbd-label">Sem resposta</div>
+              <div class="sbd-val">{{ submission.score_breakdown.sem_resposta }}</div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Fields -->
+        <div v-if="fields.length">
+          <div class="slabel" style="margin-bottom:10px;">Campos</div>
+          <div class="fpanel" style="margin-bottom:80px;">
+            <div
+              v-for="field in fields"
+              :key="field.id"
+              class="frow"
+              :class="{ 'frow-error': pendingRequiredFields.includes(field.key) }"
             >
-              ⚠ Campo obrigatório não preenchido
-            </p>
+              <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px;">
+                <div>
+                  <div class="frow-type">{{ TYPE_LABEL[field.field_type] ?? field.field_type }}</div>
+                  <div class="frow-name">{{ field.label }}</div>
+                </div>
+                <span v-if="field.required" class="status-chip" style="font-size:9px;flex-shrink:0;">Obrigatório</span>
+              </div>
 
-            <!-- boolean -->
-            <label v-if="field.field_type === 'boolean'" class="grid gap-2">
+              <div v-if="pendingRequiredFields.includes(field.key)" class="frow-error-label">
+                ⚠ Campo obrigatório não preenchido
+              </div>
+
+              <!-- boolean -->
               <select
+                v-if="field.field_type === 'boolean'"
                 v-model="draftAnswers[field.key]"
                 :disabled="isCompleted"
               >
@@ -295,120 +272,127 @@ async function handleExport() {
                 <option value="true">Sim (conforme)</option>
                 <option value="false">Não (não conforme)</option>
               </select>
-            </label>
 
-            <!-- number -->
-            <label v-else-if="field.field_type === 'number'" class="grid gap-2">
+              <!-- number -->
               <input
+                v-else-if="field.field_type === 'number'"
                 v-model="draftAnswers[field.key]"
                 type="number"
                 step="any"
                 placeholder="Informe um número"
                 :disabled="isCompleted"
               />
-            </label>
 
-            <!-- date -->
-            <label v-else-if="field.field_type === 'date'" class="grid gap-2">
+              <!-- date -->
               <input
+                v-else-if="field.field_type === 'date'"
                 v-model="draftAnswers[field.key]"
                 type="date"
                 :disabled="isCompleted"
               />
-            </label>
 
-            <!-- photo -->
-            <div v-else-if="field.field_type === 'photo'" class="grid gap-2">
-              <img
-                v-if="draftAnswers[field.key]"
-                :src="draftAnswers[field.key]"
-                class="h-48 w-full rounded-2xl object-cover"
-                alt="Evidência"
-              />
-              <p v-if="draftAnswers[field.key]" class="truncate text-xs text-sa-muted">
-                {{ draftAnswers[field.key] }}
-              </p>
-              <template v-if="!isCompleted">
-                <label class="cursor-pointer">
-                  <span class="inline-action">
-                    {{ uploadingField === field.key ? 'Enviando...' : draftAnswers[field.key] ? 'Substituir' : 'Selecionar arquivo' }}
-                  </span>
-                  <input
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp"
-                    class="sr-only"
-                    :disabled="uploadingField === field.key"
-                    @change="handlePhotoUpload(field.key, $event)"
-                  />
-                </label>
-                <p v-if="uploadErrors[field.key]" class="text-xs font-medium text-sa-danger">
-                  {{ uploadErrors[field.key] }}
+              <!-- photo -->
+              <div v-else-if="field.field_type === 'photo'">
+                <img
+                  v-if="draftAnswers[field.key]"
+                  :src="draftAnswers[field.key]"
+                  alt="Evidência"
+                  style="width:100%;height:180px;object-fit:cover;border-radius:8px;margin-bottom:8px;"
+                />
+                <p v-if="draftAnswers[field.key]" style="font-size:11px;color:var(--sa-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:8px;">
+                  {{ draftAnswers[field.key] }}
                 </p>
-              </template>
-            </div>
+                <template v-if="!isCompleted">
+                  <label style="cursor:pointer;">
+                    <span class="inline-action">
+                      {{ uploadingField === field.key ? 'Enviando...' : draftAnswers[field.key] ? 'Substituir foto' : 'Selecionar arquivo' }}
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      style="display:none;"
+                      :disabled="uploadingField === field.key"
+                      @change="handlePhotoUpload(field.key, $event)"
+                    />
+                  </label>
+                  <p v-if="uploadErrors[field.key]" style="font-size:12px;font-weight:600;color:var(--sa-danger);margin-top:6px;">
+                    {{ uploadErrors[field.key] }}
+                  </p>
+                </template>
+              </div>
 
-            <!-- select -->
-            <template v-else-if="field.field_type === 'select'">
-              <select
-                v-if="selectOptions(field.config_json).length"
-                v-model="draftAnswers[field.key]"
-                :disabled="isCompleted"
-              >
-                <option value="">— Selecione uma opção —</option>
-                <option
-                  v-for="opt in selectOptions(field.config_json)"
-                  :key="opt"
-                  :value="opt"
-                >{{ opt }}</option>
-              </select>
+              <!-- select -->
+              <template v-else-if="field.field_type === 'select'">
+                <select
+                  v-if="selectOptions(field.config_json).length"
+                  v-model="draftAnswers[field.key]"
+                  :disabled="isCompleted"
+                >
+                  <option value="">— Selecione uma opção —</option>
+                  <option v-for="opt in selectOptions(field.config_json)" :key="opt" :value="opt">
+                    {{ opt }}
+                  </option>
+                </select>
+                <input
+                  v-else
+                  v-model="draftAnswers[field.key]"
+                  type="text"
+                  placeholder="Informe a opção selecionada"
+                  :disabled="isCompleted"
+                />
+              </template>
+
+              <!-- text (default) -->
               <input
                 v-else
-                v-model="draftAnswers[field.key]"
-                type="text"
-                placeholder="Informe a opção selecionada"
-                :disabled="isCompleted"
-              />
-            </template>
-
-            <!-- text (default) -->
-            <label v-else class="grid gap-2">
-              <input
                 v-model="draftAnswers[field.key]"
                 type="text"
                 placeholder="Informe o valor"
                 :disabled="isCompleted"
               />
-            </label>
-          </article>
+            </div>
+          </div>
+
+          <p v-if="saveError" style="font-size:13px;font-weight:600;color:var(--sa-danger);margin-bottom:8px;">{{ saveError }}</p>
+          <p v-if="finishError" style="font-size:13px;font-weight:600;color:var(--sa-danger);margin-bottom:8px;">{{ finishError }}</p>
         </div>
 
-        <p v-if="saveError" class="mt-4 text-sm font-medium text-sa-danger">{{ saveError }}</p>
-        <p v-if="finishError" class="mt-4 text-sm font-medium text-sa-danger">{{ finishError }}</p>
-
-        <div v-if="!isCompleted" class="sticky-act">
+        <!-- Sticky actions -->
+        <div class="sticky-act">
+          <template v-if="!isCompleted">
+            <button
+              type="button"
+              class="btn-secondary"
+              :disabled="submissionsStore.isSaving"
+              @click="handleSave"
+            >
+              {{ submissionsStore.isSaving ? 'Salvando...' : savedOnce ? '✓ Salvo' : 'Salvar rascunho' }}
+            </button>
+            <button
+              type="button"
+              class="btn-primary"
+              :disabled="submissionsStore.isSaving"
+              @click="handleFinish"
+            >
+              {{ submissionsStore.isSaving ? 'Finalizando...' : 'Finalizar inspeção' }}
+            </button>
+          </template>
           <button
-            type="button"
-            class="btn-secondary"
-            :disabled="submissionsStore.isSaving"
-            @click="handleSave"
-          >
-            {{ submissionsStore.isSaving ? 'Salvando...' : savedOnce ? '✓ Salvo' : 'Salvar rascunho' }}
-          </button>
-          <button
+            v-else
             type="button"
             class="btn-primary"
-            :disabled="submissionsStore.isSaving"
-            @click="handleFinish"
+            @click="router.push({ name: 'submission-report', params: { id: submissionId } })"
           >
-            {{ submissionsStore.isSaving ? 'Finalizando...' : 'Finalizar inspeção' }}
+            Ver relatório completo →
           </button>
         </div>
-      </section>
-    </template>
 
-    <div v-else-if="!submissionsStore.isLoading" class="surface-panel p-6 text-center">
-      <p class="eyebrow">Sem dados</p>
-      <h3 class="mt-3 text-xl font-semibold text-sa-text">Inspeção não encontrada</h3>
+      </template>
+
+      <div v-else-if="!submissionsStore.isLoading" class="empty">
+        <div class="empty-h">Inspeção não encontrada</div>
+      </div>
+
     </div>
   </AppShell>
 </template>

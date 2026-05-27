@@ -91,24 +91,24 @@ function statusLabel(status: string) {
       </div>
 
       <!-- composer -->
-      <section v-if="showComposer" class="surface-panel p-5 sm:p-6" style="margin-bottom: 16px;">
-        <div class="flex items-center justify-between gap-3">
+      <div v-if="showComposer" class="card card-p" style="margin-bottom:16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;">
           <div>
-            <p class="eyebrow">Nova inspeção</p>
-            <h3 class="mt-2 text-xl font-semibold text-sa-text">Selecione o formulário</h3>
+            <div class="eyebrow">Nova inspeção</div>
+            <div style="font-size:17px;font-weight:700;color:var(--sa-text);margin-top:3px;">Selecione o formulário</div>
           </div>
           <button type="button" class="btn-secondary btn-sm" @click="closeComposer">Fechar</button>
         </div>
 
-        <form class="mt-5 grid gap-4" @submit.prevent="handleCreate">
-          <div v-if="formsStore.isLoading" class="text-sm text-sa-muted">
+        <form style="display:grid;gap:12px;" @submit.prevent="handleCreate">
+          <div v-if="formsStore.isLoading" style="font-size:13px;color:var(--sa-muted);">
             Carregando formulários...
           </div>
-          <div v-else-if="!formsStore.items.length" class="text-sm text-sa-muted">
+          <div v-else-if="!formsStore.items.length" style="font-size:13px;color:var(--sa-muted);">
             Nenhum formulário disponível. Crie um formulário antes de iniciar uma inspeção.
           </div>
           <template v-else>
-            <label class="grid gap-2">
+            <label style="display:grid;gap:6px;">
               <span>Formulário</span>
               <select v-model="selectedFormId" required>
                 <option value="" disabled>Selecione um formulário</option>
@@ -117,8 +117,7 @@ function statusLabel(status: string) {
                 </option>
               </select>
             </label>
-
-            <div class="flex gap-3">
+            <div>
               <button
                 type="submit"
                 class="btn-primary"
@@ -129,14 +128,14 @@ function statusLabel(status: string) {
             </div>
           </template>
 
-          <p v-if="createError" class="text-sm font-medium text-sa-danger">{{ createError }}</p>
+          <p v-if="createError" style="font-size:13px;font-weight:600;color:var(--sa-danger);">{{ createError }}</p>
         </form>
-      </section>
+      </div>
 
-      <p v-if="submissionsStore.error" class="text-sm font-medium text-sa-danger" style="margin-bottom: 8px;">
+      <p v-if="submissionsStore.error" style="font-size:13px;font-weight:600;color:var(--sa-danger);margin-bottom:8px;">
         {{ submissionsStore.error }}
       </p>
-      <p v-else-if="submissionsStore.isLoading" class="text-sm font-medium text-sa-muted" style="margin-bottom: 8px;">
+      <p v-else-if="submissionsStore.isLoading" style="font-size:13px;color:var(--sa-muted);margin-bottom:8px;">
         Carregando inspeções...
       </p>
 
@@ -183,6 +182,7 @@ function statusLabel(status: string) {
               :class="{
                 'status-chip--warn': submission.status === 'in_progress',
                 'status-chip--inactive': submission.status === 'cancelled',
+                'status-chip--neu': submission.status === 'draft',
               }"
             >
               {{ statusLabel(submission.status) }}
@@ -191,18 +191,14 @@ function statusLabel(status: string) {
         </div>
       </div>
 
-      <div v-else-if="!submissionsStore.isLoading" class="surface-panel p-6 text-center">
-        <p class="eyebrow">Sem dados</p>
-        <h3 class="mt-3 text-xl font-semibold text-sa-text">Nenhuma inspeção registrada</h3>
-        <p class="mt-2 text-sm text-sa-muted">
-          Clique em "Nova inspeção" para iniciar a partir de um formulário cadastrado.
-        </p>
+      <div v-else-if="!submissionsStore.isLoading" class="empty">
+        <div class="empty-h">Nenhuma inspeção registrada</div>
+        <p class="empty-p">Clique em "Nova inspeção" para iniciar a partir de um formulário cadastrado.</p>
       </div>
 
       <nav
         v-if="submissionsStore.meta && submissionsStore.meta.total_pages > 1"
-        class="flex items-center justify-center gap-4"
-        style="margin-top: 16px;"
+        style="display:flex;align-items:center;justify-content:center;gap:16px;margin-top:16px;"
       >
         <button
           type="button"
@@ -212,7 +208,7 @@ function statusLabel(status: string) {
         >
           ← Anterior
         </button>
-        <span class="text-sm text-sa-muted">
+        <span style="font-size:13px;color:var(--sa-muted);">
           Página {{ currentPage }} de {{ submissionsStore.meta.total_pages }}
         </span>
         <button
