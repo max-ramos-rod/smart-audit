@@ -17,6 +17,12 @@ class Settings(BaseSettings):
     allowed_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
     upload_dir: str = "uploads"
     upload_base_url: str = "http://localhost:8000/uploads"
+    frontend_url: str = "http://localhost:5173"
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_user: str | None = None
+    smtp_password: str | None = None
+    smtp_from: str = "noreply@smartaudit.local"
 
     model_config = SettingsConfigDict(
         env_file=str(_REPO_ROOT / ".env"),

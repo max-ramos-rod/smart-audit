@@ -12,3 +12,11 @@ export async function fetchMe() {
   const response = await http.get<ApiEnvelope<TokenResponse['user']>>('/auth/me')
   return response.data.data
 }
+
+export async function requestPasswordReset(email: string): Promise<void> {
+  await http.post('/auth/forgot-password', { email })
+}
+
+export async function resetPassword(token: string, newPassword: string): Promise<void> {
+  await http.post('/auth/reset-password', { token, new_password: newPassword })
+}

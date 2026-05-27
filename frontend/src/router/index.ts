@@ -7,6 +7,7 @@ import CompanySelectView from '@/views/auth/CompanySelectView.vue'
 import ForgotPasswordView from '@/views/auth/ForgotPasswordView.vue'
 import LoginView from '@/views/auth/LoginView.vue'
 import ProfileView from '@/views/auth/ProfileView.vue'
+import ResetPasswordView from '@/views/auth/ResetPasswordView.vue'
 import HomeView from '@/views/dashboard/HomeView.vue'
 import FormDetailView from '@/views/forms/FormDetailView.vue'
 import FormVersionsView from '@/views/forms/FormVersionsView.vue'
@@ -39,6 +40,12 @@ const router = createRouter({
       path: '/forgot-password',
       name: 'forgot-password',
       component: ForgotPasswordView,
+      meta: { guestOnly: true },
+    },
+    {
+      path: '/reset-password',
+      name: 'reset-password',
+      component: ResetPasswordView,
       meta: { guestOnly: true },
     },
     {
