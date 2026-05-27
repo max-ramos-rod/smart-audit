@@ -9,6 +9,7 @@ import type { UserCreatePayload, UserListItem, UserUpdatePayload } from '@/types
 const usersStore = useUsersStore()
 const isEditing = ref(false)
 const formError = ref<string | null>(null)
+const savedOnce = ref(false)
 const form = reactive({
   id: '',
   name: '',
@@ -85,6 +86,7 @@ async function submit() {
       await usersStore.create(payload)
     }
 
+    savedOnce.value = true
     resetForm()
   } catch (err: any) {
     formError.value = extractProblemMessage(err, 'Não foi possível salvar o usuário.')
@@ -100,34 +102,36 @@ async function submit() {
         <div>
           <p class="eyebrow">Administração</p>
           <h2 class="page-h1">Usuários da empresa</h2>
+          <p class="page-desc">Gerencie acessos e papéis dos colaboradores.</p>
         </div>
-        <button type="button" class="btn-secondary btn-sm" @click="resetForm">Novo usuário</button>
+        <button type="button" class="btn-secondary btn-sm" @click="resetForm">+ Novo usuário</button>
       </div>
 
-      <p v-if="usersStore.error" class="text-sm font-medium text-sa-danger" style="margin-bottom: 12px;">
+      <p v-if="usersStore.error" style="font-size:13px;font-weight:600;color:var(--sa-danger);margin-bottom:12px;">
         {{ usersStore.error }}
       </p>
 
       <div class="users-layout">
 
         <!-- Formulário -->
-        <div class="card card-p" style="align-self: flex-start; position: sticky; top: 20px;">
-          <div class="flex items-center justify-between gap-3" style="margin-bottom: 16px;">
+        <div class="card card-p" style="align-self:flex-start;position:sticky;top:20px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;">
             <div>
-              <p class="eyebrow">Operação</p>
-              <h3 class="mt-2 text-lg font-semibold text-sa-text">{{ title }}</h3>
+              <p class="eyebrow">{{ isEditing ? 'Edição' : 'Criação' }}</p>
+              <h3 style="font-size:16px;font-weight:700;color:var(--sa-text);margin-top:3px;">{{ title }}</h3>
             </div>
-            <span class="status-chip">{{ isEditing ? 'Edição' : 'Criação' }}</span>
+            <span class="status-chip" :class="{ 'status-chip--warn': isEditing }">
+              {{ isEditing ? 'Editando' : 'Novo' }}
+            </span>
           </div>
 
-          <form class="grid gap-4" @submit.prevent="submit">
-            <label class="grid gap-2">
-              <span>Nome</span>
+          <form style="display:grid;gap:12px;" @submit.prevent="submit">
+            <div class="field">
+              <label class="flabel">Nome completo</label>
               <input v-model="form.name" type="text" minlength="2" maxlength="150" required />
-            </label>
-
-            <label class="grid gap-2">
-              <span>Email</span>
+            </div>
+            <div class="field">
+              <label class="flabel">E-mail</label>
               <input
                 v-model="form.email"
                 type="email"
@@ -136,23 +140,21 @@ async function submit() {
                 :disabled="isEditing"
                 required
               />
-            </label>
-
-            <label class="grid gap-2">
-              <span>{{ isEditing ? 'Nova senha' : 'Senha inicial' }}</span>
+            </div>
+            <div class="field">
+              <label class="flabel">{{ isEditing ? 'Nova senha (opcional)' : 'Senha inicial' }}</label>
               <input
                 v-model="form.password"
                 type="password"
                 minlength="8"
                 maxlength="128"
                 :required="!isEditing"
-                :placeholder="isEditing ? 'Preencha apenas se quiser trocar' : ''"
+                :placeholder="isEditing ? 'Deixe em branco para manter' : ''"
               />
-            </label>
-
-            <div class="grid gap-4 sm:grid-cols-2">
-              <label class="grid gap-2">
-                <span>Papel</span>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+              <div class="field">
+                <label class="flabel">Papel</label>
                 <select v-model="form.role">
                   <option value="OWNER">OWNER</option>
                   <option value="ADMIN">ADMIN</option>
@@ -160,20 +162,22 @@ async function submit() {
                   <option value="INSPECTOR">INSPECTOR</option>
                   <option value="VIEWER">VIEWER</option>
                 </select>
-              </label>
-
-              <label class="grid gap-2">
-                <span>Status</span>
+              </div>
+              <div class="field">
+                <label class="flabel">Status</label>
                 <select v-model="form.is_active">
                   <option :value="true">Ativo</option>
                   <option :value="false">Inativo</option>
                 </select>
-              </label>
+              </div>
             </div>
 
-            <p v-if="formError" class="text-sm font-medium text-sa-danger">{{ formError }}</p>
+            <p v-if="savedOnce" style="font-size:13px;font-weight:600;color:var(--sa-ok);padding:6px 0;">
+              ✓ Usuário salvo com sucesso.
+            </p>
+            <p v-if="formError" style="font-size:13px;font-weight:600;color:var(--sa-danger);">{{ formError }}</p>
 
-            <div class="flex flex-col gap-3">
+            <div style="display:flex;flex-direction:column;gap:8px;">
               <button type="submit" class="btn-primary btn-full">{{ submitLabel }}</button>
               <button
                 v-if="isEditing"
@@ -188,21 +192,21 @@ async function submit() {
         </div>
 
         <!-- Tabela -->
-        <div class="card" style="overflow-x: auto;">
-          <table>
+        <div class="card" style="overflow-x:auto;">
+          <table class="tbl">
             <thead>
               <tr>
                 <th>Nome</th>
-                <th>Email</th>
+                <th>E-mail</th>
                 <th>Papel</th>
                 <th>Status</th>
-                <th>Ações</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="user in usersStore.items" :key="user.id">
-                <td>{{ user.name }}</td>
-                <td>{{ user.email }}</td>
+                <td class="tbl-name">{{ user.name }}</td>
+                <td class="tbl-muted" style="font-family:'DM Mono',monospace;font-size:12px;">{{ user.email }}</td>
                 <td>
                   <span class="role-badge" :class="'role-' + user.role.toLowerCase()">
                     {{ user.role }}

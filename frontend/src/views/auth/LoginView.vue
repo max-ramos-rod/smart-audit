@@ -54,8 +54,8 @@ async function submit() {
         <p class="lf-sub">Acesse com suas credenciais corporativas</p>
 
         <form class="lf-form" @submit.prevent="submit">
-          <label class="grid gap-2">
-            <span>E-mail</span>
+          <label class="field">
+            <span class="flabel">E-mail</span>
             <input
               v-model="form.email"
               type="email"
@@ -65,8 +65,8 @@ async function submit() {
             />
           </label>
 
-          <label class="grid gap-2">
-            <span>Senha</span>
+          <label class="field">
+            <span class="flabel">Senha</span>
             <input
               v-model="form.password"
               type="password"

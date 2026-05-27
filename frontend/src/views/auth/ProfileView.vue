@@ -99,25 +99,22 @@ function clearMessages() {
         </button>
       </div>
 
-      <div v-if="tab === 'profile'" class="card card-p" style="max-width: 520px;">
-        <form class="grid gap-4" @submit.prevent="handleSubmit">
-          <label class="grid gap-2">
-            <span>E-mail</span>
+      <div v-if="tab === 'profile'" class="card card-p" style="max-width:520px;">
+        <form style="display:grid;gap:14px;" @submit.prevent="handleSubmit">
+          <label class="field">
+            <span class="flabel">E-mail</span>
             <input type="email" :value="authStore.user?.email" disabled />
           </label>
-
-          <label class="grid gap-2">
-            <span>Nome</span>
+          <label class="field">
+            <span class="flabel">Nome</span>
             <input v-model="name" type="text" placeholder="Seu nome" maxlength="100" />
           </label>
-
-          <p v-if="localError" class="text-sm text-sa-danger">{{ localError }}</p>
-          <p v-else-if="contextStore.updateProfileError" class="text-sm text-sa-danger">
+          <p v-if="localError" style="font-size:13px;font-weight:600;color:var(--sa-danger);">{{ localError }}</p>
+          <p v-else-if="contextStore.updateProfileError" style="font-size:13px;font-weight:600;color:var(--sa-danger);">
             {{ contextStore.updateProfileError }}
           </p>
-          <p v-if="successMessage" class="text-sm" style="color: var(--sa-ok);">{{ successMessage }}</p>
-
-          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+          <p v-if="successMessage" style="font-size:13px;font-weight:600;color:var(--sa-ok);">{{ successMessage }}</p>
+          <div>
             <button type="submit" class="btn-primary" :disabled="contextStore.isUpdatingProfile">
               {{ contextStore.isUpdatingProfile ? 'Salvando...' : 'Salvar alteracoes' }}
             </button>
@@ -151,29 +148,25 @@ function clearMessages() {
         </div>
       </div>
 
-      <div v-else-if="tab === 'security'" class="card card-p" style="max-width: 520px;">
-        <form class="grid gap-4" @submit.prevent="handleSubmit">
+      <div v-else-if="tab === 'security'" class="card card-p" style="max-width:520px;">
+        <form style="display:grid;gap:14px;" @submit.prevent="handleSubmit">
           <div class="info-box">
             A troca de senha usa o endpoint de perfil atual. Este fluxo cobre o basico e ainda nao possui historico, MFA
             ou reset autonomo por e-mail.
           </div>
-
-          <label class="grid gap-2">
-            <span>Nova senha</span>
+          <label class="field">
+            <span class="flabel">Nova senha</span>
             <input v-model="password" type="password" minlength="8" placeholder="Minimo de 8 caracteres" />
           </label>
-
-          <label class="grid gap-2">
-            <span>Confirmar nova senha</span>
+          <label class="field">
+            <span class="flabel">Confirmar nova senha</span>
             <input v-model="confirmPassword" type="password" minlength="8" placeholder="Repita a nova senha" />
           </label>
-
-          <p v-if="localError" class="text-sm text-sa-danger">{{ localError }}</p>
-          <p v-else-if="contextStore.updateProfileError" class="text-sm text-sa-danger">
+          <p v-if="localError" style="font-size:13px;font-weight:600;color:var(--sa-danger);">{{ localError }}</p>
+          <p v-else-if="contextStore.updateProfileError" style="font-size:13px;font-weight:600;color:var(--sa-danger);">
             {{ contextStore.updateProfileError }}
           </p>
-          <p v-if="successMessage" class="text-sm" style="color: var(--sa-ok);">{{ successMessage }}</p>
-
+          <p v-if="successMessage" style="font-size:13px;font-weight:600;color:var(--sa-ok);">{{ successMessage }}</p>
           <button type="submit" class="btn-primary" :disabled="contextStore.isUpdatingProfile">
             {{ contextStore.isUpdatingProfile ? 'Salvando...' : 'Atualizar senha' }}
           </button>
