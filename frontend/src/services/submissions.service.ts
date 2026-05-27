@@ -54,3 +54,18 @@ export async function exportSubmissionPdf(submissionId: string): Promise<Blob> {
   })
   return response.data as Blob
 }
+
+export async function exportSubmissionsCSV(status?: string, formId?: string): Promise<void> {
+  const params: Record<string, string> = {}
+  if (status) params.status = status
+  if (formId) params.form_id = formId
+  const response = await http.get('/submissions/export', { params, responseType: 'blob' })
+  const url = URL.createObjectURL(response.data as Blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `inspecoes_${new Date().toISOString().slice(0, 10)}.csv`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}

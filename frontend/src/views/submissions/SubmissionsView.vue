@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 
 import AppShell from '@/components/layout/AppShell.vue'
 import { extractProblemMessage } from '@/services/api/problem'
+import { exportSubmissionsCSV } from '@/services/submissions.service'
 import { useFormsStore } from '@/stores/forms/forms.store'
 import { useSubmissionsStore } from '@/stores/submissions/submissions.store'
 
@@ -17,6 +18,16 @@ const createError = ref<string | null>(null)
 
 const currentPage = ref(1)
 const activeStatus = ref<string | undefined>(undefined)
+const isExporting = ref(false)
+
+async function handleExportCSV() {
+  isExporting.value = true
+  try {
+    await exportSubmissionsCSV(activeStatus.value)
+  } finally {
+    isExporting.value = false
+  }
+}
 
 const STATUS_OPTIONS = [
   { label: 'Todas', value: undefined },
@@ -87,7 +98,17 @@ function statusLabel(status: string) {
           <h2 class="page-h1">Inspeções</h2>
           <p class="page-desc">Acompanhe status, início de execução e score operacional.</p>
         </div>
-        <button type="button" class="btn-primary" @click="openComposer">Nova inspeção</button>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button
+            type="button"
+            class="btn-secondary btn-sm"
+            :disabled="isExporting"
+            @click="handleExportCSV"
+          >
+            {{ isExporting ? 'Exportando...' : 'Exportar CSV' }}
+          </button>
+          <button type="button" class="btn-primary" @click="openComposer">Nova inspeção</button>
+        </div>
       </div>
 
       <!-- composer -->

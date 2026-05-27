@@ -103,6 +103,30 @@ class SubmissionRepository(SQLAlchemyRepository[Submission]):
     ) -> SubmissionValue:
         return await self._save(db, submission_value)
 
+    async def list_all_for_export(
+        self,
+        db: AsyncSession,
+        company_id: str,
+        status: str | None = None,
+        form_id: str | None = None,
+    ) -> list[Submission]:
+        statement = (
+            select(Submission)
+            .where(Submission.company_id == company_id)
+            .options(selectinload(Submission.form_version).selectinload(FormVersion.form))
+            .order_by(Submission.started_at.desc())
+            .limit(5000)
+        )
+        if status:
+            statement = statement.where(Submission.status == status)
+        if form_id:
+            statement = statement.where(
+                Submission.form_version_id.in_(
+                    select(FormVersion.id).where(FormVersion.form_id == form_id)
+                )
+            )
+        return await self._list_from_stmt(db, statement)
+
     async def list_for_notifications(
         self,
         db: AsyncSession,

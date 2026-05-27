@@ -36,6 +36,24 @@ async def list_submissions(
     return paginated_response([item.model_dump(mode="json") for item in data], meta)
 
 
+@router.get("/export")
+async def export_submissions_csv(
+    status: str | None = Query(default=None),
+    form_id: str | None = Query(default=None),
+    membership: Membership = Depends(get_current_membership),
+    db: AsyncSession = Depends(get_db),
+    submission_service: SubmissionService = Depends(get_submission_service),
+) -> Response:
+    from datetime import date as _date
+    csv_bytes = await submission_service.export_csv(db, membership, status=status, form_id=form_id)
+    filename = f"inspecoes_{_date.today().isoformat()}.csv"
+    return Response(
+        content=csv_bytes,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @router.post("")
 async def create_submission(
     payload: SubmissionCreateRequest,

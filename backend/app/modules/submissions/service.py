@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import csv
+import io
 from datetime import UTC, date, datetime, timedelta
 
 from fastapi import HTTPException, status
@@ -28,6 +30,35 @@ from app.modules.submissions.schemas import (
 class SubmissionService:
     def __init__(self, repository: SubmissionRepository | None = None) -> None:
         self.repository = repository or SubmissionRepository()
+
+    async def export_csv(
+        self,
+        db: AsyncSession,
+        membership: Membership,
+        status: str | None = None,
+        form_id: str | None = None,
+    ) -> bytes:
+        submissions = await self.repository.list_all_for_export(
+            db, str(membership.company_id), status=status, form_id=form_id
+        )
+        buf = io.StringIO()
+        writer = csv.writer(buf)
+        writer.writerow(["id", "formulario", "status", "score", "iniciada_em", "finalizada_em"])
+        for s in submissions:
+            form_name = (
+                s.form_version.form.name
+                if s.form_version and s.form_version.form
+                else ""
+            )
+            writer.writerow([
+                str(s.id),
+                form_name,
+                s.status,
+                f"{float(s.score):.2f}" if s.score is not None else "",
+                s.started_at.strftime("%d/%m/%Y %H:%M") if s.started_at else "",
+                s.finished_at.strftime("%d/%m/%Y %H:%M") if s.finished_at else "",
+            ])
+        return b"\xef\xbb\xbf" + buf.getvalue().encode("utf-8")
 
     async def get_notifications(
         self, db: AsyncSession, membership: Membership
