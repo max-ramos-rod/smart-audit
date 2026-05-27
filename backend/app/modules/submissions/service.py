@@ -15,6 +15,7 @@ from app.modules.submissions.pdf import generate_submission_pdf
 from app.modules.submissions.repository import SubmissionRepository
 from app.modules.submissions.schemas import (
     CompanyStatsResponse,
+    NotificationItem,
     ScoreBreakdown,
     SubmissionAnswerResponse,
     SubmissionAnswersUpdateRequest,
@@ -27,6 +28,65 @@ from app.modules.submissions.schemas import (
 class SubmissionService:
     def __init__(self, repository: SubmissionRepository | None = None) -> None:
         self.repository = repository or SubmissionRepository()
+
+    async def get_notifications(
+        self, db: AsyncSession, membership: Membership
+    ) -> list[NotificationItem]:
+        now = datetime.now(UTC)
+        pending_threshold = now - timedelta(hours=24)
+        completed_since = now - timedelta(days=30)
+
+        submissions = await self.repository.list_for_notifications(
+            db, str(membership.company_id), pending_threshold, completed_since
+        )
+
+        items: list[NotificationItem] = []
+        for s in submissions:
+            form_name = (
+                s.form_version.form.name
+                if s.form_version and s.form_version.form
+                else "Formulário"
+            )
+            if s.status == "in_progress":
+                hours_ago = int((now - s.started_at).total_seconds() / 3600)
+                age = f"{int(hours_ago / 24)} dias" if hours_ago >= 48 else f"{hours_ago}h"
+                items.append(
+                    NotificationItem(
+                        id=f"pending-{s.id}",
+                        type="pending",
+                        title=f"Inspeção pendente há {age}",
+                        description=(
+                            f"{form_name} iniciada em "
+                            f"{s.started_at.strftime('%d/%m/%Y')} sem finalização."
+                        ),
+                        created_at=s.started_at,
+                    )
+                )
+            elif s.status == "completed" and s.score is not None:
+                score = float(s.score)
+                finished = s.finished_at or s.created_at
+                if score < 80:
+                    items.append(
+                        NotificationItem(
+                            id=f"low-score-{s.id}",
+                            type="low_score",
+                            title="Score abaixo do mínimo",
+                            description=f"{form_name}: {score:.0f}% (mínimo recomendado: 80%).",
+                            created_at=finished,
+                        )
+                    )
+                elif score >= 90:
+                    items.append(
+                        NotificationItem(
+                            id=f"excellent-{s.id}",
+                            type="excellent",
+                            title="Inspeção concluída com excelência",
+                            description=f"{form_name}: score {score:.0f}%.",
+                            created_at=finished,
+                        )
+                    )
+
+        return items[:20]
 
     async def get_company_stats(
         self, db: AsyncSession, membership: Membership, period: str | None = None

@@ -58,3 +58,12 @@ class CompanyStatsResponse(BaseModel):
     in_progress: int
     avg_score: float | None
     recent: list[SubmissionListItemResponse]
+
+
+class NotificationItem(BaseModel):
+    id: str
+    type: str
+    title: str
+    description: str
+    created_at: datetime
+    read: bool = False

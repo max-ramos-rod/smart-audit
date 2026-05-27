@@ -62,3 +62,13 @@ async def get_my_stats(
 ) -> dict[str, object]:
     data = await submission_service.get_company_stats(db, membership, period=period)
     return success_response(data.model_dump(mode="json"))
+
+
+@router.get("/notifications")
+async def get_my_notifications(
+    membership=Depends(get_current_membership),
+    db: AsyncSession = Depends(get_db),
+    submission_service: SubmissionService = Depends(get_submission_service),
+) -> dict[str, object]:
+    data = await submission_service.get_notifications(db, membership)
+    return success_response([item.model_dump(mode="json") for item in data])

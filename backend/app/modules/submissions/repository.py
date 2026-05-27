@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import case, func, select
+from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -102,6 +102,37 @@ class SubmissionRepository(SQLAlchemyRepository[Submission]):
         self, db: AsyncSession, submission_value: SubmissionValue
     ) -> SubmissionValue:
         return await self._save(db, submission_value)
+
+    async def list_for_notifications(
+        self,
+        db: AsyncSession,
+        company_id: str,
+        pending_threshold: datetime,
+        completed_since: datetime,
+    ) -> list[Submission]:
+        statement = (
+            select(Submission)
+            .where(
+                Submission.company_id == company_id,
+                or_(
+                    and_(
+                        Submission.status == "in_progress",
+                        Submission.started_at < pending_threshold,
+                    ),
+                    and_(
+                        Submission.status == "completed",
+                        Submission.finished_at >= completed_since,
+                        Submission.score.isnot(None),
+                    ),
+                ),
+            )
+            .options(
+                selectinload(Submission.form_version).selectinload(FormVersion.form),
+            )
+            .order_by(Submission.started_at.desc())
+            .limit(50)
+        )
+        return await self._list_from_stmt(db, statement)
 
     async def get_company_stats(
         self, db: AsyncSession, company_id: str, since: datetime | None = None

@@ -263,69 +263,77 @@ function memberInitials(name: string) {
         <!-- Teams list -->
         <div>
 
-          <!-- Mobile cards -->
-          <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px;" class="lg:hidden">
-            <div
-              v-for="team in teamsStore.items"
-              :key="team.id"
-              class="card card-p"
-            >
-              <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:12px;">
-                <div>
-                  <div class="eyebrow">Equipe</div>
-                  <div style="font-size:15px;font-weight:700;color:var(--sa-text);margin-top:4px;">{{ team.name }}</div>
-                </div>
-                <span class="status-chip">{{ team.member_count }} membro{{ team.member_count !== 1 ? 's' : '' }}</span>
-              </div>
-              <div style="display:flex;flex-direction:column;gap:6px;">
-                <button type="button" class="btn-secondary btn-full btn-sm" @click="openMembers(team)">Gerenciar membros</button>
-                <button type="button" class="btn-secondary btn-full btn-sm" @click="openEdit(team)">Editar</button>
-                <button
-                  type="button"
-                  class="btn-secondary btn-full btn-sm"
-                  style="color:var(--sa-danger);border-color:var(--sa-err-bg);"
-                  @click="confirmDelete(team)"
-                >
-                  Excluir
-                </button>
-              </div>
-            </div>
+          <!-- Empty state -->
+          <div v-if="!teamsStore.isLoading && !teamsStore.items.length" class="empty">
+            <div class="empty-h">Nenhuma equipe cadastrada</div>
+            <p class="empty-p">Use o painel ao lado para criar sua primeira equipe.</p>
           </div>
 
-          <!-- Desktop table -->
-          <div class="card hidden lg:block" style="overflow-x:auto;">
-            <table>
-              <thead>
-                <tr>
-                  <th>Nome da equipe</th>
-                  <th>Membros</th>
-                  <th>Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="team in teamsStore.items" :key="team.id">
-                  <td style="font-weight:600;color:var(--sa-text);">{{ team.name }}</td>
-                  <td>
-                    <span class="status-chip">{{ team.member_count }} membro{{ team.member_count !== 1 ? 's' : '' }}</span>
-                  </td>
-                  <td>
-                    <div style="display:flex;gap:6px;flex-wrap:wrap;">
-                      <button type="button" class="btn-secondary btn-sm" @click="openMembers(team)">Membros</button>
-                      <button type="button" class="btn-secondary btn-sm" @click="openEdit(team)">Editar</button>
-                      <button
-                        type="button"
-                        class="btn-secondary btn-sm"
-                        style="color:var(--sa-danger);border-color:var(--sa-err-bg);"
-                        @click="confirmDelete(team)"
-                      >
-                        Excluir
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+          <template v-else>
+            <!-- Mobile cards -->
+            <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px;" class="lg:hidden">
+              <div
+                v-for="team in teamsStore.items"
+                :key="team.id"
+                class="card card-p"
+              >
+                <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:12px;">
+                  <div>
+                    <div class="eyebrow">Equipe</div>
+                    <div style="font-size:15px;font-weight:700;color:var(--sa-text);margin-top:4px;">{{ team.name }}</div>
+                  </div>
+                  <span class="status-chip">{{ team.member_count }} membro{{ team.member_count !== 1 ? 's' : '' }}</span>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:6px;">
+                  <button type="button" class="btn-secondary btn-full btn-sm" @click="openMembers(team)">Gerenciar membros</button>
+                  <button type="button" class="btn-secondary btn-full btn-sm" @click="openEdit(team)">Editar</button>
+                  <button
+                    type="button"
+                    class="btn-secondary btn-full btn-sm"
+                    style="color:var(--sa-danger);border-color:var(--sa-err-bg);"
+                    @click="confirmDelete(team)"
+                  >
+                    Excluir
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Desktop table -->
+            <div class="card hidden lg:block" style="overflow-x:auto;">
+              <table class="tbl">
+                <thead>
+                  <tr>
+                    <th>Nome da equipe</th>
+                    <th>Membros</th>
+                    <th>Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="team in teamsStore.items" :key="team.id">
+                    <td class="tbl-name">{{ team.name }}</td>
+                    <td>
+                      <span class="status-chip">{{ team.member_count }} membro{{ team.member_count !== 1 ? 's' : '' }}</span>
+                    </td>
+                    <td>
+                      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                        <button type="button" class="btn-secondary btn-sm" @click="openMembers(team)">Membros</button>
+                        <button type="button" class="btn-secondary btn-sm" @click="openEdit(team)">Editar</button>
+                        <button
+                          type="button"
+                          class="btn-secondary btn-sm"
+                          style="color:var(--sa-danger);border-color:var(--sa-err-bg);"
+                          @click="confirmDelete(team)"
+                        >
+                          Excluir
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </template>
 
         </div>
       </div>

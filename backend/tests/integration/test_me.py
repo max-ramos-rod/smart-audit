@@ -131,3 +131,97 @@ async def test_stats_without_period_still_works(client, auth_headers):
     assert res.status_code == 200
     data = res.json()["data"]
     assert "total_submissions" in data
+
+
+# ── /me/notifications ─────────────────────────────────────────────────────────
+
+async def _finish_submission_fail(client, headers, submission_id):
+    """Finish a submission with a False answer → score = 0%."""
+    await client.put(
+        f"/api/v1/submissions/{submission_id}/answers",
+        headers=headers,
+        json={"answers": [{"field_key": "ok", "value": False}]},
+    )
+    resp = await client.post(f"/api/v1/submissions/{submission_id}/finish", headers=headers)
+    assert resp.status_code == 200
+
+
+async def test_notifications_empty_when_no_qualifying_submissions(client, auth_headers):
+    response = await client.get("/api/v1/me/notifications", headers=auth_headers)
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data == []
+
+
+async def test_notifications_excellent_for_high_score(client, auth_headers):
+    form_id = await _create_form(client, auth_headers)
+    sub_id = await _create_submission(client, auth_headers, form_id)
+    await _finish_submission(client, auth_headers, sub_id)  # score = 100%
+
+    response = await client.get("/api/v1/me/notifications", headers=auth_headers)
+    assert response.status_code == 200
+    items = response.json()["data"]
+
+    excellent = [n for n in items if n["type"] == "excellent"]
+    assert len(excellent) == 1
+    assert excellent[0]["id"] == f"excellent-{sub_id}"
+    assert "excelência" in excellent[0]["title"]
+    assert "100" in excellent[0]["description"]
+
+
+async def test_notifications_low_score_for_failing_submission(client, auth_headers):
+    form_id = await _create_form(client, auth_headers)
+    sub_id = await _create_submission(client, auth_headers, form_id)
+    await _finish_submission_fail(client, auth_headers, sub_id)  # score = 0%
+
+    response = await client.get("/api/v1/me/notifications", headers=auth_headers)
+    assert response.status_code == 200
+    items = response.json()["data"]
+
+    low = [n for n in items if n["type"] == "low_score"]
+    assert len(low) == 1
+    assert low[0]["id"] == f"low-score-{sub_id}"
+    assert "0" in low[0]["description"]
+
+
+async def test_notifications_recent_in_progress_not_included(client, auth_headers):
+    """Submissions started < 24h ago must NOT produce a pending notification."""
+    form_id = await _create_form(client, auth_headers)
+    await _create_submission(client, auth_headers, form_id)
+
+    response = await client.get("/api/v1/me/notifications", headers=auth_headers)
+    items = response.json()["data"]
+    pending = [n for n in items if n["type"] == "pending"]
+    assert pending == []
+
+
+async def test_notifications_item_shape(client, auth_headers):
+    form_id = await _create_form(client, auth_headers)
+    sub_id = await _create_submission(client, auth_headers, form_id)
+    await _finish_submission(client, auth_headers, sub_id)
+
+    response = await client.get("/api/v1/me/notifications", headers=auth_headers)
+    item = response.json()["data"][0]
+    assert "id" in item
+    assert "type" in item
+    assert "title" in item
+    assert "description" in item
+    assert "created_at" in item
+    assert item["read"] is False
+
+
+async def test_notifications_requires_auth(client):
+    response = await client.get("/api/v1/me/notifications")
+    from backend.tests.integration.test_auth import assert_problem
+    assert_problem(response, 401, "Token de acesso nao informado.")
+
+
+async def test_notifications_respects_company_isolation(client, auth_headers, inspector_headers):
+    """Notifications from company A must not be visible to company B."""
+    form_id = await _create_form(client, auth_headers)
+    sub_id = await _create_submission(client, auth_headers, form_id)
+    await _finish_submission(client, auth_headers, sub_id)
+
+    response = await client.get("/api/v1/me/notifications", headers=inspector_headers)
+    assert response.status_code == 200
+    assert response.json()["data"] == []
