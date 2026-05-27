@@ -38,7 +38,7 @@ async function handleSubmit() {
   }
 
   if (!Object.keys(payload).length) {
-    localError.value = 'Nenhuma alteracao detectada.'
+    localError.value = 'Nenhuma alteração detectada.'
     return
   }
 
@@ -67,12 +67,12 @@ function clearMessages() {
         <div>
           <p class="eyebrow">Conta</p>
           <h2 class="page-h1">Meu perfil</h2>
-          <p class="page-desc">Gerencie seus dados basicos, empresas associadas e seguranca de acesso.</p>
+          <p class="page-desc">Gerencie seus dados básicos, empresas associadas e segurança de acesso.</p>
         </div>
       </div>
 
       <div class="info-box" style="margin-bottom: 16px;">
-        Empresa ativa na sessao: <strong>{{ activeCompanyName }}</strong>.
+        Empresa ativa na sessão: <strong>{{ activeCompanyName }}</strong>.
       </div>
 
       <div class="filter-tabs" style="max-width: 520px;">
@@ -95,7 +95,7 @@ function clearMessages() {
           :class="{ active: tab === 'security' }"
           @click="tab = 'security'; clearMessages()"
         >
-          Seguranca
+          Segurança
         </button>
       </div>
 
@@ -116,7 +116,7 @@ function clearMessages() {
           <p v-if="successMessage" style="font-size:13px;font-weight:600;color:var(--sa-ok);">{{ successMessage }}</p>
           <div>
             <button type="submit" class="btn-primary" :disabled="contextStore.isUpdatingProfile">
-              {{ contextStore.isUpdatingProfile ? 'Salvando...' : 'Salvar alteracoes' }}
+              {{ contextStore.isUpdatingProfile ? 'Salvando...' : 'Salvar alterações' }}
             </button>
           </div>
         </form>
@@ -151,12 +151,12 @@ function clearMessages() {
       <div v-else-if="tab === 'security'" class="card card-p" style="max-width:520px;">
         <form style="display:grid;gap:14px;" @submit.prevent="handleSubmit">
           <div class="info-box">
-            A troca de senha usa o endpoint de perfil atual. Este fluxo cobre o basico e ainda nao possui historico, MFA
-            ou reset autonomo por e-mail.
+            A troca de senha usa o endpoint de perfil atual. Este fluxo cobre o básico e ainda não possui histórico, MFA
+            ou reset autônomo por e-mail.
           </div>
           <label class="field">
             <span class="flabel">Nova senha</span>
-            <input v-model="password" type="password" minlength="8" placeholder="Minimo de 8 caracteres" />
+            <input v-model="password" type="password" minlength="8" placeholder="Mínimo de 8 caracteres" />
           </label>
           <label class="field">
             <span class="flabel">Confirmar nova senha</span>

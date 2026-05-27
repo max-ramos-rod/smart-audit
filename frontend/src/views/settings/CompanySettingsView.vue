@@ -62,19 +62,19 @@ async function handleSave() {
     })
     savedOnce.value = true
   } catch (err: any) {
-    saveError.value = err.response?.data?.detail ?? 'Erro ao salvar configuracoes.'
+    saveError.value = err.response?.data?.detail ?? 'Erro ao salvar configurações.'
   } finally {
     isSaving.value = false
   }
 }
 
 const planFeatures = [
-  'Usuarios ilimitados',
-  'Formularios ilimitados',
-  'Relatorios exportaveis (PDF/CSV)',
-  'Evidencias fotograficas',
-  'API de integracao',
-  'Suporte prioritario',
+  'Usuários ilimitados',
+  'Formulários ilimitados',
+  'Relatórios exportáveis (PDF/CSV)',
+  'Evidências fotográficas',
+  'API de integração',
+  'Suporte prioritário',
   'Multiempresa',
   'SLA garantido',
 ]
@@ -88,17 +88,17 @@ interface UsageItem {
 
 const usageItems = computed<UsageItem[]>(() => [
   {
-    label: 'Usuarios ativos',
+    label: 'Usuários ativos',
     used: usersStore.meta?.total ?? usersStore.items.length,
     total: 50,
   },
   {
-    label: 'Inspecoes neste mes',
+    label: 'Inspeções neste mês',
     used: stats.value?.total_submissions ?? submissionsStore.items.length,
     total: 500,
   },
   {
-    label: 'Formularios',
+    label: 'Formulários',
     used: formsStore.meta?.total ?? formsStore.items.length,
     total: 100,
   },
@@ -118,8 +118,8 @@ function usageColor(pct: number) {
     <div class="page">
       <div class="phdr">
         <div>
-          <div class="eyebrow">Administracao</div>
-          <h1 class="page-h1">Configuracoes da empresa</h1>
+          <div class="eyebrow">Administração</div>
+          <h1 class="page-h1">Configurações da empresa</h1>
           <p class="page-desc">{{ company?.name }}</p>
         </div>
         <button class="btn-secondary" type="button" @click="router.back()">Voltar</button>
@@ -133,13 +133,13 @@ function usageColor(pct: number) {
           Plano
         </button>
         <button class="filter-tab" :class="{ active: tab === 'usage' }" type="button" @click="tab = 'usage'">
-          Utilizacao
+          Utilização
         </button>
       </div>
 
       <!-- Geral -->
       <div v-if="tab === 'general'" class="card card-p">
-        <div class="slabel" style="margin-bottom: 16px;">Informacoes da empresa</div>
+        <div class="slabel" style="margin-bottom: 16px;">Informações da empresa</div>
         <div style="display: grid; gap: 12px;">
           <div class="field">
             <label class="flabel">Nome da empresa</label>
@@ -189,10 +189,10 @@ function usageColor(pct: number) {
               :disabled="isSaving"
               @click="handleSave"
             >
-              {{ isSaving ? 'Salvando...' : 'Salvar alteracoes' }}
+              {{ isSaving ? 'Salvando...' : 'Salvar alterações' }}
             </button>
             <span v-if="savedOnce" style="font-size: 13px; font-weight: 600; color: var(--sa-ok);">
-              ✓ Configuracoes salvas.
+              ✓ Configurações salvas.
             </span>
             <span v-if="saveError" style="font-size: 13px; font-weight: 600; color: var(--sa-danger);">
               {{ saveError }}
@@ -209,7 +209,7 @@ function usageColor(pct: number) {
           <div>
             <div style="font-size: 13px; font-weight: 700; color: var(--sa-danger);">Excluir empresa</div>
             <div style="font-size: 12px; color: var(--sa-danger); opacity: .7;">
-              Acao irreversivel. Ainda nao existe fluxo funcional exposto na interface.
+              Ação irreversível. Ainda não existe fluxo funcional exposto na interface.
             </div>
           </div>
           <button type="button" class="btn-secondary btn-sm" disabled>Indisponivel</button>
@@ -228,7 +228,7 @@ function usageColor(pct: number) {
                 {{ company?.plan ?? 'starter' }}
               </div>
               <div style="font-size: 13px; color: var(--sa-muted); margin-top: 4px;">
-                Visualizacao do plano atual. Gestao comercial e billing ainda nao foram expostos na interface.
+                Visualização do plano atual. Gestão comercial e billing ainda não foram expostos na interface.
               </div>
             </div>
             <span class="status-chip">Ativo</span>
@@ -236,7 +236,7 @@ function usageColor(pct: number) {
         </div>
 
         <div class="card card-p">
-          <div class="slabel" style="margin-bottom: 12px;">Funcionalidades incluidas</div>
+          <div class="slabel" style="margin-bottom: 12px;">Funcionalidades incluídas</div>
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
             <div
               v-for="feature in planFeatures"
@@ -258,9 +258,9 @@ function usageColor(pct: number) {
         </div>
       </div>
 
-      <!-- Utilizacao -->
+      <!-- Utilização -->
       <div v-else-if="tab === 'usage'" class="card card-p">
-        <div class="slabel" style="margin-bottom: 16px;">Utilizacao do plano</div>
+        <div class="slabel" style="margin-bottom: 16px;">Utilização do plano</div>
 
         <div v-for="item in usageItems" :key="item.label" style="margin-bottom: 16px;">
           <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 6px;">

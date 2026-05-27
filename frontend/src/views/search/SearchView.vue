@@ -51,7 +51,7 @@ const publishedFormsCount = computed(
   () => formsStore.items.filter((form) => form.is_active).length,
 )
 
-const recentSearches = ['Checklist NR-10', 'Auditoria ISO 9001', 'Inspecoes concluidas']
+const recentSearches = ['Checklist NR-10', 'Auditoria ISO 9001', 'Inspeções concluídas']
 
 function applyRecent(term: string) {
   query.value = term
@@ -94,8 +94,8 @@ function recentHoverOut(event: MouseEvent) {
       <div class="phdr">
         <div>
           <p class="eyebrow">Ferramenta</p>
-          <h1 class="page-h1">Busca rapida</h1>
-          <p class="page-desc">Encontre formularios e inspecoes a partir dos dados ja carregados na sessao atual.</p>
+          <h1 class="page-h1">Busca rápida</h1>
+          <p class="page-desc">Encontre formulários e inspeções a partir dos dados já carregados na sessão atual.</p>
         </div>
       </div>
 
@@ -106,7 +106,7 @@ function recentHoverOut(event: MouseEvent) {
             ref="inputRef"
             v-model="query"
             type="text"
-            placeholder="Buscar formularios e inspecoes"
+            placeholder="Buscar formulários e inspeções"
             style="border: none; outline: none; flex: 1; min-width: 0; padding: 0; box-shadow: none; font-size: 14px; background: transparent;"
           />
           <button
@@ -119,7 +119,7 @@ function recentHoverOut(event: MouseEvent) {
           </button>
         </div>
         <p class="page-desc" style="margin-top: 10px;">
-          A busca atual e local e prioriza velocidade operacional. Uma busca indexada no backend fica para a proxima fase.
+          A busca atual é local e prioriza velocidade operacional. Uma busca indexada no backend fica para a próxima fase.
         </p>
       </div>
 
@@ -144,7 +144,7 @@ function recentHoverOut(event: MouseEvent) {
           </div>
 
           <div class="card card-p">
-            <div class="slabel" style="margin-bottom: 12px;">Atalhos uteis</div>
+            <div class="slabel" style="margin-bottom: 12px;">Atalhos úteis</div>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
               <div
                 class="card card-p"
@@ -172,7 +172,7 @@ function recentHoverOut(event: MouseEvent) {
                 >
                   {{ publishedFormsCount }}
                 </div>
-                <div style="font-size: 12px; font-weight: 600; color: var(--sa-muted);">Formularios ativos</div>
+                <div style="font-size: 12px; font-weight: 600; color: var(--sa-muted);">Formulários ativos</div>
               </div>
             </div>
           </div>
@@ -189,7 +189,7 @@ function recentHoverOut(event: MouseEvent) {
 
       <template v-else-if="hasResults">
         <div v-if="matchedForms.length" style="margin-bottom: 24px;">
-          <div class="slabel" style="margin-bottom: 10px;">Formularios ({{ matchedForms.length }})</div>
+          <div class="slabel" style="margin-bottom: 10px;">Formulários ({{ matchedForms.length }})</div>
           <div class="lstack">
             <div
               v-for="form in matchedForms"
@@ -209,7 +209,7 @@ function recentHoverOut(event: MouseEvent) {
         </div>
 
         <div v-if="matchedSubmissions.length">
-          <div class="slabel" style="margin-bottom: 10px;">Inspecoes ({{ matchedSubmissions.length }})</div>
+          <div class="slabel" style="margin-bottom: 10px;">Inspeções ({{ matchedSubmissions.length }})</div>
           <div class="lstack">
             <div
               v-for="submission in matchedSubmissions"

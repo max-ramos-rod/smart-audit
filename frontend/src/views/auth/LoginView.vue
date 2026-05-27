@@ -37,8 +37,8 @@ async function submit() {
       </div>
       <div class="lb-pills">
         <div class="lb-pill">Checklists versionados por empresa</div>
-        <div class="lb-pill">Rastreabilidade completa por inspecao</div>
-        <div class="lb-pill">Evidencias fotograficas integradas</div>
+        <div class="lb-pill">Rastreabilidade completa por inspeção</div>
+        <div class="lb-pill">Evidências fotográficas integradas</div>
         <div class="lb-pill">Score operacional automatizado</div>
       </div>
     </div>
