@@ -32,9 +32,7 @@ const greeting = computed(() => {
   return firstName ? `${greet}, ${firstName}` : greet
 })
 
-const activeForms = computed(() =>
-  formsStore.items.filter(f => f.is_active).slice(0, 3)
-)
+const activeForms = computed(() => formsStore.items.filter((f) => f.is_active).slice(0, 3))
 
 async function setPeriod(period: string) {
   activePeriod.value = period
@@ -60,8 +58,6 @@ function statusLabel(status: string) {
 <template>
   <AppShell>
     <div class="page">
-
-      <!-- Header -->
       <div class="phdr">
         <div>
           <p class="eyebrow">Operação ativa · {{ activeCompany?.name ?? '—' }}</p>
@@ -70,10 +66,9 @@ function statusLabel(status: string) {
         </div>
       </div>
 
-      <!-- Period filter + label -->
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-        <div class="slabel" style="margin-bottom:0;">Métricas</div>
-        <div class="filter-tabs" style="margin-bottom:0;">
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; flex-wrap: wrap;">
+        <div class="slabel" style="margin-bottom: 0;">Métricas</div>
+        <div class="filter-tabs" style="margin-bottom: 0; width: 100%; max-width: 420px;">
           <button
             v-for="opt in PERIOD_OPTIONS"
             :key="opt.value"
@@ -87,11 +82,10 @@ function statusLabel(status: string) {
         </div>
       </div>
 
-      <!-- Stats -->
-      <div v-if="contextStore.isLoadingStats" style="font-size:13px;color:var(--sa-muted);text-align:center;padding:20px 0;">
+      <div v-if="contextStore.isLoadingStats" style="font-size: 13px; color: var(--sa-muted); text-align: center; padding: 20px 0;">
         Carregando métricas...
       </div>
-      <div v-else class="stats-grid" style="margin-bottom:20px;">
+      <div v-else class="stats-grid" style="margin-bottom: 20px;">
         <article class="scard">
           <div class="sc-label">Total de inspeções</div>
           <div class="sc-value">{{ stats?.total_submissions ?? '—' }}</div>
@@ -116,10 +110,9 @@ function statusLabel(status: string) {
         </article>
       </div>
 
-      <!-- Inspeções recentes -->
       <template v-if="stats?.recent?.length">
         <div class="slabel">Inspeções recentes</div>
-        <div class="lstack" style="margin-bottom:20px;">
+        <div class="lstack" style="margin-bottom: 20px;">
           <div
             v-for="submission in stats.recent"
             :key="submission.id"
@@ -128,7 +121,10 @@ function statusLabel(status: string) {
           >
             <div class="lrow-main">
               <div class="lrow-title">{{ submission.form_name }}</div>
-              <div class="lrow-sub">Iniciada {{ new Date(submission.started_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) }}</div>
+              <div class="lrow-sub">
+                Iniciada
+                {{ new Date(submission.started_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) }}
+              </div>
             </div>
             <div class="lrow-end">
               <span
@@ -153,14 +149,13 @@ function statusLabel(status: string) {
         </div>
       </template>
 
-      <!-- Formulários ativos -->
       <template v-if="activeForms.length">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-          <div class="slabel" style="margin-bottom:0;">Formulários ativos</div>
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+          <div class="slabel" style="margin-bottom: 0;">Formulários ativos</div>
           <button
             type="button"
             @click="router.push({ name: 'forms' })"
-            style="border:none;background:none;cursor:pointer;font-size:12px;font-weight:600;color:var(--sa-brand);font-family:inherit;padding:0;"
+            style="border: none; background: none; cursor: pointer; font-size: 12px; font-weight: 600; color: var(--sa-brand); font-family: inherit; padding: 0;"
           >
             Ver todos →
           </button>
@@ -170,7 +165,7 @@ function statusLabel(status: string) {
             v-for="form in activeForms"
             :key="form.id"
             class="lrow"
-            style="cursor:default;"
+            style="cursor: default;"
           >
             <div class="lrow-main">
               <div class="lrow-title">{{ form.name }}</div>
@@ -185,7 +180,6 @@ function statusLabel(status: string) {
           </div>
         </div>
       </template>
-
     </div>
   </AppShell>
 </template>

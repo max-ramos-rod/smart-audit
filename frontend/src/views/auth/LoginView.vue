@@ -23,8 +23,6 @@ async function submit() {
 
 <template>
   <div class="login-root">
-
-    <!-- ── PAINEL DE MARCA (desktop only) ── -->
     <div class="login-brand">
       <div class="lb-inner">
         <div class="lb-mark">SA</div>
@@ -34,22 +32,19 @@ async function submit() {
           Controle operacional.
         </h2>
         <p class="lb-p">
-          Plataforma de gestão de checklists, inspeções e evidências para operações críticas.
+          Plataforma de gestao de checklists, inspecoes e evidencias para operacoes criticas.
         </p>
       </div>
       <div class="lb-pills">
         <div class="lb-pill">Checklists versionados por empresa</div>
-        <div class="lb-pill">Rastreabilidade completa por inspeção</div>
-        <div class="lb-pill">Evidências fotográficas integradas</div>
+        <div class="lb-pill">Rastreabilidade completa por inspecao</div>
+        <div class="lb-pill">Evidencias fotograficas integradas</div>
         <div class="lb-pill">Score operacional automatizado</div>
       </div>
     </div>
 
-    <!-- ── FORMULÁRIO ── -->
     <div class="lfa">
       <div class="lfb">
-
-        <!-- Logo mobile -->
         <div class="lf-mob-logo">
           <div class="lf-mob-mark">SA</div>
           <div class="lf-mob-name">Smart Audit</div>
@@ -77,17 +72,13 @@ async function submit() {
               type="password"
               autocomplete="current-password"
               required
-              placeholder="••••••••"
+              placeholder="Digite sua senha"
             />
           </label>
 
           <p v-if="authStore.error" class="lf-err">{{ authStore.error }}</p>
 
-          <button
-            type="submit"
-            class="lf-btn"
-            :disabled="authStore.isLoading"
-          >
+          <button type="submit" class="lf-btn" :disabled="authStore.isLoading">
             {{ authStore.isLoading ? 'Autenticando...' : 'Entrar' }}
           </button>
 
@@ -97,10 +88,9 @@ async function submit() {
         </form>
 
         <div style="margin-top: 24px; font-size: 11px; color: var(--sa-muted); text-align: center;">
-          Smart Audit · Plataforma Operacional
+          Smart Audit | Plataforma Operacional
         </div>
       </div>
     </div>
-
   </div>
 </template>

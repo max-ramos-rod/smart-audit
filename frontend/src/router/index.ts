@@ -4,6 +4,7 @@ import { readAccessToken } from '@/services/api/storage'
 import { useAuthStore } from '@/stores/auth/auth.store'
 import { useContextStore } from '@/stores/context/context.store'
 import CompanySelectView from '@/views/auth/CompanySelectView.vue'
+import ForgotPasswordView from '@/views/auth/ForgotPasswordView.vue'
 import LoginView from '@/views/auth/LoginView.vue'
 import ProfileView from '@/views/auth/ProfileView.vue'
 import HomeView from '@/views/dashboard/HomeView.vue'
@@ -33,6 +34,12 @@ const router = createRouter({
       name: 'select-company',
       component: CompanySelectView,
       meta: { requiresAuth: true },
+    },
+    {
+      path: '/forgot-password',
+      name: 'forgot-password',
+      component: ForgotPasswordView,
+      meta: { guestOnly: true },
     },
     {
       path: '/',

@@ -25,7 +25,7 @@ Baseline validado em `2026-05-27`:
 
 - backend: `90 passed, 3 skipped`
 - frontend: `68 passed`
-- frontend build: OK
+- frontend build: `npm run build` OK
 
 ## 2. Estado real do produto
 
@@ -41,7 +41,8 @@ O Smart Audit ja nao esta mais em fase apenas de fundacao. O estado atual do cod
 - inspecoes com respostas tipadas e score
 - evidencias anexadas por upload local
 - relatorio e exportacao PDF de inspecao
-- telas auxiliares de perfil, busca, notificacoes e configuracoes da empresa
+- tela placeholder de recuperacao de acesso
+- telas auxiliares de perfil, busca, notificacoes e configuracoes da empresa, agora alinhadas ao shell principal e com UX mais consistente
 
 Ha, portanto, uma diferenca importante entre:
 
@@ -311,10 +312,11 @@ Rotas de interface existentes hoje:
 - `/notifications`
 - `/search`
 - `/teams`
+- `/forgot-password`
 
 Observacao:
 
-- existe link para `"/forgot-password"` no login, mas nao existe rota correspondente hoje
+- `"/forgot-password"` existe hoje como rota placeholder segura, sem fluxo transacional completo de recuperacao
 
 ## 8. Contratos HTTP
 
@@ -416,31 +418,34 @@ Ja e realidade no codigo. Qualquer documentacao antiga que ainda fale em sessao 
 - backend principal
 - contratos HTTP
 - autenticacao e contexto
+- shell autenticado consistente nas telas principais
 - usuarios
 - formularios
 - inspecoes
 - evidencias e uploads
 - equipes
 - exportacao PDF
+- recuperacao de acesso com placeholder de UX
 - testes automatizados de backend e frontend
 
 ### Parcial ou em composicao
 
 - notificacoes: derivadas do estado das inspecoes, sem modulo dedicado
-- busca: UX funcional em cima de dados carregados, sem backend de busca dedicado
-- configuracoes da empresa: interface presente, mas sem backend administrativo completo
-- fluxos de produto como esqueci minha senha e gerenciamento completo de plano ainda nao existem
+- busca: UX funcional e alinhada ao shell, mas sem backend de busca dedicado
+- configuracoes da empresa: interface mais clara, mas sem backend administrativo completo
+- perfil: fluxo funcional, mas ainda simples para um modulo completo de conta
+- gerenciamento completo de plano e recuperacao real de senha ainda nao existem
 
 ## 12. Principais pendencias documentais e tecnicas
 
 - corrigir mojibake/encoding em documentos e parte da UI
 - manter a documentacao sincronizada com os numeros reais de teste
 - explicitar melhor o que e tela operacional e o que e tela placeholder
-- antes de PWA, consolidar fluxos auxiliares e remover links quebrados
+- antes de PWA, consolidar fluxos auxiliares e substituir placeholders por fluxos reais onde fizer sentido
 
 ## 13. Proxima linha segura de evolucao
 
 1. estabilizar documentacao e consistencia textual
-2. remover ou implementar rotas/links ainda ausentes
+2. transformar placeholders visiveis em fluxos reais ou estados de produto explicitamente limitados
 3. consolidar telas auxiliares com backend dedicado onde fizer sentido
 4. depois preparar PWA

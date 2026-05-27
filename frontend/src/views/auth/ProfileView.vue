@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 
 import AppShell from '@/components/layout/AppShell.vue'
 import { useAuthStore } from '@/stores/auth/auth.store'
@@ -16,25 +16,29 @@ const confirmPassword = ref('')
 const localError = ref<string | null>(null)
 const successMessage = ref<string | null>(null)
 
+const activeCompanyName = computed(() => contextStore.activeCompany?.name ?? 'Sem empresa ativa')
+
 async function handleSubmit() {
   localError.value = null
   successMessage.value = null
 
   if (password.value && password.value !== confirmPassword.value) {
-    localError.value = 'As senhas não coincidem.'
+    localError.value = 'As senhas nao coincidem.'
     return
   }
 
   const payload: { name?: string; password?: string } = {}
+
   if (tab.value === 'profile' && name.value.trim() && name.value.trim() !== authStore.user?.name) {
     payload.name = name.value.trim()
   }
+
   if (tab.value === 'security' && password.value) {
     payload.password = password.value
   }
 
   if (!Object.keys(payload).length) {
-    localError.value = 'Nenhuma alteração detectada.'
+    localError.value = 'Nenhuma alteracao detectada.'
     return
   }
 
@@ -46,48 +50,56 @@ async function handleSubmit() {
     confirmPassword.value = ''
     successMessage.value = 'Perfil atualizado com sucesso.'
   } catch {
-    // error already in contextStore.updateProfileError
+    // error already handled in store
   }
+}
+
+function clearMessages() {
+  localError.value = null
+  successMessage.value = null
 }
 </script>
 
 <template>
   <AppShell>
     <div class="page">
-
       <div class="phdr">
         <div>
           <p class="eyebrow">Conta</p>
           <h2 class="page-h1">Meu perfil</h2>
+          <p class="page-desc">Gerencie seus dados basicos, empresas associadas e seguranca de acesso.</p>
         </div>
       </div>
 
-      <div class="filter-tabs" style="max-width: 480px;">
+      <div class="info-box" style="margin-bottom: 16px;">
+        Empresa ativa na sessao: <strong>{{ activeCompanyName }}</strong>.
+      </div>
+
+      <div class="filter-tabs" style="max-width: 520px;">
         <button
           class="filter-tab"
           :class="{ active: tab === 'profile' }"
-          @click="tab = 'profile'; localError = null; successMessage = null"
+          @click="tab = 'profile'; clearMessages()"
         >
           Meu perfil
         </button>
         <button
           class="filter-tab"
           :class="{ active: tab === 'companies' }"
-          @click="tab = 'companies'; localError = null; successMessage = null"
+          @click="tab = 'companies'; clearMessages()"
         >
           Empresas
         </button>
         <button
           class="filter-tab"
           :class="{ active: tab === 'security' }"
-          @click="tab = 'security'; localError = null; successMessage = null"
+          @click="tab = 'security'; clearMessages()"
         >
-          Segurança
+          Seguranca
         </button>
       </div>
 
-      <!-- tab: perfil -->
-      <div v-if="tab === 'profile'" class="card card-p" style="max-width: 480px;">
+      <div v-if="tab === 'profile'" class="card card-p" style="max-width: 520px;">
         <form class="grid gap-4" @submit.prevent="handleSubmit">
           <label class="grid gap-2">
             <span>E-mail</span>
@@ -105,63 +117,55 @@ async function handleSubmit() {
           </p>
           <p v-if="successMessage" class="text-sm" style="color: var(--sa-ok);">{{ successMessage }}</p>
 
-          <button type="submit" class="btn-primary" :disabled="contextStore.isUpdatingProfile">
-            {{ contextStore.isUpdatingProfile ? 'Salvando...' : 'Salvar alterações' }}
-          </button>
+          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <button type="submit" class="btn-primary" :disabled="contextStore.isUpdatingProfile">
+              {{ contextStore.isUpdatingProfile ? 'Salvando...' : 'Salvar alteracoes' }}
+            </button>
+          </div>
         </form>
       </div>
 
-      <!-- tab: empresas -->
-      <div v-else-if="tab === 'companies'" class="card" style="overflow-x: auto;">
-        <table>
-          <thead>
-            <tr>
-              <th>Empresa</th>
-              <th>Plano</th>
-              <th>Papel</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="company in contextStore.companies" :key="company.id">
-              <td class="font-medium">{{ company.name }}</td>
-              <td>{{ company.plan }}</td>
-              <td>
-                <span class="role-badge" :class="'role-' + company.role.toLowerCase()">
-                  {{ company.role }}
-                </span>
-              </td>
-              <td>
-                <span class="status-chip" :class="{ 'status-chip--inactive': !company.is_active }">
-                  {{ company.is_active ? 'Ativa' : 'Inativa' }}
-                </span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+      <div v-else-if="tab === 'companies'" class="card card-p">
+        <div class="slabel" style="margin-bottom: 12px;">Empresas associadas</div>
+        <div style="display: grid; gap: 10px;">
+          <div
+            v-for="company in contextStore.companies"
+            :key="company.id"
+            class="card"
+            style="padding: 14px 16px;"
+          >
+            <div style="display: flex; justify-content: space-between; gap: 12px; align-items: flex-start;">
+              <div>
+                <div style="font-size: 14px; font-weight: 700; color: var(--sa-text);">
+                  {{ company.name }}
+                </div>
+                <div style="font-size: 12px; color: var(--sa-muted); margin-top: 2px;">
+                  Perfil: {{ company.role }}
+                </div>
+              </div>
+              <span v-if="company.id === contextStore.activeCompany?.id" class="status-chip">
+                Ativa
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <!-- tab: segurança -->
-      <div v-else-if="tab === 'security'" class="card card-p" style="max-width: 480px;">
+      <div v-else-if="tab === 'security'" class="card card-p" style="max-width: 520px;">
         <form class="grid gap-4" @submit.prevent="handleSubmit">
+          <div class="info-box">
+            A troca de senha usa o endpoint de perfil atual. Este fluxo cobre o basico e ainda nao possui historico, MFA
+            ou reset autonomo por e-mail.
+          </div>
+
           <label class="grid gap-2">
-            <span>Nova senha <span style="font-weight: 400;">(mínimo 8 caracteres)</span></span>
-            <input
-              v-model="password"
-              type="password"
-              placeholder="••••••••"
-              autocomplete="new-password"
-            />
+            <span>Nova senha</span>
+            <input v-model="password" type="password" minlength="8" placeholder="Minimo de 8 caracteres" />
           </label>
 
           <label class="grid gap-2">
             <span>Confirmar nova senha</span>
-            <input
-              v-model="confirmPassword"
-              type="password"
-              placeholder="Repita a nova senha"
-              autocomplete="new-password"
-            />
+            <input v-model="confirmPassword" type="password" minlength="8" placeholder="Repita a nova senha" />
           </label>
 
           <p v-if="localError" class="text-sm text-sa-danger">{{ localError }}</p>
@@ -171,11 +175,10 @@ async function handleSubmit() {
           <p v-if="successMessage" class="text-sm" style="color: var(--sa-ok);">{{ successMessage }}</p>
 
           <button type="submit" class="btn-primary" :disabled="contextStore.isUpdatingProfile">
-            {{ contextStore.isUpdatingProfile ? 'Salvando...' : 'Alterar senha' }}
+            {{ contextStore.isUpdatingProfile ? 'Salvando...' : 'Atualizar senha' }}
           </button>
         </form>
       </div>
-
     </div>
   </AppShell>
 </template>

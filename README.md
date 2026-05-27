@@ -17,12 +17,19 @@ O projeto ja passou da fundacao inicial. Hoje ele possui:
 - equipes e membros
 - exportacao PDF de inspecoes
 - dashboard, busca, notificacoes derivadas e telas administrativas
+- recuperacao de acesso com rota placeholder segura
 
 Baseline validado em `2026-05-27`:
 
 - backend: `90 passed, 3 skipped`
 - frontend: `68 passed`
 - frontend build: `npm run build` OK
+
+Leitura de status:
+
+- consolidado: autenticacao, contexto multiempresa, usuarios, equipes, formularios, inspecoes, evidencias, uploads e PDF
+- parcial: busca, notificacoes, perfil e configuracoes da empresa
+- placeholder intencional: `forgot-password`, ainda sem fluxo transacional completo
 
 ## Stack principal
 
