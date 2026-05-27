@@ -68,6 +68,8 @@ Capacidades ativas:
 - `GET /api/v1/me/companies`
 - `GET /api/v1/me/context`
 - `PATCH /api/v1/me`
+- `GET /api/v1/companies/me`
+- `PATCH /api/v1/companies/me` (requer OWNER ou ADMIN)
 
 ### Formularios
 
@@ -285,6 +287,7 @@ Rotas agregadas hoje:
 
 - `health`
 - `auth`
+- `companies`
 - `me`
 - `users`
 - `forms`
@@ -362,11 +365,11 @@ Observacao:
 
 Estado validado em `2026-05-27`:
 
-- `90 passed, 3 skipped`
+- `97 passed, 3 skipped`
 
 Cobertura atual observada no repositorio:
 
-- integracao: auth, forms, me, submissions, teams, uploads, users
+- integracao: auth, companies, forms, me, submissions, teams, uploads, users
 - unidade: form service, submission service
 
 ### Frontend
@@ -425,6 +428,7 @@ Ja e realidade no codigo. Qualquer documentacao antiga que ainda fale em sessao 
 - evidencias e uploads
 - equipes
 - exportacao PDF
+- configuracoes da empresa (GET + PATCH /companies/me com guard de role)
 - recuperacao de acesso com placeholder de UX
 - testes automatizados de backend e frontend
 
@@ -432,7 +436,6 @@ Ja e realidade no codigo. Qualquer documentacao antiga que ainda fale em sessao 
 
 - notificacoes: derivadas do estado das inspecoes, sem modulo dedicado
 - busca: UX funcional e alinhada ao shell, mas sem backend de busca dedicado
-- configuracoes da empresa: interface mais clara, mas sem backend administrativo completo
 - perfil: fluxo funcional, mas ainda simples para um modulo completo de conta
 - gerenciamento completo de plano e recuperacao real de senha ainda nao existem
 
