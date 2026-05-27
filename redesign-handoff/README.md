@@ -1,69 +1,87 @@
-# Smart Audit — Redesign Handoff
+# Smart Audit - Redesign Handoff
 
-Pasta com todos os arquivos prontos para implementar o redesign visual no projeto Vue.
+Esta pasta guarda o material de handoff do redesign visual do Smart Audit.
 
-## Conteúdo
+## Papel atual desta pasta
 
-```
+Ela nao representa mais um pacote para ser aplicado por copia integral.
+
+Hoje ela serve como:
+
+- referencia visual do redesign
+- historico da direcao de interface adotada
+- base para ajustes incrementais no frontend real
+
+Parte importante desse material ja foi absorvida pelo app atual, especialmente:
+
+- `frontend/src/style.css`
+- `frontend/src/components/layout/AppShell.vue`
+- `frontend/src/views/auth/LoginView.vue`
+- tipografia em `frontend/index.html`
+
+## Conteudo
+
+```text
 redesign-handoff/
-  PROMPT.md        ← Prompt completo para o Claude Code (12 passos)
-  style.css        ← Substitui frontend/src/style.css (paleta + AppShell + Login)
-  AppShell.vue     ← Substitui frontend/src/components/layout/AppShell.vue
-  LoginView.vue    ← Substitui frontend/src/views/auth/LoginView.vue
-  README.md        ← Este arquivo
+  PROMPT.md
+  style.css
+  AppShell.vue
+  LoginView.vue
+  Smart Audit Redesign.html
+  README.md
 ```
 
-## Como usar
+## Como usar hoje
 
-### Opção A — Claude Code (recomendado)
-1. Abra o Claude Code com o projeto `smart-audit` como contexto
-2. Cole o conteúdo de `PROMPT.md` no chat
-3. Siga os passos na ordem indicada
+### Recomendado
 
-### Opção B — Manual (passo a passo)
+Use esta pasta como comparativo, nao como script de substituicao cega.
 
-**Passo 1:** Copiar `redesign-handoff/style.css` → `frontend/src/style.css`
+Fluxo sugerido:
 
-**Passo 2:** Adicionar no `frontend/index.html` (no `<head>`):
-```html
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
-```
+1. comparar o arquivo do handoff com o arquivo ativo do frontend
+2. identificar apenas o delta visual desejado
+3. preservar logica, rotas, stores, services e tipos atuais
+4. validar com `npm test` e `npm run build`
 
-**Passo 3:** Copiar `redesign-handoff/AppShell.vue` → `frontend/src/components/layout/AppShell.vue`
+### Nao recomendado
 
-**Passo 4:** Copiar `redesign-handoff/LoginView.vue` → `frontend/src/views/auth/LoginView.vue`
+- sobrescrever `router/index.ts`
+- sobrescrever stores ou services
+- substituir `AppShell.vue` sem comparar as rotas e navegacao atuais
+- assumir que todas as telas citadas no prompt existem exatamente como no momento em que o handoff foi criado
 
-**Passos 5-12:** Seguir o `PROMPT.md` para atualizar as views restantes.
+## O que ja esta incorporado
 
-## O que muda
+- paleta azul/slate
+- tipografia `Plus Jakarta Sans` e `DM Mono`
+- shell com sidebar escura e bottom nav mobile
+- login com split layout
+- classes visuais base como `scard`, `filter-tabs`, `score-breakdown-grid`
 
-| Aspecto | Antes | Depois |
-|---|---|---|
-| Paleta | Âmbar / bege quente | Azul / slate frio |
-| Sidebar | Glass panel lateral flutuante | Dark sidebar fixa |
-| Mobile nav | Sem bottom nav | Bottom nav fixo |
-| Tipografia | Segoe UI Variable | Plus Jakarta Sans |
-| Cards | Blur + transparência | Flat, bordas limpas |
-| Botões | Gradiente âmbar | Azul sólido |
+## O que pode divergir do app atual
 
-## O que NÃO muda
+- contagem de testes
+- conjunto de telas existentes
+- nomes de rotas
+- markup real de algumas views
+- comportamento de componentes ja ampliados no app
 
-- Toda a lógica Vue (stores, services, types, router)
-- Todos os guards e fluxos de autenticação
-- Todos os endpoints e chamadas de API
-- Testes (Vitest) — todos devem continuar passando
+## Validacao
 
-## Verificação final
+No estado atual do projeto, a verificacao correta e:
 
 ```bash
 cd frontend
-npm run build   # TypeScript check + build
-npm test        # Vitest — deve passar 37/37
+npm run build
+npm test
 ```
 
-## Referência visual
+Baseline validado em `2026-05-27`:
 
-Abrir o arquivo `Smart Audit Redesign.html` no browser para ver o resultado esperado.
-Todas as 20 telas estão implementadas no protótipo como referência.
+- `npm run build` OK
+- `npm test`: `68 passed`
+
+## Referencia visual
+
+Abra [Smart Audit Redesign.html](/c:/Projetos/smart-audit/redesign-handoff/Smart%20Audit%20Redesign.html) para ver o prototipo visual de referencia.

@@ -159,6 +159,19 @@
   .btn-full { width: 100%; }
   .btn-sm { font-size: 12px; padding: 6px 11px; }
 
+  /* ── FORM FIELDS ── */
+  .field  { display: grid; gap: 5px; }
+  .flabel { font-size: 12px; font-weight: 600; color: var(--sa-muted); }
+
+  /* ── TABLE ── */
+  .tbl { width: 100%; border-collapse: collapse; }
+  .tbl th { padding: 10px 16px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--sa-muted); text-align: left; border-bottom: 1px solid var(--sa-line); }
+  .tbl td { padding: 11px 16px; font-size: 13px; color: var(--sa-text); border-bottom: 1px solid var(--sa-line); vertical-align: middle; }
+  .tbl tr:last-child td { border-bottom: none; }
+  .tbl tbody tr:hover td { background: var(--sa-bg); }
+  .tbl-name  { font-weight: 600; }
+  .tbl-muted { color: var(--sa-muted); }
+
   /* ── ROLE BADGES ── */
   .role-badge { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; padding: 2px 7px; border-radius: 4px; white-space: nowrap; }
   .role-owner     { background: #eff6ff; color: #1d4ed8; }
@@ -303,9 +316,10 @@
   .nav-btn:hover { color: rgba(255,255,255,.72); background: rgba(255,255,255,.05); }
   .nav-btn.active, .router-link-active.nav-btn { color: #fff; background: rgba(37,99,235,.28); }
   .sb-bottom { padding: 10px; border-top: 1px solid rgba(255,255,255,.07); }
-  .sb-co { padding: 6px 10px 8px; }
+  .sb-co { padding: 6px 10px 8px; border-radius: 6px; transition: background .15s; }
+  .sb-co:hover { background: rgba(255,255,255,.06); }
   .sb-co-lbl { font-size: 9px; font-weight: 600; color: rgba(255,255,255,.22); text-transform: uppercase; letter-spacing: .1em; margin-bottom: 4px; }
-  .sb-co-select { width: 100%; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1); border-radius: 6px; color: rgba(255,255,255,.6); font-size: 12px; padding: 5px 8px; }
+  .sb-co-name { font-size: 12px; font-weight: 600; color: rgba(255,255,255,.6); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .sb-user { display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 8px; cursor: pointer; transition: background .15s; text-decoration: none; }
   .sb-user:hover { background: rgba(255,255,255,.06); }
   .sb-av { width: 28px; height: 28px; border-radius: 50%; background: rgba(37,99,235,.45); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #fff; flex-shrink: 0; }

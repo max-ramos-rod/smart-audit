@@ -10,9 +10,6 @@ const authStore = useAuthStore()
 const contextStore = useContextStore()
 const router = useRouter()
 
-const companies = computed(() => contextStore.companies)
-const activeCompanyId = computed(() => contextStore.activeCompany?.id ?? null)
-
 const initials = computed(() => {
   const name = authStore.user?.name ?? ''
   return name
@@ -22,11 +19,6 @@ const initials = computed(() => {
     .join('')
     .toUpperCase()
 })
-
-async function handleCompanyChange(event: Event) {
-  const target = event.target as HTMLSelectElement
-  await contextStore.selectCompany(target.value)
-}
 
 function logout() {
   authStore.logout()
@@ -64,18 +56,10 @@ function logout() {
       </nav>
 
       <div class="sb-bottom">
-        <div class="sb-co">
-          <div class="sb-co-lbl">Empresa ativa</div>
-          <select
-            class="sb-co-select"
-            :value="activeCompanyId ?? ''"
-            @change="handleCompanyChange"
-          >
-            <option v-for="company in companies" :key="company.id" :value="company.id">
-              {{ company.name }}
-            </option>
-          </select>
-        </div>
+        <RouterLink to="/company-settings" class="sb-co" style="text-decoration:none;display:block;border-radius:var(--r3);padding:6px 10px 4px;transition:background .15s;cursor:pointer;" active-class="">
+          <div class="sb-co-lbl">Empresa ativa · Config →</div>
+          <div class="sb-co-name">{{ contextStore.activeCompany?.name ?? '—' }}</div>
+        </RouterLink>
         <RouterLink to="/select-company" class="nav-btn">
           <SvgIcon name="switch" />Trocar empresa
         </RouterLink>

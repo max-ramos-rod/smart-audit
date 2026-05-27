@@ -1,37 +1,52 @@
 # Smart Audit
 
-Smart Audit e uma plataforma web para execucao de checklists, auditorias e inspecoes operacionais com foco em padronizacao, historico e evidencias.
+Smart Audit e uma plataforma web para execucao de checklists, auditorias e inspecoes operacionais, com foco em padronizacao, historico, evidencias e operacao multiempresa.
 
-## Objetivo inicial
+## Estado atual
 
-Construir um MVP solido para:
+O projeto ja passou da fundacao inicial. Hoje ele possui:
 
-- autenticacao basica
-- contexto de empresa
-- criacao de templates de inspecao
-- versionamento de formularios
-- execucao de inspecoes
-- coleta de respostas por item
-- anexos de evidencias
-- dashboard inicial
+- backend assinado por FastAPI + SQLAlchemy async + PostgreSQL
+- frontend SPA em Vue 3 + Pinia + Vue Router + Tailwind CSS v4
+- autenticacao JWT
+- contexto de empresa ativa
+- CRUD de usuarios
+- formularios versionados
+- inspecoes com respostas tipadas
+- anexos e uploads locais
+- equipes e membros
+- exportacao PDF de inspecoes
+- dashboard, busca, notificacoes derivadas e telas administrativas
 
-## Decisoes iniciais
+Baseline validado em `2026-05-27`:
 
-- Backend: FastAPI
-- Frontend: Vue 3
-- Banco: PostgreSQL
-- Estilo arquitetural: `api -> service -> repository`
-- Escopo do MVP: online-first
-- Offline sync: fase futura
+- backend: `90 passed, 3 skipped`
+- frontend: `68 passed`
+- frontend build: `npm run build` OK
 
-## Documentacao
+## Stack principal
 
-- Arquitetura principal: [docs/Arquitetura_Smart_Audit.md](docs/Arquitetura_Smart_Audit.md)
+- Backend: FastAPI, SQLAlchemy 2.x async, Alembic, PostgreSQL
+- Frontend: Vue 3, Pinia, Vue Router, Tailwind CSS v4, Axios, Vitest
+- Uploads: armazenamento local em disco, com desenho compativel para migracao futura a S3/R2
 
 ## Principios do projeto
 
+- arquitetura em camadas: `api -> service -> repository -> db`
 - modularizacao por dominio
-- contratos HTTP consistentes
 - regras de negocio fora dos endpoints
 - persistencia encapsulada em repositories
-- crescimento sustentavel sem overengineering
+- multiempresa desde o core
+- contratos HTTP consistentes
+- erros padronizados em RFC 7807
+- crescimento sustentavel, evitando acoplamento prematuro
+
+## Documentacao
+
+- arquitetura principal: [docs/Arquitetura_Smart_Audit.md](docs/Arquitetura_Smart_Audit.md)
+- modelo de dados: [docs/DER_Smart_Audit.md](docs/DER_Smart_Audit.md)
+- handoff visual: [redesign-handoff/README.md](redesign-handoff/README.md)
+
+## Observacao importante
+
+A pasta `redesign-handoff/` hoje e uma referencia de design e migracao incremental. Parte dela ja foi absorvida pelo frontend real, entao ela nao deve mais ser aplicada de forma cega por substituicao integral.
