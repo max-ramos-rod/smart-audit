@@ -8,6 +8,7 @@ from app.api.v1.routers.health import router as health_router
 from app.api.v1.routers.me import router as me_router
 from app.api.v1.routers.submissions import router as submissions_router
 from app.api.v1.routers.teams import router as teams_router
+from app.api.v1.routers.search import router as search_router
 from app.api.v1.routers.uploads import router as uploads_router
 from app.api.v1.routers.users import router as users_router
 
@@ -22,3 +23,4 @@ api_router.include_router(submissions_router)
 api_router.include_router(teams_router)
 api_router.include_router(attachments_router)
 api_router.include_router(uploads_router)
+api_router.include_router(search_router)
