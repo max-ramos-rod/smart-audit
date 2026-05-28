@@ -23,8 +23,8 @@ Stack atual:
 
 Baseline validado em `2026-05-27`:
 
-- backend: `90 passed, 3 skipped`
-- frontend: `68 passed`
+- backend: `127 passed, 3 skipped`
+- frontend: `116 passed`
 - frontend build: `npm run build` OK
 
 ## 2. Estado real do produto
@@ -32,6 +32,7 @@ Baseline validado em `2026-05-27`:
 O Smart Audit ja nao esta mais em fase apenas de fundacao. O estado atual do codigo mostra:
 
 - autenticacao JWT funcional
+- recuperacao de senha completa (forgot-password + reset via token com TTL de 1h)
 - contexto de empresa ativa e selecao de empresa
 - dashboard com metricas por periodo
 - CRUD de usuarios
@@ -39,35 +40,39 @@ O Smart Audit ja nao esta mais em fase apenas de fundacao. O estado atual do cod
 - formularios versionados
 - detalhe de formulario e historico de versoes
 - inspecoes com respostas tipadas e score
+- finalizacao de inspecao com calculo de score
 - evidencias anexadas por upload local
 - relatorio e exportacao PDF de inspecao
-- tela placeholder de recuperacao de acesso
-- telas auxiliares de perfil, busca, notificacoes e configuracoes da empresa, agora alinhadas ao shell principal e com UX mais consistente
-
-Ha, portanto, uma diferenca importante entre:
-
-- o nucleo de dominio, que esta consolidado
-- e algumas telas auxiliares, que ainda funcionam como composicao de UX em cima do dominio existente
+- exportacao CSV de inspecoes com filtro de status
+- busca em tempo real por formularios e inspecoes (`GET /search?q=`)
+- perfil do usuario (nome, senha, empresas vinculadas)
+- configuracoes da empresa (dados cadastrais, fuso horario, guard de role)
+- notificacoes derivadas das inspecoes (sem tabela propria no banco)
 
 ## 3. Bounded contexts implementados
 
 ### Identidade e acesso
 
-Responsavel por autenticacao, perfil, empresa ativa e memberships.
+Responsavel por autenticacao, perfil, empresa ativa, memberships e recuperacao de senha.
 
 Entidades principais:
 
 - `users`
 - `companies`
 - `memberships`
+- `password_reset_tokens`
 
 Capacidades ativas:
 
 - `POST /api/v1/auth/login`
 - `GET /api/v1/auth/me`
+- `POST /api/v1/auth/forgot-password` — gera token com TTL 1h, entrega via SMTP ou log
+- `POST /api/v1/auth/reset-password` — valida token, troca senha, marca token como usado
 - `GET /api/v1/me/companies`
 - `GET /api/v1/me/context`
 - `PATCH /api/v1/me`
+- `GET /api/v1/me/stats`
+- `GET /api/v1/me/notifications` — derivadas de submissions, sem persistencia propria
 - `GET /api/v1/companies/me`
 - `PATCH /api/v1/companies/me` (requer OWNER ou ADMIN)
 
@@ -87,7 +92,7 @@ Capacidades ativas:
 - criacao
 - publicacao de nova versao
 - leitura de versao especifica
-- historico de versoes no frontend
+- historico de versoes
 
 ### Inspecoes
 
@@ -101,12 +106,12 @@ Entidades principais:
 Capacidades ativas:
 
 - criacao de inspecao
-- listagem com filtros
+- listagem com filtros (status, form_id, created_by)
 - detalhe
-- salvamento de respostas
-- finalizacao
-- score e score breakdown
-- exportacao PDF
+- salvamento de respostas tipadas
+- finalizacao e calculo de score
+- exportacao PDF por inspecao
+- exportacao CSV da lista (com filtro de status)
 
 ### Evidencias
 
@@ -122,7 +127,7 @@ Responsavel por receber arquivos de imagem e gravar em disco.
 
 Observacao:
 
-- nao existe um modulo de dominio separado para uploads
+- nao existe modulo de dominio separado para uploads
 - a logica fica encapsulada no router
 - isso e aceitavel no estado atual porque o caso de uso e pequeno e bem isolado
 
@@ -141,14 +146,28 @@ Capacidades ativas:
 - adicionar membro
 - remover membro
 
-### Visao analitica
+### Busca
 
-Hoje a visao analitica e derivada principalmente de `submissions`.
+Responsavel por consulta full-text simples sobre formularios e inspecoes da empresa.
 
 Capacidades ativas:
 
-- metricas em `/api/v1/me/stats`
-- filtro por periodo `7d | 30d | 90d | all`
+- `GET /api/v1/search?q=` (minimo 2 caracteres, maximo 100)
+- retorna `{ forms: [...], submissions: [...] }` filtrados por `company_id`
+- busca por nome de formulario (ILIKE)
+
+### Visao analitica e notificacoes
+
+A visao analitica e derivada de `submissions`. Nao existe tabela propria de notificacoes.
+
+Capacidades ativas:
+
+- metricas em `/api/v1/me/stats` com filtro por periodo `7d | 30d | 90d | all`
+- notificacoes em `/api/v1/me/notifications`: derivadas em tempo real das submissions
+  - inspeções `in_progress` ha mais de 24h geram alerta `pending`
+  - `completed` com score < 80% geram alerta `low_score`
+  - `completed` com score >= 90% geram alerta `excellent`
+  - mark-as-read e dismiss existem so no estado local do frontend
 
 ## 4. Arquitetura backend
 
@@ -194,7 +213,7 @@ Padrao principal:
 - envelopes padrao
 - tratamento de erro
 
-### Padrões realmente aplicados
+### Padroes realmente aplicados
 
 - Layered Architecture
 - Repository Pattern
@@ -224,7 +243,7 @@ Organizacao principal:
 - `components/`
 - `types/`
 
-### Padrões realmente aplicados
+### Padroes realmente aplicados
 
 - SPA com Vue Router
 - stores Pinia por dominio
@@ -286,12 +305,13 @@ Ela nao deve mais ser aplicada por substituicao integral sem comparar com o esta
 Rotas agregadas hoje:
 
 - `health`
-- `auth`
+- `auth` (login, me, forgot-password, reset-password)
 - `companies`
-- `me`
+- `me` (context, companies, stats, notifications)
 - `users`
 - `forms`
-- `submissions`
+- `submissions` (CRUD, answers, finish, export CSV, export PDF)
+- `search`
 - `teams`
 - `attachments`
 - `uploads`
@@ -301,6 +321,8 @@ Rotas agregadas hoje:
 Rotas de interface existentes hoje:
 
 - `/login`
+- `/forgot-password`
+- `/reset-password` (recebe `?token=` na query string)
 - `/select-company`
 - `/`
 - `/users`
@@ -315,11 +337,6 @@ Rotas de interface existentes hoje:
 - `/notifications`
 - `/search`
 - `/teams`
-- `/forgot-password`
-
-Observacao:
-
-- `"/forgot-password"` existe hoje como rota placeholder segura, sem fluxo transacional completo de recuperacao
 
 ## 8. Contratos HTTP
 
@@ -359,35 +376,64 @@ Observacao:
 }
 ```
 
+Observacao: mensagens de erro do backend nao usam acentos para evitar problemas de encoding em logs.
+
 ## 9. Testes
 
 ### Backend
 
 Estado validado em `2026-05-27`:
 
-- `97 passed, 3 skipped`
+- `127 passed, 3 skipped`
 
-Cobertura atual observada no repositorio:
+Cobertura atual:
 
-- integracao: auth, companies, forms, me, submissions, teams, uploads, users
-- unidade: form service, submission service
+| Arquivo | Tipo |
+|---|---|
+| `test_auth.py` | integracao |
+| `test_password_reset.py` | integracao |
+| `test_forms.py` | integracao |
+| `test_submissions.py` | integracao |
+| `test_submissions_export.py` | integracao |
+| `test_search.py` | integracao |
+| `test_users.py` | integracao |
+| `test_teams.py` | integracao |
+| `test_companies.py` | integracao |
+| `test_me.py` | integracao |
+| `test_uploads.py` | integracao |
+| `test_form_service.py` | unidade |
+| `test_submission_service.py` | unidade |
+
+Lacuna: `test_attachments.py` (integracao) ainda nao existe.
 
 ### Frontend
 
 Estado validado em `2026-05-27`:
 
-- `68 passed`
+- `116 passed`
 
-Cobertura atual observada:
+Cobertura atual:
 
-- `problem`
-- `storage`
-- `auth.store`
-- `context.store`
-- `forms.store`
-- `submissions.store`
-- `teams.store`
-- `users.store`
+| Arquivo | Tipo |
+|---|---|
+| `problem.test.ts`, `storage.test.ts` | utils |
+| `auth.store.test.ts` | store |
+| `context.store.test.ts` | store |
+| `forms.store.test.ts` | store |
+| `users.store.test.ts` | store |
+| `teams.store.test.ts` | store |
+| `submissions.store.test.ts` | store |
+| `auth.service.test.ts` | service |
+| `companies.service.test.ts` | service |
+| `context.service.test.ts` | service |
+| `forms.service.test.ts` | service |
+| `notifications.service.test.ts` | service |
+| `search.service.test.ts` | service |
+| `submissions.service.test.ts` | service |
+| `teams.service.test.ts` | service |
+| `users.service.test.ts` | service |
+| `uploads.service.test.ts` | service |
+| `attachments.service.test.ts` | service |
 
 ## 10. Decisoes arquiteturais consolidadas
 
@@ -414,40 +460,45 @@ Mantido e coerente com o momento do projeto.
 
 Ja e realidade no codigo. Qualquer documentacao antiga que ainda fale em sessao sincrona deve ser considerada obsoleta.
 
+### Notificacoes sem tabela propria
+
+Decisao deliberada: notificacoes sao derivadas do estado das submissions em tempo real. Nao existe tabela `notifications` no banco. Isso e adequado enquanto os alertas forem simples e de leitura. Se houver necessidade de persistir estado de leitura por usuario ou criar notificacoes de outras origens, sera necessario criar a tabela.
+
+### Recuperacao de senha
+
+Implementada com token de uso unico (TTL 1h) em `password_reset_tokens`. Entrega via SMTP quando configurado, ou via log em desenvolvimento. Anti-enumeracao: o endpoint sempre retorna 200 independente de o email existir.
+
 ## 11. O que esta consolidado vs. parcial
 
 ### Consolidado
 
-- backend principal
-- contratos HTTP
-- autenticacao e contexto
-- shell autenticado consistente nas telas principais
+- backend principal e contratos HTTP
+- autenticacao, contexto e sessao
+- recuperacao de senha (forgot + reset)
+- shell autenticado consistente em todas as telas
 - usuarios
-- formularios
-- inspecoes
+- formularios e versionamento
+- inspecoes, respostas, score
+- finalizacao e relatorio
 - evidencias e uploads
 - equipes
-- exportacao PDF
-- configuracoes da empresa (GET + PATCH /companies/me com guard de role)
-- recuperacao de acesso com placeholder de UX
-- testes automatizados de backend e frontend
+- exportacao PDF e CSV
+- busca em tempo real
+- configuracoes da empresa (GET + PATCH com guard de role)
+- perfil (nome, senha, empresas vinculadas)
+- notificacoes derivadas (sem persistencia)
+- testes automatizados de backend (integracao + unidade) e frontend (stores + services)
 
-### Parcial ou em composicao
+### Parcial ou com limitacao conhecida
 
-- notificacoes: derivadas do estado das inspecoes, sem modulo dedicado
-- busca: UX funcional e alinhada ao shell, mas sem backend de busca dedicado
-- perfil: fluxo funcional, mas ainda simples para um modulo completo de conta
-- gerenciamento completo de plano e recuperacao real de senha ainda nao existem
+- notificacoes: mark-as-read e dismiss existem so no estado local do frontend; recarregar a pagina perde o estado
+- CompanySettings / aba Utilizacao: limites de uso (50 usuarios, 500 inspecoes, 100 formularios) sao hardcoded, nao vem de API
+- CompanySettings / aba Plano: botao "Falar com o comercial" nao tem acao real
+- Excluir empresa: endpoint e fluxo nao implementados; botao desabilitado na interface
 
-## 12. Principais pendencias documentais e tecnicas
+## 12. Proxima linha segura de evolucao
 
-- manter a documentacao sincronizada com os numeros reais de teste
-- explicitar melhor o que e tela operacional e o que e tela placeholder
-- antes de PWA, consolidar fluxos auxiliares e substituir placeholders por fluxos reais onde fizer sentido
-
-## 13. Proxima linha segura de evolucao
-
-1. estabilizar documentacao e consistencia textual
-2. transformar placeholders visiveis em fluxos reais ou estados de produto explicitamente limitados
-3. consolidar telas auxiliares com backend dedicado onde fizer sentido
-4. depois preparar PWA
+1. testes de integracao para o modulo `attachments` (unico endpoint sem cobertura)
+2. persistir estado de leitura de notificacoes (tabela `notification_reads` ou coluna em `submissions`)
+3. limites de uso reais via API (`/me/usage` ou similar)
+4. preparar PWA apos consolidar os itens acima

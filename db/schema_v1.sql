@@ -1,4 +1,4 @@
-﻿CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -16,6 +16,10 @@ CREATE TABLE companies (
     slug VARCHAR(120) NOT NULL UNIQUE,
     plan VARCHAR(50) NOT NULL DEFAULT 'starter',
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    cnpj VARCHAR(20) NULL,
+    timezone VARCHAR(60) NULL,
+    contact_email VARCHAR(255) NULL,
+    phone VARCHAR(30) NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -29,6 +33,17 @@ CREATE TABLE memberships (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT uq_memberships_company_user UNIQUE (company_id, user_id),
     CONSTRAINT ck_memberships_role CHECK (role IN ('OWNER', 'ADMIN', 'MANAGER', 'INSPECTOR', 'VIEWER'))
+);
+
+-- Tokens de recuperacao de senha: TTL 1h, uso unico (used_at), anti-enumeracao no endpoint
+CREATE TABLE password_reset_tokens (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token VARCHAR(64) NOT NULL UNIQUE,
+    expires_at TIMESTAMPTZ NOT NULL,
+    used_at TIMESTAMPTZ NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE forms (
@@ -100,20 +115,43 @@ CREATE TABLE submission_values (
     CONSTRAINT uq_submission_values_submission_field UNIQUE (submission_id, form_field_id)
 );
 
+-- Metadados de arquivos vinculados a uma submission; o arquivo fisico fica em disco
 CREATE TABLE attachments (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    submission_value_id UUID NOT NULL REFERENCES submission_values(id) ON DELETE CASCADE,
-    file_url TEXT NOT NULL,
-    thumbnail_url TEXT NULL,
+    submission_id UUID NOT NULL REFERENCES submissions(id) ON DELETE CASCADE,
+    url TEXT NOT NULL,
+    label VARCHAR(255) NULL,
     mime_type VARCHAR(120) NOT NULL,
     file_size BIGINT NOT NULL,
-    uploaded_by UUID NOT NULL REFERENCES users(id),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE teams (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+    name VARCHAR(150) NOT NULL,
+    created_by UUID NOT NULL REFERENCES users(id),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE team_members (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    team_id UUID NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_team_members_team_user UNIQUE (team_id, user_id)
+);
+
+-- Indexes
+
 CREATE INDEX ix_memberships_company_id ON memberships(company_id);
 CREATE INDEX ix_memberships_user_id ON memberships(user_id);
+
+CREATE INDEX ix_password_reset_tokens_token ON password_reset_tokens(token);
+CREATE INDEX ix_password_reset_tokens_user_id ON password_reset_tokens(user_id);
 
 CREATE INDEX ix_forms_company_id ON forms(company_id);
 CREATE INDEX ix_forms_company_active ON forms(company_id, is_active);
@@ -132,5 +170,8 @@ CREATE INDEX ix_submissions_company_status_created_at ON submissions(company_id,
 CREATE INDEX ix_submission_values_submission_id ON submission_values(submission_id);
 CREATE INDEX ix_submission_values_form_field_id ON submission_values(form_field_id);
 
-CREATE INDEX ix_attachments_submission_value_id ON attachments(submission_value_id);
-CREATE INDEX ix_attachments_uploaded_by ON attachments(uploaded_by);
+CREATE INDEX ix_attachments_submission_id ON attachments(submission_id);
+
+CREATE INDEX ix_teams_company_id ON teams(company_id);
+CREATE INDEX ix_team_members_team_id ON team_members(team_id);
+CREATE INDEX ix_team_members_user_id ON team_members(user_id);

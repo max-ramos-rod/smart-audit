@@ -8,6 +8,7 @@ Ele sustenta:
 
 - multiempresa por `company_id`
 - autenticacao e memberships por empresa
+- recuperacao de senha com token de uso unico
 - formularios versionados
 - execucao de inspecoes
 - respostas tipadas por campo
@@ -25,6 +26,7 @@ Ele sustenta:
   - snapshot em `submissions.answers_json`
 - arquivos ficam fora do banco; `attachments` armazena apenas metadados
 - equipes foram promovidas ao modelo real do sistema
+- **nao existe tabela de notificacoes**: notificacoes sao derivadas em tempo real de `submissions` pelo servico
 
 ## Contextos e relacionamentos
 
@@ -33,11 +35,13 @@ Ele sustenta:
 - `users`
 - `companies`
 - `memberships`
+- `password_reset_tokens`
 
 Relacionamentos:
 
 - `companies 1:N memberships`
 - `users 1:N memberships`
+- `users 1:N password_reset_tokens`
 
 ### Formularios
 
@@ -82,9 +86,9 @@ Relacionamentos:
 ```text
 users
   `-< memberships >- companies
-                        |
-                        |-< forms
-                        |    `-< form_versions
+  |                     |
+  `-< password_         |-< forms
+      reset_tokens      |    `-< form_versions
                         |         `-< form_fields
                         |
                         |-< submissions >- users
@@ -103,6 +107,7 @@ users
 erDiagram
     USERS ||--o{ MEMBERSHIPS : belongs_to
     COMPANIES ||--o{ MEMBERSHIPS : has
+    USERS ||--o{ PASSWORD_RESET_TOKENS : has
     COMPANIES ||--o{ FORMS : owns
     FORMS ||--o{ FORM_VERSIONS : has
     FORM_VERSIONS ||--o{ FORM_FIELDS : has
@@ -132,7 +137,7 @@ erDiagram
 Observacoes:
 
 - email e unico globalmente
-- `password_hash` usa formato PBKDF2-SHA256 customizado
+- `password_hash` usa formato PBKDF2-SHA256 customizado (`pbkdf2_sha256$iterations$salt$digest`)
 
 ### `companies`
 
@@ -141,6 +146,10 @@ Observacoes:
 - `slug VARCHAR(120) UNIQUE`
 - `plan VARCHAR(50)`
 - `is_active BOOLEAN`
+- `cnpj VARCHAR(20) NULL`
+- `timezone VARCHAR(60) NULL`
+- `contact_email VARCHAR(255) NULL`
+- `phone VARCHAR(30) NULL`
 - `created_at TIMESTAMPTZ`
 - `updated_at TIMESTAMPTZ`
 
@@ -157,6 +166,23 @@ Restricoes:
 
 - `UNIQUE(company_id, user_id)`
 - `CHECK role IN ('OWNER', 'ADMIN', 'MANAGER', 'INSPECTOR', 'VIEWER')`
+
+### `password_reset_tokens`
+
+- `id UUID PK`
+- `user_id UUID FK -> users.id ON DELETE CASCADE`
+- `token VARCHAR(64) UNIQUE`
+- `expires_at TIMESTAMPTZ`
+- `used_at TIMESTAMPTZ NULL`
+- `created_at TIMESTAMPTZ`
+- `updated_at TIMESTAMPTZ`
+
+Observacoes:
+
+- `token` e gerado com `secrets.token_urlsafe(32)` (URL-safe base64, ~43 chars)
+- TTL de 1 hora a partir da criacao
+- uso unico: `used_at` e preenchido na troca de senha e valida como barreira de reuso
+- o endpoint de forgot-password nao expoe se o email existe (anti-enumeracao)
 
 ### `forms`
 
@@ -183,6 +209,7 @@ Restricoes:
 Restricoes:
 
 - `UNIQUE(form_id, version)`
+- `CHECK status IN ('draft', 'published', 'archived')`
 
 ### `form_fields`
 
@@ -225,10 +252,14 @@ Tipos de campo atualmente suportados:
 - `created_at TIMESTAMPTZ`
 - `updated_at TIMESTAMPTZ`
 
+Restricoes:
+
+- `CHECK status IN ('draft', 'in_progress', 'completed', 'cancelled')`
+
 Observacoes:
 
-- `status` hoje cobre `draft | in_progress | completed | cancelled`
-- o frontend e o backend usam esse estado tambem para dashboard, busca e notificacoes derivadas
+- `status` e usado tambem para dashboard, busca e notificacoes derivadas
+- `score` e calculado no momento da finalizacao com base nos campos obrigatorios respondidos
 
 ### `submission_values`
 
@@ -250,14 +281,19 @@ Restricoes:
 ### `attachments`
 
 - `id UUID PK`
-- `submission_value_id UUID FK -> submission_values.id`
-- `file_url TEXT`
-- `thumbnail_url TEXT NULL`
+- `submission_id UUID FK -> submissions.id ON DELETE CASCADE`
+- `url TEXT`
+- `label VARCHAR(255) NULL`
 - `mime_type VARCHAR(120)`
 - `file_size BIGINT`
-- `uploaded_by UUID FK -> users.id`
 - `created_at TIMESTAMPTZ`
 - `updated_at TIMESTAMPTZ`
+
+Observacoes:
+
+- o arquivo fisico fica em disco em `settings.upload_dir/<company_id>/<uuid>.<ext>`
+- `attachments` armazena apenas metadados e a URL publica
+- vinculo e com a submission (nao com o submission_value individualmente)
 
 ### `teams`
 
@@ -310,21 +346,33 @@ Isso vale para:
 
 - o arquivo e salvo fora do banco
 - o endpoint de upload devolve URL publica
-- `attachments` liga essa URL a um campo respondido da inspecao
+- `attachments` liga essa URL a uma submission
 
-## Artefatos relacionados
+### Notificacoes sem persistencia
 
-Migracoes observadas no projeto:
+Nao existe tabela `notifications`. O endpoint `GET /me/notifications` deriva alertas em tempo real a partir de `submissions`:
 
-- `332b89327dc7_initial_schema.py`
-- `8aeb51c1026f_add_updated_at_to_metadata_tables.py`
-- `f73cae8e6de7_add_teams_and_team_members.py`
+- `in_progress` ha mais de 24h → alerta `pending`
+- `completed` com score < 80% → alerta `low_score`
+- `completed` com score >= 90% → alerta `excellent`
+
+Se for necessario persistir estado de leitura por usuario, sera preciso criar uma tabela (ex: `notification_reads` com FK para user e um identificador do alerta derivado).
+
+## Migracoes aplicadas
+
+| Revisao | Descricao |
+|---|---|
+| `332b89327dc7` | schema inicial |
+| `8aeb51c1026f` | add updated_at nas tabelas de metadados |
+| `f73cae8e6de7` | add teams e team_members |
+| `d4e5f6a7b8c9` | add campos de contato em companies (cnpj, timezone, contact_email, phone) |
+| `e5f6a7b8c9d0` | add password_reset_tokens |
 
 ## Evolucao futura prevista
 
-Ainda nao implementados como tabela/modulo consolidado:
+Ainda nao implementados como tabela/modulo:
 
-- `audit_logs`
-- `corrective_actions`
-- `reports` mais amplos
-- estrutura de sync offline
+- `notification_reads` — para persistir estado de leitura de notificacoes por usuario
+- `audit_logs` — rastreabilidade de acoes criticas
+- `corrective_actions` — acoes vinculadas a itens reprovados em inspecoes
+- storage externo (S3/GCS) em substituicao ao disco local
