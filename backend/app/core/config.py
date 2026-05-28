@@ -14,10 +14,10 @@ class Settings(BaseSettings):
     jwt_secret_key: str
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60
-    allowed_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
+    allowed_origins: list[str] = ["http://localhost:5174", "http://127.0.0.1:5174"]
     upload_dir: str = "uploads"
-    upload_base_url: str = "http://localhost:8000/uploads"
-    frontend_url: str = "http://localhost:5173"
+    upload_base_url: str = "http://localhost:8003/uploads"
+    frontend_url: str = "http://localhost:5174"
     smtp_host: str | None = None
     smtp_port: int = 587
     smtp_user: str | None = None

@@ -23,7 +23,7 @@ All Python commands assume the repo-root virtualenv (`.venv`). On Windows PowerS
 pip install -e ".[dev]"
 
 # Run the API (reads .env from repo root)
-uvicorn app.main:app --reload --app-dir backend
+uvicorn app.main:app --reload --app-dir backend --port 8003
 
 # Migrations — alembic.ini is at repo root; NOTE: alembic.ini has a hardcoded
 # sqlalchemy.url for local dev. Override via DATABASE_URL in .env for other envs.
@@ -52,14 +52,16 @@ python backend/scripts/link_user_company.py --email admin@smartaudit.local --com
 ```powershell
 cd frontend
 npm install
-npm run dev      # Vite on 0.0.0.0:5173
+npm run dev      # Vite on 0.0.0.0:5174
 npm run build    # runs `vue-tsc --noEmit` then vite build — type-check is part of build
 npm run preview
 npm test         # Vitest (run once)
 npm run test:watch  # Vitest (watch mode)
+npm run test:e2e    # Playwright E2E (starts dev server on port 5200, all API calls mocked)
+npm run test:e2e:ui # Playwright interactive UI
 ```
 
-The frontend expects the backend at `VITE_API_BASE_URL` (defaults to `http://127.0.0.1:8000/api/v1`). Copy `frontend/.env.example` to `frontend/.env.local` to override locally.
+The frontend expects the backend at `VITE_API_BASE_URL` (defaults to `http://127.0.0.1:8003/api/v1`). Copy `frontend/.env.example` to `frontend/.env.local` to override locally.
 
 ### Tests need a real database
 

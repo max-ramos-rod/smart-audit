@@ -28,7 +28,7 @@ Base inicial do frontend em Vue 3 com Vite, Pinia e Vue Router.
 
 - Node.js 20+
 - npm 10+
-- backend Smart Audit rodando em `http://127.0.0.1:8000`
+- backend Smart Audit rodando em `http://127.0.0.1:8003`
 
 ## Configuracao
 
@@ -47,7 +47,7 @@ Copy-Item .env.example .env
 Conteudo esperado:
 
 ```env
-VITE_API_BASE_URL=http://127.0.0.1:8000/api/v1
+VITE_API_BASE_URL=http://127.0.0.1:8003/api/v1
 ```
 
 ## Instalar dependencias
@@ -64,7 +64,7 @@ npm run dev
 
 Endereco esperado do Vite:
 
-- `http://127.0.0.1:5173`
+- `http://127.0.0.1:5174`
 
 ## Build de producao
 

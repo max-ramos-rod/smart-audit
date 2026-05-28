@@ -17,14 +17,15 @@ Perfis de acesso atualmente modelados:
 
 Stack atual:
 
-- Backend: FastAPI, SQLAlchemy async, Alembic, PostgreSQL, slowapi, fpdf2
-- Frontend: Vue 3, Pinia, Vue Router, Tailwind CSS v4, Axios, Vitest
+- Backend: FastAPI, SQLAlchemy async, Alembic, PostgreSQL, slowapi, fpdf2 — porta `8003`
+- Frontend: Vue 3, Pinia, Vue Router, Tailwind CSS v4, Axios, Vitest, Playwright — porta `5174`
 - Uploads: armazenamento local em disco
 
-Baseline validado em `2026-05-27`:
+Baseline validado em `2026-05-28`:
 
 - backend: `127 passed, 3 skipped`
-- frontend: `116 passed`
+- frontend (Vitest): `116 passed`
+- frontend (Playwright E2E): `53 passed`
 - frontend build: `npm run build` OK
 
 ## 2. Estado real do produto
@@ -382,7 +383,7 @@ Observacao: mensagens de erro do backend nao usam acentos para evitar problemas 
 
 ### Backend
 
-Estado validado em `2026-05-27`:
+Estado validado em `2026-05-28`:
 
 - `127 passed, 3 skipped`
 
@@ -406,9 +407,9 @@ Cobertura atual:
 
 Lacuna: `test_attachments.py` (integracao) ainda nao existe.
 
-### Frontend
+### Frontend — Vitest (unitario e de servico)
 
-Estado validado em `2026-05-27`:
+Estado validado em `2026-05-28`:
 
 - `116 passed`
 
@@ -434,6 +435,46 @@ Cobertura atual:
 | `users.service.test.ts` | service |
 | `uploads.service.test.ts` | service |
 | `attachments.service.test.ts` | service |
+
+### Frontend — Playwright (E2E)
+
+Estado validado em `2026-05-28`:
+
+- `53 passed`
+
+Configuracao:
+
+- porta dedicada `5200` (evita conflito com outros projetos Vite na maquina)
+- `baseURL: http://localhost:5200`
+- servidor iniciado com `npm run dev -- --port 5200` (`reuseExistingServer: true`)
+- todos os chamados HTTP sao interceptados via `page.route()` — nenhuma dependencia do backend
+
+Fixture `authed` (em `frontend/e2e/fixtures.ts`):
+
+1. injeta token e `company-id` no `localStorage` via `page.addInitScript`
+2. registra rotas mock para `GET /me/companies` e `GET /me/context`
+3. entrega `page` pronta para cada teste — nao e preciso repetir bootstrap
+
+Cobertura atual:
+
+| Arquivo | Testes | Escopo |
+|---|---|---|
+| `auth.spec.ts` | 9 | login, forgot-password, reset-password |
+| `dashboard.spec.ts` | 5 | metricas, saudacao, formularios ativos, filtro de periodo |
+| `forms.spec.ts` | 7 | listagem, detalhe, criar, versoes |
+| `notifications.spec.ts` | 6 | listagem, filtro, mark-as-read, marcar todas |
+| `search.spec.ts` | 5 | input, resultados, estado vazio, navegacao |
+| `submissions.spec.ts` | 11 | listagem, criar, detalhe, finalizar, relatorio |
+| `teams.spec.ts` | 6 | listagem, stat cards, membros, estado vazio |
+| `users.spec.ts` | 5 | listagem, badges, chips, criar usuario |
+
+Comandos:
+
+```powershell
+cd frontend
+npm run test:e2e          # executa todos os testes
+npm run test:e2e:ui       # modo interativo com UI do Playwright
+```
 
 ## 10. Decisoes arquiteturais consolidadas
 
@@ -487,7 +528,7 @@ Implementada com token de uso unico (TTL 1h) em `password_reset_tokens`. Entrega
 - configuracoes da empresa (GET + PATCH com guard de role)
 - perfil (nome, senha, empresas vinculadas)
 - notificacoes derivadas (sem persistencia)
-- testes automatizados de backend (integracao + unidade) e frontend (stores + services)
+- testes automatizados de backend (integracao + unidade), frontend unitario (stores + services) e frontend E2E (Playwright, 53 testes cobrindo todos os fluxos de interface)
 
 ### Parcial ou com limitacao conhecida
 
