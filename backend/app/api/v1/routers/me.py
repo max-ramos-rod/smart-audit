@@ -8,8 +8,8 @@ from app.modules.auth.dependencies import get_current_user
 from app.modules.memberships.dependencies import get_current_membership
 from app.modules.memberships.schemas import MeUpdateRequest
 from app.modules.memberships.service import MembershipService
-from app.modules.notifications.repository import NotificationReadRepository
 from app.modules.notifications.schemas import MarkAllReadRequest, MarkReadRequest
+from app.modules.notifications.service import NotificationService
 from app.modules.submissions.service import SubmissionService
 
 router = APIRouter(prefix="/me", tags=["me"])
@@ -23,8 +23,8 @@ def get_submission_service() -> SubmissionService:
     return SubmissionService()
 
 
-def get_notification_read_repository() -> NotificationReadRepository:
-    return NotificationReadRepository()
+def get_notification_service() -> NotificationService:
+    return NotificationService()
 
 
 @router.get("/companies")
@@ -75,11 +75,9 @@ async def get_my_notifications(
     current_user: User = Depends(get_current_user),
     membership=Depends(get_current_membership),
     db: AsyncSession = Depends(get_db),
-    submission_service: SubmissionService = Depends(get_submission_service),
-    notif_repo: NotificationReadRepository = Depends(get_notification_read_repository),
+    notification_service: NotificationService = Depends(get_notification_service),
 ) -> dict[str, object]:
-    read_keys = await notif_repo.get_read_keys(db, str(current_user.id))
-    data = await submission_service.get_notifications(db, membership, read_keys=read_keys)
+    data = await notification_service.list_notifications(db, current_user, membership)
     return success_response([item.model_dump(mode="json") for item in data])
 
 
@@ -88,10 +86,9 @@ async def mark_notification_read(
     payload: MarkReadRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-    notif_repo: NotificationReadRepository = Depends(get_notification_read_repository),
+    notification_service: NotificationService = Depends(get_notification_service),
 ) -> dict[str, object]:
-    await notif_repo.mark_read(db, str(current_user.id), payload.key)
-    await db.commit()
+    await notification_service.mark_read(db, str(current_user.id), payload.key)
     return success_response({"key": payload.key, "read": True})
 
 
@@ -100,8 +97,7 @@ async def mark_all_notifications_read(
     payload: MarkAllReadRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-    notif_repo: NotificationReadRepository = Depends(get_notification_read_repository),
+    notification_service: NotificationService = Depends(get_notification_service),
 ) -> dict[str, object]:
-    await notif_repo.mark_many_read(db, str(current_user.id), payload.keys)
-    await db.commit()
-    return success_response({"marked": len(payload.keys)})
+    marked = await notification_service.mark_many_read(db, str(current_user.id), payload.keys)
+    return success_response({"marked": marked})
