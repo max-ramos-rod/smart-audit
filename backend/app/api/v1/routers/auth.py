@@ -20,10 +20,7 @@ async def login(
     auth_service: AuthService = Depends(get_auth_service),
 ) -> dict[str, object]:
     token = await auth_service.login(db, payload.email, payload.password)
-    return {
-        "data": token.model_dump(),
-        "meta": {},
-    }
+    return success_response(token.model_dump())
 
 
 @router.get("/me")
@@ -32,10 +29,7 @@ async def me(
     auth_service: AuthService = Depends(get_auth_service),
 ) -> dict[str, object]:
     response = auth_service.serialize_user(current_user)
-    return {
-        "data": response.model_dump(),
-        "meta": {},
-    }
+    return success_response(response.model_dump())
 
 
 @router.post("/forgot-password")
