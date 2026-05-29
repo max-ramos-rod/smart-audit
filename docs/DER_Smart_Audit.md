@@ -111,6 +111,7 @@ erDiagram
     USERS ||--o{ MEMBERSHIPS : belongs_to
     COMPANIES ||--o{ MEMBERSHIPS : has
     USERS ||--o{ PASSWORD_RESET_TOKENS : has
+    USERS ||--o{ NOTIFICATION_READS : has
     COMPANIES ||--o{ FORMS : owns
     FORMS ||--o{ FORM_VERSIONS : has
     FORM_VERSIONS ||--o{ FORM_FIELDS : has
@@ -353,7 +354,7 @@ Isso vale para:
 - o endpoint de upload devolve URL publica
 - `attachments` liga essa URL a uma submission
 
-### Notificacoes sem persistencia
+### Notificacoes
 
 Nao existe tabela `notifications`. O endpoint `GET /me/notifications` deriva alertas em tempo real a partir de `submissions`:
 
@@ -361,7 +362,7 @@ Nao existe tabela `notifications`. O endpoint `GET /me/notifications` deriva ale
 - `completed` com score < 80% → alerta `low_score`
 - `completed` com score >= 90% → alerta `excellent`
 
-Se for necessario persistir estado de leitura por usuario, sera preciso criar uma tabela (ex: `notification_reads` com FK para user e um identificador do alerta derivado).
+O estado de leitura por usuario e persistido em `notification_reads` com chave deterministica (`pending-{id}`, `low-score-{id}`, `excellent-{id}`). Upsert idempotente via `ON CONFLICT DO NOTHING` na constraint `uq_notification_reads_user_key`.
 
 ## Migracoes aplicadas
 
@@ -372,12 +373,12 @@ Se for necessario persistir estado de leitura por usuario, sera preciso criar um
 | `f73cae8e6de7` | add teams e team_members |
 | `d4e5f6a7b8c9` | add campos de contato em companies (cnpj, timezone, contact_email, phone) |
 | `e5f6a7b8c9d0` | add password_reset_tokens |
+| `a1b2c3d4e5f6` | add notification_reads |
 
 ## Evolucao futura prevista
 
 Ainda nao implementados como tabela/modulo:
 
-- `notification_reads` — para persistir estado de leitura de notificacoes por usuario
 - `audit_logs` — rastreabilidade de acoes criticas
 - `corrective_actions` — acoes vinculadas a itens reprovados em inspecoes
 - storage externo (S3/GCS) em substituicao ao disco local
