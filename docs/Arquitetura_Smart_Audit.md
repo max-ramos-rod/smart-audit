@@ -23,8 +23,8 @@ Stack atual:
 
 Baseline validado em `2026-05-28`:
 
-- backend: `138 passed, 3 skipped`
-- frontend Vitest (19 arquivos): `116 passed`
+- backend: `143 passed, 3 skipped`
+- frontend Vitest (19 arquivos): `119 passed`
 - frontend Playwright E2E (8 arquivos): `53 passed`
 - frontend build: `npm run build` OK
 
@@ -73,7 +73,9 @@ Capacidades ativas:
 - `GET /api/v1/me/context`
 - `PATCH /api/v1/me`
 - `GET /api/v1/me/stats`
-- `GET /api/v1/me/notifications` — derivadas de submissions, sem persistencia propria
+- `GET /api/v1/me/notifications` — derivadas de submissions; retorna `read: bool` persistido
+- `POST /api/v1/me/notifications/read` — marca uma notificacao como lida (persiste em `notification_reads`)
+- `POST /api/v1/me/notifications/read-all` — marca todas as notificacoes fornecidas como lidas
 - `GET /api/v1/companies/me`
 - `PATCH /api/v1/companies/me` (requer OWNER ou ADMIN)
 
@@ -385,7 +387,7 @@ Observacao: mensagens de erro do backend nao usam acentos para evitar problemas 
 
 Estado validado em `2026-05-28`:
 
-- `138 passed, 3 skipped`
+- `143 passed, 3 skipped`
 
 Cobertura atual:
 
@@ -410,7 +412,7 @@ Cobertura atual:
 
 Estado validado em `2026-05-28`:
 
-- `116 passed`
+- `119 passed`
 
 Cobertura atual:
 
@@ -502,7 +504,11 @@ Ja e realidade no codigo. Qualquer documentacao antiga que ainda fale em sessao 
 
 ### Notificacoes sem tabela propria
 
-Decisao deliberada: notificacoes sao derivadas do estado das submissions em tempo real. Nao existe tabela `notifications` no banco. Isso e adequado enquanto os alertas forem simples e de leitura. Se houver necessidade de persistir estado de leitura por usuario ou criar notificacoes de outras origens, sera necessario criar a tabela.
+As notificacoes sao derivadas do estado das submissions em tempo real. Nao existe tabela `notifications` no banco.
+
+O estado de leitura e persistido separadamente em `notification_reads` (chave composta `user_id + notification_key`). A chave e deterministica — ex.: `excellent-{submission_id}` — o que permite upsert sem conflito.
+
+Dismiss ainda e so no estado local do frontend: ao recarregar a pagina, as notificacoes dispensadas voltam a aparecer (mas com `read: true` se ja foram marcadas).
 
 ### Recuperacao de senha
 
@@ -531,13 +537,13 @@ Implementada com token de uso unico (TTL 1h) em `password_reset_tokens`. Entrega
 
 ### Parcial ou com limitacao conhecida
 
-- notificacoes: mark-as-read e dismiss existem so no estado local do frontend; recarregar a pagina perde o estado
+- notificacoes: dismiss existe so no estado local do frontend; recarregar a pagina perde o estado de dismiss (mark-as-read e persistido via `notification_reads`)
 - CompanySettings / aba Utilizacao: limites de uso (50 usuarios, 500 inspecoes, 100 formularios) sao hardcoded, nao vem de API
 - CompanySettings / aba Plano: botao "Falar com o comercial" nao tem acao real
 - Excluir empresa: endpoint e fluxo nao implementados; botao desabilitado na interface
 
 ## 12. Proxima linha segura de evolucao
 
-1. persistir estado de leitura de notificacoes (tabela `notification_reads` ou coluna em `submissions`)
-2. limites de uso reais via API (`/me/usage` ou similar)
+1. limites de uso reais via API (`/me/usage` ou similar)
+2. excluir empresa: endpoint `DELETE /companies/me` + fluxo no frontend (botao desabilitado atualmente)
 3. preparar PWA apos consolidar os itens acima

@@ -5,6 +5,7 @@ from app.db.models.form_fields import FormField
 from app.db.models.form_versions import FormVersion
 from app.db.models.forms import Form
 from app.db.models.memberships import Membership
+from app.db.models.notification_reads import NotificationRead
 from app.db.models.submission_values import SubmissionValue
 from app.db.models.submissions import Submission
 from app.db.models.teams import Team, TeamMember
@@ -17,6 +18,7 @@ __all__ = [
     "FormField",
     "FormVersion",
     "Membership",
+    "NotificationRead",
     "Submission",
     "SubmissionValue",
     "Team",

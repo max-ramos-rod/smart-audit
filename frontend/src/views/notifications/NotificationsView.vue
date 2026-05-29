@@ -3,7 +3,12 @@ import { computed, onMounted, ref } from 'vue'
 
 import AppShell from '@/components/layout/AppShell.vue'
 import SvgIcon from '@/components/ui/SvgIcon.vue'
-import { fetchNotifications, type NotificationItem } from '@/services/notifications.service'
+import {
+  fetchNotifications,
+  markAllNotificationsRead,
+  markNotificationRead,
+  type NotificationItem,
+} from '@/services/notifications.service'
 
 const notifications = ref<NotificationItem[]>([])
 const isLoading = ref(true)
@@ -20,11 +25,10 @@ onMounted(async () => {
 })
 
 const filter = ref<'all' | 'unread'>('all')
-const readIds    = ref<Set<string>>(new Set())
 const dismissIds = ref<Set<string>>(new Set())
 
-function isRead(n: NotificationItem)      { return n.read || readIds.value.has(n.id) }
 function isDismissed(n: NotificationItem) { return dismissIds.value.has(n.id) }
+function isRead(n: NotificationItem)      { return n.read }
 
 const visible = computed(() =>
   notifications.value
@@ -36,9 +40,31 @@ const unreadCount = computed(() =>
   notifications.value.filter(n => !isDismissed(n) && !isRead(n)).length,
 )
 
-function markRead(id: string)  { readIds.value = new Set([...readIds.value, id]) }
-function dismiss(id: string)   { dismissIds.value = new Set([...dismissIds.value, id]) }
-function markAllRead()         { readIds.value = new Set(notifications.value.map(n => n.id)) }
+async function markRead(n: NotificationItem) {
+  try {
+    await markNotificationRead(n.id)
+    n.read = true
+  } catch {
+    // silently ignore — UI already optimistic
+  }
+}
+
+function dismiss(id: string) {
+  dismissIds.value = new Set([...dismissIds.value, id])
+}
+
+async function markAllRead() {
+  const unreadKeys = notifications.value
+    .filter(n => !isDismissed(n) && !isRead(n))
+    .map(n => n.id)
+  if (!unreadKeys.length) return
+  try {
+    await markAllNotificationsRead(unreadKeys)
+    notifications.value.forEach(n => { n.read = true })
+  } catch {
+    // silently ignore
+  }
+}
 
 type NotifType = NotificationItem['type']
 
@@ -138,7 +164,7 @@ const typeSymbol: Record<NotifType, string> = {
               <button
                 v-if="!isRead(n)"
                 type="button"
-                @click="markRead(n.id)"
+                @click="markRead(n)"
                 style="border:none;background:none;cursor:pointer;font-size:11px;color:var(--sa-brand);font-weight:600;padding:4px 0 0;font-family:inherit;"
               >
                 Marcar como lida

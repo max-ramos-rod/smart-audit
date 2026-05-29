@@ -61,7 +61,7 @@ class SubmissionService:
         return b"\xef\xbb\xbf" + buf.getvalue().encode("utf-8")
 
     async def get_notifications(
-        self, db: AsyncSession, membership: Membership
+        self, db: AsyncSession, membership: Membership, read_keys: set[str] | None = None
     ) -> list[NotificationItem]:
         now = datetime.now(UTC)
         pending_threshold = now - timedelta(hours=24)
@@ -71,6 +71,7 @@ class SubmissionService:
             db, str(membership.company_id), pending_threshold, completed_since
         )
 
+        read_set = read_keys or set()
         items: list[NotificationItem] = []
         for s in submissions:
             form_name = (
@@ -81,9 +82,10 @@ class SubmissionService:
             if s.status == "in_progress":
                 hours_ago = int((now - s.started_at).total_seconds() / 3600)
                 age = f"{int(hours_ago / 24)} dias" if hours_ago >= 48 else f"{hours_ago}h"
+                key = f"pending-{s.id}"
                 items.append(
                     NotificationItem(
-                        id=f"pending-{s.id}",
+                        id=key,
                         type="pending",
                         title=f"Inspeção pendente há {age}",
                         description=(
@@ -91,29 +93,34 @@ class SubmissionService:
                             f"{s.started_at.strftime('%d/%m/%Y')} sem finalização."
                         ),
                         created_at=s.started_at,
+                        read=key in read_set,
                     )
                 )
             elif s.status == "completed" and s.score is not None:
                 score = float(s.score)
                 finished = s.finished_at or s.created_at
                 if score < 80:
+                    key = f"low-score-{s.id}"
                     items.append(
                         NotificationItem(
-                            id=f"low-score-{s.id}",
+                            id=key,
                             type="low_score",
                             title="Score abaixo do mínimo",
                             description=f"{form_name}: {score:.0f}% (mínimo recomendado: 80%).",
                             created_at=finished,
+                            read=key in read_set,
                         )
                     )
                 elif score >= 90:
+                    key = f"excellent-{s.id}"
                     items.append(
                         NotificationItem(
-                            id=f"excellent-{s.id}",
+                            id=key,
                             type="excellent",
                             title="Inspeção concluída com excelência",
                             description=f"{form_name}: score {score:.0f}%.",
                             created_at=finished,
+                            read=key in read_set,
                         )
                     )
 

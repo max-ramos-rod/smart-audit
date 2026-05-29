@@ -177,3 +177,14 @@ CREATE INDEX ix_attachments_uploaded_by ON attachments(uploaded_by);
 CREATE INDEX ix_teams_company_id ON teams(company_id);
 CREATE INDEX ix_team_members_team_id ON team_members(team_id);
 CREATE INDEX ix_team_members_user_id ON team_members(user_id);
+
+CREATE TABLE notification_reads (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    notification_key VARCHAR(100) NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_notification_reads_user_key UNIQUE (user_id, notification_key)
+);
+
+CREATE INDEX ix_notification_reads_user_id ON notification_reads(user_id);

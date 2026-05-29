@@ -225,3 +225,85 @@ async def test_notifications_respects_company_isolation(client, auth_headers, in
     response = await client.get("/api/v1/me/notifications", headers=inspector_headers)
     assert response.status_code == 200
     assert response.json()["data"] == []
+
+
+# ── /me/notifications/read ────────────────────────────────────────────────────
+
+
+async def test_mark_read_persists_across_requests(client, auth_headers):
+    form_id = await _create_form(client, auth_headers)
+    sub_id = await _create_submission(client, auth_headers, form_id)
+    await _finish_submission(client, auth_headers, sub_id)
+
+    key = f"excellent-{sub_id}"
+
+    # initially unread
+    items = (await client.get("/api/v1/me/notifications", headers=auth_headers)).json()["data"]
+    assert next(n for n in items if n["id"] == key)["read"] is False
+
+    # mark as read
+    resp = await client.post("/api/v1/me/notifications/read", headers=auth_headers, json={"key": key})
+    assert resp.status_code == 200
+    assert resp.json()["data"]["read"] is True
+
+    # subsequent GET returns read=True
+    items2 = (await client.get("/api/v1/me/notifications", headers=auth_headers)).json()["data"]
+    assert next(n for n in items2 if n["id"] == key)["read"] is True
+
+
+async def test_mark_read_is_idempotent(client, auth_headers):
+    form_id = await _create_form(client, auth_headers)
+    sub_id = await _create_submission(client, auth_headers, form_id)
+    await _finish_submission(client, auth_headers, sub_id)
+
+    key = f"excellent-{sub_id}"
+    for _ in range(3):
+        resp = await client.post(
+            "/api/v1/me/notifications/read", headers=auth_headers, json={"key": key}
+        )
+        assert resp.status_code == 200
+
+
+async def test_mark_read_requires_auth(client, auth_headers):
+    form_id = await _create_form(client, auth_headers)
+    sub_id = await _create_submission(client, auth_headers, form_id)
+    await _finish_submission(client, auth_headers, sub_id)
+
+    assert_problem(
+        await client.post(
+            "/api/v1/me/notifications/read", json={"key": f"excellent-{sub_id}"}
+        ),
+        401,
+        "Token de acesso nao informado.",
+    )
+
+
+async def test_mark_all_read_persists(client, auth_headers):
+    form_id = await _create_form(client, auth_headers)
+    sub_id1 = await _create_submission(client, auth_headers, form_id)
+    await _finish_submission(client, auth_headers, sub_id1)
+    sub_id2 = await _create_submission(client, auth_headers, form_id)
+    await _finish_submission_fail(client, auth_headers, sub_id2)
+
+    items = (await client.get("/api/v1/me/notifications", headers=auth_headers)).json()["data"]
+    keys = [n["id"] for n in items]
+    assert len(keys) == 2
+
+    resp = await client.post(
+        "/api/v1/me/notifications/read-all", headers=auth_headers, json={"keys": keys}
+    )
+    assert resp.status_code == 200
+    assert resp.json()["data"]["marked"] == 2
+
+    items2 = (await client.get("/api/v1/me/notifications", headers=auth_headers)).json()["data"]
+    assert all(n["read"] is True for n in items2)
+
+
+async def test_mark_all_read_requires_auth(client):
+    assert_problem(
+        await client.post(
+            "/api/v1/me/notifications/read-all", json={"keys": ["excellent-fake"]}
+        ),
+        401,
+        "Token de acesso nao informado.",
+    )

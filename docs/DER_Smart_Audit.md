@@ -27,6 +27,7 @@ Ele sustenta:
 - arquivos ficam fora do banco; `attachments` armazena apenas metadados
 - equipes foram promovidas ao modelo real do sistema
 - **nao existe tabela de notificacoes**: notificacoes sao derivadas em tempo real de `submissions` pelo servico
+- o estado de leitura e armazenado em `notification_reads` com chave deterministica por usuario
 
 ## Contextos e relacionamentos
 
@@ -36,12 +37,14 @@ Ele sustenta:
 - `companies`
 - `memberships`
 - `password_reset_tokens`
+- `notification_reads`
 
 Relacionamentos:
 
 - `companies 1:N memberships`
 - `users 1:N memberships`
 - `users 1:N password_reset_tokens`
+- `users 1:N notification_reads`
 
 ### Formularios
 
@@ -85,13 +88,13 @@ Relacionamentos:
 
 ```text
 users
-  `-< memberships >- companies
+  |-< memberships >- companies
   |                     |
-  `-< password_         |-< forms
-      reset_tokens      |    `-< form_versions
-                        |         `-< form_fields
-                        |
-                        |-< submissions >- users
+  |-< password_         |-< forms
+  |   reset_tokens      |    `-< form_versions
+  |                     |         `-< form_fields
+  `-< notification_     |
+      reads             |-< submissions >- users
                         |      |
                         |      |- form_versions
                         |      `-< submission_values >- form_fields

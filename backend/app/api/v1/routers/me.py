@@ -8,6 +8,8 @@ from app.modules.auth.dependencies import get_current_user
 from app.modules.memberships.dependencies import get_current_membership
 from app.modules.memberships.schemas import MeUpdateRequest
 from app.modules.memberships.service import MembershipService
+from app.modules.notifications.repository import NotificationReadRepository
+from app.modules.notifications.schemas import MarkAllReadRequest, MarkReadRequest
 from app.modules.submissions.service import SubmissionService
 
 router = APIRouter(prefix="/me", tags=["me"])
@@ -19,6 +21,10 @@ def get_membership_service() -> MembershipService:
 
 def get_submission_service() -> SubmissionService:
     return SubmissionService()
+
+
+def get_notification_read_repository() -> NotificationReadRepository:
+    return NotificationReadRepository()
 
 
 @router.get("/companies")
@@ -66,9 +72,36 @@ async def get_my_stats(
 
 @router.get("/notifications")
 async def get_my_notifications(
+    current_user: User = Depends(get_current_user),
     membership=Depends(get_current_membership),
     db: AsyncSession = Depends(get_db),
     submission_service: SubmissionService = Depends(get_submission_service),
+    notif_repo: NotificationReadRepository = Depends(get_notification_read_repository),
 ) -> dict[str, object]:
-    data = await submission_service.get_notifications(db, membership)
+    read_keys = await notif_repo.get_read_keys(db, str(current_user.id))
+    data = await submission_service.get_notifications(db, membership, read_keys=read_keys)
     return success_response([item.model_dump(mode="json") for item in data])
+
+
+@router.post("/notifications/read")
+async def mark_notification_read(
+    payload: MarkReadRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    notif_repo: NotificationReadRepository = Depends(get_notification_read_repository),
+) -> dict[str, object]:
+    await notif_repo.mark_read(db, str(current_user.id), payload.key)
+    await db.commit()
+    return success_response({"key": payload.key, "read": True})
+
+
+@router.post("/notifications/read-all")
+async def mark_all_notifications_read(
+    payload: MarkAllReadRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    notif_repo: NotificationReadRepository = Depends(get_notification_read_repository),
+) -> dict[str, object]:
+    await notif_repo.mark_many_read(db, str(current_user.id), payload.keys)
+    await db.commit()
+    return success_response({"marked": len(payload.keys)})

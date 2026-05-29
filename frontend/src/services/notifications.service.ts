@@ -13,3 +13,12 @@ export async function fetchNotifications(): Promise<NotificationItem[]> {
   const res = await http.get('/me/notifications')
   return res.data.data
 }
+
+export async function markNotificationRead(key: string): Promise<void> {
+  await http.post('/me/notifications/read', { key })
+}
+
+export async function markAllNotificationsRead(keys: string[]): Promise<void> {
+  if (!keys.length) return
+  await http.post('/me/notifications/read-all', { keys })
+}
