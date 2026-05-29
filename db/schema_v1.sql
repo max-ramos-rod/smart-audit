@@ -115,14 +115,15 @@ CREATE TABLE submission_values (
     CONSTRAINT uq_submission_values_submission_field UNIQUE (submission_id, form_field_id)
 );
 
--- Metadados de arquivos vinculados a uma submission; o arquivo fisico fica em disco
+-- Metadados de arquivos vinculados a um submission_value; o arquivo fisico fica em disco
 CREATE TABLE attachments (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    submission_id UUID NOT NULL REFERENCES submissions(id) ON DELETE CASCADE,
-    url TEXT NOT NULL,
-    label VARCHAR(255) NULL,
+    submission_value_id UUID NOT NULL REFERENCES submission_values(id) ON DELETE CASCADE,
+    file_url TEXT NOT NULL,
+    thumbnail_url TEXT NULL,
     mime_type VARCHAR(120) NOT NULL,
     file_size BIGINT NOT NULL,
+    uploaded_by UUID NOT NULL REFERENCES users(id),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -170,7 +171,8 @@ CREATE INDEX ix_submissions_company_status_created_at ON submissions(company_id,
 CREATE INDEX ix_submission_values_submission_id ON submission_values(submission_id);
 CREATE INDEX ix_submission_values_form_field_id ON submission_values(form_field_id);
 
-CREATE INDEX ix_attachments_submission_id ON attachments(submission_id);
+CREATE INDEX ix_attachments_submission_value_id ON attachments(submission_value_id);
+CREATE INDEX ix_attachments_uploaded_by ON attachments(uploaded_by);
 
 CREATE INDEX ix_teams_company_id ON teams(company_id);
 CREATE INDEX ix_team_members_team_id ON team_members(team_id);

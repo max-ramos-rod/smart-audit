@@ -281,11 +281,12 @@ Restricoes:
 ### `attachments`
 
 - `id UUID PK`
-- `submission_id UUID FK -> submissions.id ON DELETE CASCADE`
-- `url TEXT`
-- `label VARCHAR(255) NULL`
+- `submission_value_id UUID FK -> submission_values.id ON DELETE CASCADE`
+- `file_url TEXT`
+- `thumbnail_url TEXT NULL`
 - `mime_type VARCHAR(120)`
 - `file_size BIGINT`
+- `uploaded_by UUID FK -> users.id`
 - `created_at TIMESTAMPTZ`
 - `updated_at TIMESTAMPTZ`
 
@@ -293,7 +294,8 @@ Observacoes:
 
 - o arquivo fisico fica em disco em `settings.upload_dir/<company_id>/<uuid>.<ext>`
 - `attachments` armazena apenas metadados e a URL publica
-- vinculo e com a submission (nao com o submission_value individualmente)
+- vinculo e com `submission_value` (nao diretamente com a submission)
+- `uploaded_by` registra o usuario que fez o upload
 
 ### `teams`
 

@@ -19,5 +19,6 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     clearMocks: true,
+    exclude: ['**/node_modules/**', '**/e2e/**'],
   },
 })

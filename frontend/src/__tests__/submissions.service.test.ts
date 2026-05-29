@@ -6,8 +6,8 @@ vi.mock('@/services/api/http', () => ({
 
 const mockCreateObjectURL = vi.fn(() => 'blob:mock-url')
 const mockRevokeObjectURL = vi.fn()
-global.URL.createObjectURL = mockCreateObjectURL
-global.URL.revokeObjectURL = mockRevokeObjectURL
+globalThis.URL.createObjectURL = mockCreateObjectURL
+globalThis.URL.revokeObjectURL = mockRevokeObjectURL
 
 import { http } from '@/services/api/http'
 import {

@@ -23,9 +23,9 @@ Stack atual:
 
 Baseline validado em `2026-05-28`:
 
-- backend: `127 passed, 3 skipped`
-- frontend (Vitest): `116 passed`
-- frontend (Playwright E2E): `53 passed`
+- backend: `138 passed, 3 skipped`
+- frontend Vitest (19 arquivos): `116 passed`
+- frontend Playwright E2E (8 arquivos): `53 passed`
 - frontend build: `npm run build` OK
 
 ## 2. Estado real do produto
@@ -385,7 +385,7 @@ Observacao: mensagens de erro do backend nao usam acentos para evitar problemas 
 
 Estado validado em `2026-05-28`:
 
-- `127 passed, 3 skipped`
+- `138 passed, 3 skipped`
 
 Cobertura atual:
 
@@ -402,10 +402,9 @@ Cobertura atual:
 | `test_companies.py` | integracao |
 | `test_me.py` | integracao |
 | `test_uploads.py` | integracao |
+| `test_attachments.py` | integracao |
 | `test_form_service.py` | unidade |
 | `test_submission_service.py` | unidade |
-
-Lacuna: `test_attachments.py` (integracao) ainda nao existe.
 
 ### Frontend — Vitest (unitario e de servico)
 
@@ -539,7 +538,6 @@ Implementada com token de uso unico (TTL 1h) em `password_reset_tokens`. Entrega
 
 ## 12. Proxima linha segura de evolucao
 
-1. testes de integracao para o modulo `attachments` (unico endpoint sem cobertura)
-2. persistir estado de leitura de notificacoes (tabela `notification_reads` ou coluna em `submissions`)
-3. limites de uso reais via API (`/me/usage` ou similar)
-4. preparar PWA apos consolidar os itens acima
+1. persistir estado de leitura de notificacoes (tabela `notification_reads` ou coluna em `submissions`)
+2. limites de uso reais via API (`/me/usage` ou similar)
+3. preparar PWA apos consolidar os itens acima
