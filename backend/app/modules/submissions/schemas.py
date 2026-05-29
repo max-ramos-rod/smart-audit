@@ -1,14 +1,14 @@
 from datetime import date, datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class SubmissionCreateRequest(BaseModel):
-    form_id: str
+    form_id: str = Field(min_length=1, max_length=36)
 
 
 class SubmissionAnswerInput(BaseModel):
-    field_key: str
+    field_key: str = Field(min_length=1, max_length=100)
     value: bool | int | float | str | date | dict | None
 
 

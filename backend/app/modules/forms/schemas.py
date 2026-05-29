@@ -4,9 +4,9 @@ from pydantic import BaseModel, Field, field_validator
 
 
 class FormFieldCreateRequest(BaseModel):
-    key: str
-    label: str
-    field_type: str
+    key: str = Field(min_length=1, max_length=100)
+    label: str = Field(min_length=1, max_length=180)
+    field_type: str = Field(min_length=1, max_length=30)
     required: bool = False
     position: int
     config_json: dict = Field(default_factory=dict)
@@ -24,8 +24,8 @@ class FormFieldCreateRequest(BaseModel):
 
 
 class FormCreateRequest(BaseModel):
-    name: str
-    description: str | None = None
+    name: str = Field(min_length=1, max_length=180)
+    description: str | None = Field(default=None, max_length=2000)
     fields: list[FormFieldCreateRequest]
 
 
