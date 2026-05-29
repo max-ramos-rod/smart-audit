@@ -29,7 +29,14 @@ const MOCK_NOTIFICATIONS = [
 
 test.describe('Notifications', () => {
   test.beforeEach(async ({ authed: page }) => {
-    await page.route(`${API}/me/notifications**`, (r) => r.fulfill({ json: envelope(MOCK_NOTIFICATIONS) }))
+    await page.route(`${API}/me/notifications**`, (r) => {
+      if (r.request().method() === 'POST') {
+        const url = r.request().url()
+        if (url.includes('/read-all')) return r.fulfill({ json: envelope({ marked: 2 }) })
+        return r.fulfill({ json: envelope({ read: true }) })
+      }
+      return r.fulfill({ json: envelope(MOCK_NOTIFICATIONS) })
+    })
     await page.goto('/notifications')
   })
 
