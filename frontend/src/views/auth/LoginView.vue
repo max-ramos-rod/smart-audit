@@ -15,9 +15,13 @@ const form = reactive({
 })
 
 async function submit() {
-  await authStore.login(form)
-  await contextStore.bootstrap()
-  router.push({ name: 'home' })
+  try {
+    await authStore.login(form)
+    await contextStore.bootstrap()
+    router.push({ name: 'home' })
+  } catch {
+    // authStore.error is already set by the store; prevent unhandled rejection warning
+  }
 }
 </script>
 
