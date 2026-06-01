@@ -1,21 +1,23 @@
 import argparse
+import asyncio
 
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import hash_password
 from app.db.models import User
-from app.db.session import SessionLocal
+from app.db.session import engine
 
 
-def main() -> None:
+async def main() -> None:
     parser = argparse.ArgumentParser(description="Create an initial Smart Audit user.")
     parser.add_argument("--name", required=True)
     parser.add_argument("--email", required=True)
     parser.add_argument("--password", required=True)
     args = parser.parse_args()
 
-    with SessionLocal() as db:
-        existing_user = db.scalar(select(User).where(User.email == args.email))
+    async with AsyncSession(engine, expire_on_commit=False) as db:
+        existing_user = await db.scalar(select(User).where(User.email == args.email))
         if existing_user is not None:
             print("User already exists for this email.")
             return
@@ -27,9 +29,9 @@ def main() -> None:
             is_active=True,
         )
         db.add(user)
-        db.commit()
+        await db.commit()
         print(f"User created: {args.email}")
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
