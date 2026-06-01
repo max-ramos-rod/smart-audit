@@ -1,7 +1,15 @@
-import type { ApiEnvelope } from '@/types/api'
+import type { ApiEnvelope, PaginatedEnvelope } from '@/types/api'
 import type { AttachmentCreatePayload, AttachmentItem } from '@/types/attachments'
 
 import { http } from './api/http'
+
+export async function listAttachments(submissionId: string): Promise<AttachmentItem[]> {
+  const response = await http.get<PaginatedEnvelope<AttachmentItem>>(
+    `/submissions/${submissionId}/attachments`,
+    { params: { page: 1, page_size: 200 } },
+  )
+  return response.data.data
+}
 
 export async function createAttachment(
   submissionId: string,
@@ -12,4 +20,11 @@ export async function createAttachment(
     payload,
   )
   return response.data.data
+}
+
+export async function deleteAttachment(
+  submissionId: string,
+  attachmentId: string,
+): Promise<void> {
+  await http.delete(`/submissions/${submissionId}/attachments/${attachmentId}`)
 }

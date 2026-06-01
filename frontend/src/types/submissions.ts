@@ -19,6 +19,7 @@ export interface ScoreBreakdown {
   conformes: number
   nao_conformes: number
   sem_resposta: number
+  na_count: number
 }
 
 export interface SubmissionDetail extends SubmissionListItem {

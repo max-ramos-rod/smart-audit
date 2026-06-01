@@ -22,10 +22,24 @@ export interface UserContext {
   requires_company_selection: boolean
 }
 
+export interface FormScoreStat {
+  form_id: string
+  form_name: string
+  avg_score: number
+  count: number
+}
+
+export interface ScoreTrendPoint {
+  date: string
+  avg_score: number
+}
+
 export interface CompanyStats {
   total_submissions: number
   completed: number
   in_progress: number
   avg_score: number | null
   recent: SubmissionListItem[]
+  score_by_form: FormScoreStat[]
+  score_trend: ScoreTrendPoint[]
 }

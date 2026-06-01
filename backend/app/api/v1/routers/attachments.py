@@ -43,3 +43,14 @@ async def create_attachment(
         db, membership, current_user, submission_id, payload
     )
     return success_response(data.model_dump(mode="json"))
+
+
+@router.delete("/{attachment_id}", status_code=204)
+async def delete_attachment(
+    submission_id: str,
+    attachment_id: str,
+    membership: Membership = Depends(get_current_membership),
+    db: AsyncSession = Depends(get_db),
+    attachment_service: AttachmentService = Depends(get_attachment_service),
+) -> None:
+    await attachment_service.delete_attachment(db, membership, submission_id, attachment_id)

@@ -48,8 +48,12 @@ export async function finishSubmission(submissionId: string) {
   return response.data.data
 }
 
-export async function exportSubmissionPdf(submissionId: string): Promise<Blob> {
+export async function exportSubmissionPdf(
+  submissionId: string,
+  inline = false,
+): Promise<Blob> {
   const response = await http.get(`/submissions/${submissionId}/export`, {
+    params: inline ? { inline: 'true' } : {},
     responseType: 'blob',
   })
   return response.data as Blob

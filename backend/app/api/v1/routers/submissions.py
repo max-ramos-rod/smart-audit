@@ -92,15 +92,17 @@ async def save_answers(
 @router.get("/{submission_id}/export")
 async def export_submission_pdf(
     submission_id: str,
+    inline: bool = Query(default=False),
     membership: Membership = Depends(get_current_membership),
     db: AsyncSession = Depends(get_db),
     submission_service: SubmissionService = Depends(get_submission_service),
 ) -> Response:
     pdf_bytes = await submission_service.export_pdf(db, membership, submission_id)
+    disposition = "inline" if inline else f'attachment; filename="inspecao-{submission_id}.pdf"'
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="inspecao-{submission_id}.pdf"'},
+        headers={"Content-Disposition": disposition},
     )
 
 

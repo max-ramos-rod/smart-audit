@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -91,6 +93,42 @@ class AttachmentService:
         )
         created = next(item for item in attachments if str(item.id) == str(attachment.id))
         return self.serialize_attachment(created)
+
+    async def delete_attachment(
+        self,
+        db: AsyncSession,
+        membership: Membership,
+        submission_id: str,
+        attachment_id: str,
+    ) -> None:
+        attachment = await self.repository.get_attachment_by_id(
+            db, str(membership.company_id), submission_id, attachment_id
+        )
+        if attachment is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Anexo nao encontrado."
+            )
+
+        file_path = None
+        try:
+            from app.core.config import get_settings
+            settings = get_settings()
+            url = attachment.file_url
+            base = settings.upload_base_url.rstrip("/")
+            if url.startswith(base):
+                relative = url[len(base):].lstrip("/")
+                file_path = os.path.join(settings.upload_dir, relative)
+        except Exception:
+            pass
+
+        await self.repository.delete_attachment(db, attachment)
+        await db.commit()
+
+        if file_path and os.path.isfile(file_path):
+            try:
+                os.remove(file_path)
+            except OSError:
+                pass
 
     @staticmethod
     def serialize_attachment(attachment: Attachment) -> AttachmentResponse:

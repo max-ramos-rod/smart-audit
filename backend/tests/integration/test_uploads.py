@@ -44,10 +44,10 @@ async def test_upload_rejects_invalid_mime_type(client, auth_headers):
         await client.post(
             "/api/v1/uploads",
             headers=auth_headers,
-            files={"file": ("doc.pdf", BytesIO(b"pdf"), "application/pdf")},
+            files={"file": ("doc.txt", BytesIO(b"text"), "text/plain")},
         ),
         400,
-        "Tipo de arquivo nao permitido. Use JPEG, PNG ou WebP.",
+        "Tipo de arquivo nao permitido. Use JPEG, PNG, WebP, MP4, MOV, AVI, MP3, WAV, OGG, M4A ou PDF.",
     )
 
 
@@ -59,7 +59,7 @@ async def test_upload_rejects_oversized_file(client, auth_headers):
             files={"file": ("big.jpg", BytesIO(_11_MB), "image/jpeg")},
         ),
         400,
-        "Arquivo muito grande. Limite de 10 MB.",
+        "Arquivo muito grande. Limite de 10 MB para este tipo.",
     )
 
 

@@ -27,6 +27,7 @@ class ScoreBreakdown(BaseModel):
     conformes: int
     nao_conformes: int
     sem_resposta: int
+    na_count: int = 0
 
 
 class SubmissionResponse(BaseModel):
@@ -52,12 +53,26 @@ class SubmissionListItemResponse(BaseModel):
     finished_at: datetime | None
 
 
+class FormScoreStat(BaseModel):
+    form_id: str
+    form_name: str
+    avg_score: float
+    count: int
+
+
+class ScoreTrendPoint(BaseModel):
+    date: str
+    avg_score: float
+
+
 class CompanyStatsResponse(BaseModel):
     total_submissions: int
     completed: int
     in_progress: int
     avg_score: float | None
     recent: list[SubmissionListItemResponse]
+    score_by_form: list[FormScoreStat] = []
+    score_trend: list[ScoreTrendPoint] = []
 
 
 class NotificationItem(BaseModel):

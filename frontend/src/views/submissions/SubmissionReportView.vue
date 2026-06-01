@@ -4,9 +4,11 @@ import { useRoute, useRouter } from 'vue-router'
 
 import AppShell from '@/components/layout/AppShell.vue'
 import SvgIcon from '@/components/ui/SvgIcon.vue'
+import { listAttachments } from '@/services/attachments.service'
 import { fetchFormVersion } from '@/services/forms.service'
 import { exportSubmissionPdf } from '@/services/submissions.service'
 import { useSubmissionsStore } from '@/stores/submissions/submissions.store'
+import type { AttachmentItem } from '@/types/attachments'
 import type { FormField, FormVersion } from '@/types/forms'
 import type { SubmissionAnswer } from '@/types/submissions'
 
@@ -22,8 +24,10 @@ const isExporting  = ref(false)
 
 const TYPE_LABEL: Record<string, string> = {
   boolean: 'Sim/Não', text: 'Texto', number: 'Número',
-  date: 'Data', photo: 'Foto', select: 'Seleção',
+  date: 'Data', photo: 'Foto', select: 'Seleção', evidence: 'Evidências',
 }
+
+const evidenceAttachments = ref<Record<string, AttachmentItem[]>>({})
 
 onMounted(async () => {
   try {
@@ -33,6 +37,19 @@ onMounted(async () => {
         submission.value.form_id,
         submission.value.form_version_id,
       )
+      const evidenceFields = formVersion.value?.fields.filter((f) => f.field_type === 'evidence') ?? []
+      if (evidenceFields.length > 0) {
+        try {
+          const all = await listAttachments(submissionId.value)
+          const grouped: Record<string, AttachmentItem[]> = {}
+          for (const f of evidenceFields) {
+            grouped[f.key] = all.filter((a) => a.field_key === f.key)
+          }
+          evidenceAttachments.value = grouped
+        } catch {
+          // non-fatal
+        }
+      }
     }
   } finally {
     isLoading.value = false
@@ -57,12 +74,14 @@ const enrichedAnswers = computed<EnrichedAnswer[]>(() => {
   })
 })
 
-const boolAnswers  = computed(() => enrichedAnswers.value.filter(a => a.field.field_type === 'boolean'))
-const nonBoolAnswers = computed(() => enrichedAnswers.value.filter(a => a.field.field_type !== 'boolean' && a.field.field_type !== 'photo'))
-const photoAnswers = computed(() => enrichedAnswers.value.filter(a => a.field.field_type === 'photo' && a.value))
+const boolAnswers    = computed(() => enrichedAnswers.value.filter(a => a.field.field_type === 'boolean'))
+const nonBoolAnswers = computed(() => enrichedAnswers.value.filter(a => !['boolean', 'photo', 'evidence', 'section'].includes(a.field.field_type)))
+const photoAnswers   = computed(() => enrichedAnswers.value.filter(a => a.field.field_type === 'photo' && a.value))
+const evidenceFields = computed(() => enrichedAnswers.value.filter(a => a.field.field_type === 'evidence'))
 
 const conformes    = computed(() => boolAnswers.value.filter(a => a.value === true  || a.value === 'true').length)
 const naoConformes = computed(() => boolAnswers.value.filter(a => a.value === false || a.value === 'false').length)
+const naRespostas  = computed(() => boolAnswers.value.filter(a => a.value === 'na').length)
 const semResposta  = computed(() => boolAnswers.value.filter(a => a.value === null  || a.value === '' || a.value === undefined).length)
 
 const score = computed(() => submission.value?.score ?? null)
@@ -79,9 +98,10 @@ const scoreLabel = computed(() => {
   return score.value >= 85 ? 'Aprovado' : score.value >= 65 ? 'Atenção' : 'Reprovado'
 })
 
-function boolResult(val: unknown): 'ok' | 'err' | 'none' {
+function boolResult(val: unknown): 'ok' | 'err' | 'na' | 'none' {
   if (val === true  || val === 'true')  return 'ok'
   if (val === false || val === 'false') return 'err'
+  if (val === 'na') return 'na'
   return 'none'
 }
 
@@ -91,17 +111,22 @@ function formatValue(val: unknown, fieldType: string): string {
   return String(val)
 }
 
-async function handleExport() {
+async function handleExport(inline = false) {
   if (!submission.value) return
   isExporting.value = true
   try {
-    const blob = await exportSubmissionPdf(submissionId.value)
+    const blob = await exportSubmissionPdf(submissionId.value, inline)
     const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `inspecao-${submissionId.value}.pdf`
-    a.click()
-    setTimeout(() => URL.revokeObjectURL(url), 10_000)
+    if (inline) {
+      window.open(url, '_blank')
+      setTimeout(() => URL.revokeObjectURL(url), 60_000)
+    } else {
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `inspecao-${submissionId.value}.pdf`
+      a.click()
+      setTimeout(() => URL.revokeObjectURL(url), 10_000)
+    }
   } finally {
     isExporting.value = false
   }
@@ -131,12 +156,21 @@ async function handleExport() {
           </div>
           <div style="display:flex;gap:8px;flex-shrink:0;">
             <button
+              v-if="submission.status === 'completed'"
               type="button"
               class="btn-secondary btn-sm"
               :disabled="isExporting"
-              @click="handleExport"
+              @click="handleExport(true)"
             >
-              {{ isExporting ? 'Gerando...' : '↓ Exportar PDF' }}
+              {{ isExporting ? 'Gerando...' : '⤢ Visualizar PDF' }}
+            </button>
+            <button
+              type="button"
+              class="btn-secondary btn-sm"
+              :disabled="isExporting"
+              @click="handleExport(false)"
+            >
+              {{ isExporting ? 'Gerando...' : '↓ Baixar PDF' }}
             </button>
           </div>
         </div>
@@ -176,6 +210,10 @@ async function handleExport() {
                 <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--sa-muted);margin-bottom:3px;">Sem resposta</div>
                 <div style="font-size:14px;font-weight:700;color:var(--sa-muted);">{{ semResposta }}</div>
               </div>
+              <div v-if="naRespostas > 0" style="background:var(--sa-bg);border:1px solid var(--sa-line);border-radius:8px;padding:10px 12px;">
+                <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--sa-muted);margin-bottom:3px;">N/A</div>
+                <div style="font-size:14px;font-weight:700;color:var(--sa-muted);">{{ naRespostas }}</div>
+              </div>
               <div style="background:var(--sa-bg);border:1px solid var(--sa-line);border-radius:8px;padding:10px 12px;">
                 <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--sa-muted);margin-bottom:3px;">Concluído em</div>
                 <div style="font-size:13px;font-weight:700;color:var(--sa-text);">
@@ -203,16 +241,17 @@ async function handleExport() {
                 width: '20px', height: '20px', borderRadius: '50%', flexShrink: 0, marginTop: '3px',
                 background: boolResult(ans.value) === 'ok' ? 'var(--sa-ok-bg)' : boolResult(ans.value) === 'err' ? 'var(--sa-err-bg)' : 'var(--sa-line)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: '11px', fontWeight: 800,
+                fontSize: '9px', fontWeight: 800,
                 color: boolResult(ans.value) === 'ok' ? 'var(--sa-ok)' : boolResult(ans.value) === 'err' ? 'var(--sa-danger)' : 'var(--sa-muted)',
               }">
-                {{ boolResult(ans.value) === 'ok' ? '✓' : boolResult(ans.value) === 'err' ? '✗' : '—' }}
+                {{ boolResult(ans.value) === 'ok' ? '✓' : boolResult(ans.value) === 'err' ? '✗' : boolResult(ans.value) === 'na' ? 'N/A' : '—' }}
               </div>
               <div style="flex:1;min-width:0;">
                 <div class="frow-type">Campo {{ i + 1 }}{{ ans.field.required ? ' · Obrigatório' : '' }}</div>
                 <div class="frow-name" style="margin:2px 0 6px;">{{ ans.field.label }}</div>
                 <span v-if="boolResult(ans.value) === 'ok'"  style="font-size:13px;font-weight:700;color:var(--sa-ok);">✓ Sim (conforme)</span>
                 <span v-else-if="boolResult(ans.value) === 'err'" style="font-size:13px;font-weight:700;color:var(--sa-danger);">✗ Não (não conforme)</span>
+                <span v-else-if="boolResult(ans.value) === 'na'" style="font-size:13px;font-weight:600;color:var(--sa-muted);">N/A (não aplicável)</span>
                 <span v-else style="font-size:13px;color:var(--sa-muted);">—</span>
               </div>
             </div>
@@ -246,6 +285,47 @@ async function handleExport() {
                 />
                 <div style="font-size:11px;color:var(--sa-muted);margin-top:4px;text-align:center;">
                   {{ ans.field.label }}
+                </div>
+              </div>
+            </div>
+          </div>
+        </template>
+
+        <!-- Evidence fields (multi-file) -->
+        <template v-if="evidenceFields.length">
+          <div class="slabel" style="margin-bottom:10px;">Evidências</div>
+          <div class="fpanel" style="margin-bottom:16px;">
+            <div v-for="ans in evidenceFields" :key="ans.field.key" class="frow">
+              <div class="frow-type">{{ ans.field.label }}</div>
+              <div v-if="!evidenceAttachments[ans.field.key]?.length" style="font-size:13px;color:var(--sa-muted);margin-top:6px;">
+                Nenhuma evidência registrada.
+              </div>
+              <div v-else style="display:grid;gap:8px;margin-top:8px;">
+                <div
+                  v-for="att in evidenceAttachments[ans.field.key]"
+                  :key="att.id"
+                  style="display:flex;align-items:center;gap:10px;"
+                >
+                  <img
+                    v-if="att.mime_type.startsWith('image/')"
+                    :src="att.file_url"
+                    alt=""
+                    style="width:48px;height:48px;object-fit:cover;border-radius:6px;flex-shrink:0;"
+                  />
+                  <div
+                    v-else
+                    style="width:48px;height:48px;border-radius:6px;flex-shrink:0;background:var(--sa-line);display:flex;align-items:center;justify-content:center;font-size:20px;"
+                  >
+                    {{ att.mime_type.startsWith('video/') ? '🎬' : att.mime_type.startsWith('audio/') ? '🎵' : '📄' }}
+                  </div>
+                  <div style="flex:1;min-width:0;">
+                    <div style="font-size:12px;font-weight:600;color:var(--sa-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                      {{ att.file_url.split('/').pop() }}
+                    </div>
+                    <div style="font-size:11px;color:var(--sa-muted);margin-top:2px;">
+                      {{ att.mime_type }} · {{ (att.file_size / 1024).toFixed(0) }} KB
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

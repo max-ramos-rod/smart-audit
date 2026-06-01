@@ -27,11 +27,12 @@ const versionFields       = ref<FormFieldCreatePayload[]>([])
 
 const TYPE_LABEL: Record<string, string> = {
   boolean: 'Sim/Não', text: 'Texto', number: 'Número',
-  date: 'Data', photo: 'Foto', select: 'Seleção',
+  date: 'Data', photo: 'Foto', select: 'Seleção', evidence: 'Evidências',
 }
 const TYPE_COLOR: Record<string, string> = {
   boolean: 'var(--sa-brand)', text: 'var(--sa-muted)', number: 'var(--sa-ok)',
   date: 'var(--sa-warn)', photo: 'var(--sa-danger)', select: 'var(--sa-muted)',
+  evidence: 'var(--sa-brand)',
 }
 
 onMounted(async () => {
@@ -62,7 +63,13 @@ function createEmptyField(position: number): FormFieldCreatePayload {
 }
 
 function onFieldTypeChange(field: FormFieldCreatePayload) {
-  if (field.field_type !== 'select') field.config_json = {}
+  const { visible_if } = field.config_json
+  if (field.field_type === 'section') {
+    field.config_json = {}
+    field.required = false
+  } else {
+    field.config_json = visible_if ? { visible_if } : {}
+  }
 }
 
 function getOptionsString(field: FormFieldCreatePayload): string {
@@ -74,7 +81,71 @@ function getOptionsString(field: FormFieldCreatePayload): string {
 function setOptionsFromString(field: FormFieldCreatePayload, event: Event) {
   const opts = (event.target as HTMLInputElement).value
     .split(',').map(o => o.trim()).filter(Boolean)
-  field.config_json = opts.length ? { options: opts } : {}
+  const { visible_if } = field.config_json
+  const base: Record<string, unknown> = opts.length ? { options: opts } : {}
+  field.config_json = visible_if ? { ...base, visible_if } : base
+}
+
+function setFieldWeight(field: FormFieldCreatePayload, event: Event) {
+  const v = parseFloat((event.target as HTMLInputElement).value)
+  field.config_json = { ...field.config_json, weight: v || 1 }
+}
+
+function setFieldAllowNa(field: FormFieldCreatePayload, event: Event) {
+  const v = (event.target as HTMLSelectElement).value === 'true'
+  field.config_json = { ...field.config_json, allow_na: v }
+}
+
+function otherAnswerFields(field: FormFieldCreatePayload, index: number) {
+  return versionFields.value.filter((f, i) => i !== index && f.field_type !== 'section')
+}
+
+function triggerFieldForField(field: FormFieldCreatePayload, index: number): FormFieldCreatePayload | undefined {
+  const key = (field.config_json.visible_if as Record<string, string> | undefined)?.field_key
+  if (!key) return undefined
+  return versionFields.value.find((f, i) => i !== index && f.key === key)
+}
+
+function triggerFieldType(field: FormFieldCreatePayload, index: number): string {
+  return triggerFieldForField(field, index)?.field_type ?? ''
+}
+
+function triggerFieldOptions(field: FormFieldCreatePayload, index: number): string[] {
+  const tf = triggerFieldForField(field, index)
+  return Array.isArray(tf?.config_json?.options) ? (tf!.config_json.options as string[]) : []
+}
+
+function addVisibleIf(field: FormFieldCreatePayload) {
+  field.config_json = { ...field.config_json, visible_if: { field_key: '', operator: 'eq', value: 'true' } }
+}
+
+function clearVisibleIf(field: FormFieldCreatePayload) {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { visible_if: _vi, ...rest } = field.config_json as Record<string, unknown>
+  field.config_json = rest
+}
+
+function setVisibleIfTrigger(field: FormFieldCreatePayload, event: Event) {
+  const key = (event.target as HTMLSelectElement).value
+  const cur = (field.config_json.visible_if as Record<string, unknown>) ?? {}
+  field.config_json = { ...field.config_json, visible_if: { ...cur, field_key: key } }
+}
+
+function setVisibleIfOp(field: FormFieldCreatePayload, event: Event) {
+  const op = (event.target as HTMLSelectElement).value
+  const cur = (field.config_json.visible_if as Record<string, unknown>) ?? {}
+  field.config_json = { ...field.config_json, visible_if: { ...cur, operator: op } }
+}
+
+function setVisibleIfValue(field: FormFieldCreatePayload, event: Event) {
+  const val = (event.target as HTMLInputElement | HTMLSelectElement).value
+  const cur = (field.config_json.visible_if as Record<string, unknown>) ?? {}
+  field.config_json = { ...field.config_json, visible_if: { ...cur, value: val } }
+}
+
+function visibleIfProp(field: FormFieldCreatePayload, prop: string): string {
+  const vi = field.config_json.visible_if as Record<string, unknown> | undefined
+  return vi ? String(vi[prop] ?? '') : ''
 }
 
 function openVersionComposer() {
@@ -101,7 +172,12 @@ async function submitVersion() {
   versionError.value = null
   try {
     await formsStore.publishVersion(formId.value, {
-      fields: versionFields.value.map((f, i) => ({ ...f, position: i + 1 })),
+      fields: versionFields.value.map((f, i) => ({
+        ...f,
+        position: i + 1,
+        key: f.field_type === 'section' ? `__section_${i + 1}__` : f.key,
+        required: f.field_type === 'section' ? false : f.required,
+      })),
     })
     formDetail.value = await fetchForm(formId.value)
     showVersionComposer.value = false
@@ -210,8 +286,11 @@ async function submitVersion() {
                   <button v-if="versionFields.length > 1" type="button" class="btn-secondary btn-sm" @click="removeVersionField(index)">Remover</button>
                 </div>
                 <div style="display:grid;gap:10px;grid-template-columns:1fr 1fr;">
-                  <label style="display:grid;gap:6px;"><span>Chave</span><input v-model="field.key" type="text" required /></label>
-                  <label style="display:grid;gap:6px;"><span>Label</span><input v-model="field.label" type="text" required /></label>
+                  <label v-if="field.field_type !== 'section'" style="display:grid;gap:6px;"><span>Chave</span><input v-model="field.key" type="text" required /></label>
+                  <label :style="field.field_type === 'section' ? 'display:grid;gap:6px;grid-column:1/-1;' : 'display:grid;gap:6px;'">
+                    <span>{{ field.field_type === 'section' ? 'Título da seção' : 'Label' }}</span>
+                    <input v-model="field.label" type="text" required />
+                  </label>
                   <label style="display:grid;gap:6px;">
                     <span>Tipo</span>
                     <select v-model="field.field_type" @change="onFieldTypeChange(field)">
@@ -221,19 +300,77 @@ async function submitVersion() {
                       <option value="select">Seleção</option>
                       <option value="date">Data</option>
                       <option value="photo">Foto</option>
+                      <option value="evidence">Evidências</option>
+                      <option value="section">── Seção ──</option>
                     </select>
                   </label>
-                  <label style="display:grid;gap:6px;">
+                  <label v-if="field.field_type !== 'section'" style="display:grid;gap:6px;">
                     <span>Obrigatório</span>
                     <select v-model="field.required">
                       <option :value="true">Sim</option>
                       <option :value="false">Não</option>
                     </select>
                   </label>
+                  <label v-if="field.field_type === 'boolean'" style="display:grid;gap:6px;">
+                    <span>Peso</span>
+                    <input
+                      :value="field.config_json.weight ?? 1"
+                      type="number" min="0.1" step="0.1"
+                      @input="setFieldWeight(field, $event)"
+                    />
+                  </label>
+                  <label v-if="field.field_type === 'boolean'" style="display:grid;gap:6px;">
+                    <span>Permite N/A</span>
+                    <select
+                      :value="field.config_json.allow_na ? 'true' : 'false'"
+                      @change="setFieldAllowNa(field, $event)"
+                    >
+                      <option value="false">Não</option>
+                      <option value="true">Sim</option>
+                    </select>
+                  </label>
                   <label v-if="field.field_type === 'select'" style="display:grid;gap:6px;grid-column:1/-1;">
                     <span>Opções (separadas por vírgula)</span>
                     <input :value="getOptionsString(field)" type="text" placeholder="Ex: Conforme, Não conforme, Parcial" @input="setOptionsFromString(field, $event)" />
                   </label>
+
+                  <!-- Conditional visibility rule -->
+                  <div v-if="field.field_type !== 'section'" style="grid-column:1/-1;border-top:1px solid var(--sa-line);padding-top:10px;margin-top:2px;">
+                    <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--sa-muted);margin-bottom:8px;">Visibilidade condicional</div>
+                    <div v-if="!field.config_json.visible_if">
+                      <button type="button" class="btn-secondary btn-sm" @click="addVisibleIf(field)">+ Adicionar condição</button>
+                    </div>
+                    <div v-else style="display:grid;grid-template-columns:1fr 160px 1fr auto;gap:8px;align-items:end;">
+                      <label style="display:grid;gap:4px;">
+                        <span style="font-size:11px;color:var(--sa-muted);">Exibir se o campo</span>
+                        <select :value="visibleIfProp(field, 'field_key')" @change="setVisibleIfTrigger(field, $event)">
+                          <option value="">— selecione —</option>
+                          <option v-for="f in otherAnswerFields(field, index)" :key="f.key" :value="f.key">{{ f.label || f.key }}</option>
+                        </select>
+                      </label>
+                      <label style="display:grid;gap:4px;">
+                        <span style="font-size:11px;color:var(--sa-muted);">Operador</span>
+                        <select :value="visibleIfProp(field, 'operator')" @change="setVisibleIfOp(field, $event)">
+                          <option value="eq">é igual a</option>
+                          <option value="neq">é diferente de</option>
+                        </select>
+                      </label>
+                      <label style="display:grid;gap:4px;">
+                        <span style="font-size:11px;color:var(--sa-muted);">Valor</span>
+                        <select v-if="triggerFieldType(field, index) === 'boolean'" :value="visibleIfProp(field, 'value')" @change="setVisibleIfValue(field, $event)">
+                          <option value="true">Sim</option>
+                          <option value="false">Não</option>
+                          <option value="na">N/A</option>
+                        </select>
+                        <select v-else-if="triggerFieldType(field, index) === 'select'" :value="visibleIfProp(field, 'value')" @change="setVisibleIfValue(field, $event)">
+                          <option value="">— selecione —</option>
+                          <option v-for="opt in triggerFieldOptions(field, index)" :key="opt" :value="opt">{{ opt }}</option>
+                        </select>
+                        <input v-else :value="visibleIfProp(field, 'value')" type="text" placeholder="valor esperado" @input="setVisibleIfValue(field, $event)" />
+                      </label>
+                      <button type="button" class="btn-secondary btn-sm" style="align-self:end;" @click="clearVisibleIf(field)" title="Remover condição">✕</button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -252,44 +389,52 @@ async function submitVersion() {
           Campos da versão atual (v{{ formDetail.current_version.version }})
         </div>
         <div class="fpanel">
-          <div
-            v-for="(field, i) in formDetail.current_version.fields"
-            :key="field.id"
-            class="frow"
-            style="display:flex;align-items:flex-start;gap:12px;"
-          >
-            <!-- Type icon -->
-            <div :style="{
-              width: '22px', height: '22px', borderRadius: '6px', flexShrink: 0, marginTop: '2px',
-              background: (TYPE_COLOR[field.field_type] ?? 'var(--sa-muted)') + '18',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }">
-              <span :style="{
-                fontSize: '9px', fontWeight: 800,
-                color: TYPE_COLOR[field.field_type] ?? 'var(--sa-muted)',
-                letterSpacing: '.04em',
+          <template v-for="(field, i) in formDetail.current_version.fields">
+            <!-- Section divider -->
+            <div v-if="field.field_type === 'section'" :key="`sec-${field.id}`" class="section-divider">
+              <span>{{ field.label }}</span>
+            </div>
+
+            <!-- Regular field row -->
+            <div
+              v-else
+              :key="field.id"
+              class="frow"
+              style="display:flex;align-items:flex-start;gap:12px;"
+            >
+              <!-- Type icon -->
+              <div :style="{
+                width: '22px', height: '22px', borderRadius: '6px', flexShrink: 0, marginTop: '2px',
+                background: (TYPE_COLOR[field.field_type] ?? 'var(--sa-muted)') + '18',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
               }">
-                {{ (TYPE_LABEL[field.field_type] ?? field.field_type).slice(0, 3).toUpperCase() }}
-              </span>
-            </div>
-
-            <!-- Info -->
-            <div style="flex:1;min-width:0;">
-              <div class="frow-type">
-                {{ TYPE_LABEL[field.field_type] ?? field.field_type }}{{ field.required ? ' · Obrigatório' : '' }}
+                <span :style="{
+                  fontSize: '9px', fontWeight: 800,
+                  color: TYPE_COLOR[field.field_type] ?? 'var(--sa-muted)',
+                  letterSpacing: '.04em',
+                }">
+                  {{ (TYPE_LABEL[field.field_type] ?? field.field_type).slice(0, 3).toUpperCase() }}
+                </span>
               </div>
-              <div style="font-size:13px;font-weight:600;color:var(--sa-text);margin-top:2px;">{{ field.label }}</div>
-              <div style="font-size:11px;color:var(--sa-muted);font-family:'DM Mono',monospace;margin-top:2px;">{{ field.key }}</div>
-            </div>
 
-            <!-- Position badge -->
-            <span :style="{
-              fontSize: '10px', fontWeight: 700, padding: '2px 6px', borderRadius: '4px',
-              background: (TYPE_COLOR[field.field_type] ?? 'var(--sa-muted)') + '15',
-              color: TYPE_COLOR[field.field_type] ?? 'var(--sa-muted)',
-              flexShrink: 0, textTransform: 'uppercase', letterSpacing: '.06em',
-            }">{{ i + 1 }}</span>
-          </div>
+              <!-- Info -->
+              <div style="flex:1;min-width:0;">
+                <div class="frow-type">
+                  {{ TYPE_LABEL[field.field_type] ?? field.field_type }}{{ field.required ? ' · Obrigatório' : '' }}
+                </div>
+                <div style="font-size:13px;font-weight:600;color:var(--sa-text);margin-top:2px;">{{ field.label }}</div>
+                <div style="font-size:11px;color:var(--sa-muted);font-family:'DM Mono',monospace;margin-top:2px;">{{ field.key }}</div>
+              </div>
+
+              <!-- Position badge -->
+              <span :style="{
+                fontSize: '10px', fontWeight: 700, padding: '2px 6px', borderRadius: '4px',
+                background: (TYPE_COLOR[field.field_type] ?? 'var(--sa-muted)') + '15',
+                color: TYPE_COLOR[field.field_type] ?? 'var(--sa-muted)',
+                flexShrink: 0, textTransform: 'uppercase', letterSpacing: '.06em',
+              }">{{ i + 1 }}</span>
+            </div>
+          </template>
         </div>
 
         <!-- Recent submissions -->

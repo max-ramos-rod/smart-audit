@@ -89,6 +89,8 @@ describe('context.store', () => {
       in_progress: 0,
       avg_score: null,
       recent: [],
+      score_by_form: [],
+      score_trend: [],
     })
 
     const store = useContextStore()

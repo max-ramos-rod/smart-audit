@@ -6,6 +6,7 @@ import AppShell from '@/components/layout/AppShell.vue'
 import { useAuthStore } from '@/stores/auth/auth.store'
 import { useContextStore } from '@/stores/context/context.store'
 import { useFormsStore } from '@/stores/forms/forms.store'
+import type { ScoreTrendPoint } from '@/types/context'
 
 const router = useRouter()
 const contextStore = useContextStore()
@@ -33,6 +34,23 @@ const greeting = computed(() => {
 })
 
 const activeForms = computed(() => formsStore.items.filter((f) => f.is_active).slice(0, 3))
+
+const sparklinePoints = computed(() => {
+  const trend = stats.value?.score_trend
+  if (!trend?.length) return ''
+  const n = trend.length
+  const scores = trend.map((p: ScoreTrendPoint) => p.avg_score)
+  const minS = Math.min(...scores)
+  const maxS = Math.max(...scores)
+  const range = maxS - minS || 1
+  return trend
+    .map((p: ScoreTrendPoint, i: number) => {
+      const x = n === 1 ? 150 : (i / (n - 1)) * 300
+      const y = 56 - ((p.avg_score - minS) / range) * 52
+      return `${x.toFixed(1)},${y.toFixed(1)}`
+    })
+    .join(' ')
+})
 
 async function setPeriod(period: string) {
   activePeriod.value = period
@@ -109,6 +127,55 @@ function statusLabel(status: string) {
           <div class="sc-desc">inspeções concluídas</div>
         </article>
       </div>
+
+      <template v-if="stats?.score_by_form?.length">
+        <div class="slabel" style="margin-bottom: 10px;">Score por formulário</div>
+        <div class="dash-chart-card" style="margin-bottom: 20px;">
+          <div
+            v-for="item in stats.score_by_form"
+            :key="item.form_id"
+            class="dash-bar-row"
+          >
+            <div class="dash-bar-label" :title="item.form_name">{{ item.form_name }}</div>
+            <div class="dash-bar-track">
+              <div
+                class="dash-bar-fill"
+                :style="{ width: item.avg_score + '%' }"
+                :class="item.avg_score >= 85 ? 'fill-ok' : item.avg_score >= 65 ? 'fill-warn' : 'fill-err'"
+              ></div>
+            </div>
+            <div class="dash-bar-pct" :class="item.avg_score >= 85 ? 'pct-ok' : item.avg_score >= 65 ? 'pct-warn' : 'pct-err'">
+              {{ item.avg_score }}%
+            </div>
+            <div class="dash-bar-count">{{ item.count }}x</div>
+          </div>
+        </div>
+      </template>
+
+      <template v-if="stats?.score_trend?.length">
+        <div class="slabel" style="margin-bottom: 10px;">Tendência (30 dias)</div>
+        <div class="dash-chart-card dash-sparkline-card" style="margin-bottom: 20px;">
+          <svg
+            class="dash-sparkline"
+            viewBox="0 0 300 60"
+            preserveAspectRatio="none"
+            aria-hidden="true"
+          >
+            <polyline
+              :points="sparklinePoints"
+              fill="none"
+              stroke="var(--sa-brand)"
+              stroke-width="2"
+              stroke-linejoin="round"
+              stroke-linecap="round"
+            />
+          </svg>
+          <div class="dash-spark-labels">
+            <span>{{ stats.score_trend[0]?.date?.slice(5) }}</span>
+            <span>{{ stats.score_trend[stats.score_trend.length - 1]?.date?.slice(5) }}</span>
+          </div>
+        </div>
+      </template>
 
       <template v-if="stats?.recent?.length">
         <div class="slabel">Inspeções recentes</div>

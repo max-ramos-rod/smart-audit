@@ -17,8 +17,10 @@ from app.modules.submissions.pdf import generate_submission_pdf
 from app.modules.submissions.repository import SubmissionRepository
 from app.modules.submissions.schemas import (
     CompanyStatsResponse,
+    FormScoreStat,
     NotificationItem,
     ScoreBreakdown,
+    ScoreTrendPoint,
     SubmissionAnswerResponse,
     SubmissionAnswersUpdateRequest,
     SubmissionCreateRequest,
@@ -133,12 +135,16 @@ class SubmissionService:
         since = self.parse_period_start(period)
         counts = await self.repository.get_company_stats(db, company_id, since=since)
         recent = await self.repository.list_recent(db, company_id, since=since)
+        score_by_form_rows = await self.repository.get_score_by_form(db, company_id, since=since)
+        score_trend_rows = await self.repository.get_score_trend(db, company_id)
         return CompanyStatsResponse(
             total_submissions=counts["total"],
             completed=counts["completed"],
             in_progress=counts["in_progress"],
             avg_score=counts["avg_score"],
             recent=[self.serialize_submission_list_item(s) for s in recent],
+            score_by_form=[FormScoreStat(**row) for row in score_by_form_rows],
+            score_trend=[ScoreTrendPoint(**row) for row in score_trend_rows],
         )
 
     async def list_submissions(
@@ -233,6 +239,8 @@ class SubmissionService:
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Campo invalido: {answer.field_key}.",
                 )
+            if field.field_type == "section":
+                continue
 
             normalized_value = self.normalize_value(field, answer.value)
             submission_value = await self.repository.get_submission_value_by_field_id(
@@ -250,12 +258,15 @@ class SubmissionService:
             submission_value.value_json = None
 
             if field.field_type == "boolean":
-                submission_value.value_boolean = normalized_value
+                if normalized_value == "na":
+                    submission_value.value_text = "na"
+                else:
+                    submission_value.value_boolean = normalized_value
             elif field.field_type == "number":
                 submission_value.value_number = normalized_value
             elif field.field_type == "date":
                 submission_value.value_date = normalized_value
-            elif field.field_type in {"select"} and isinstance(normalized_value, dict):
+            elif field.field_type in {"select", "evidence"} and isinstance(normalized_value, dict):
                 submission_value.value_json = normalized_value
             else:
                 submission_value.value_text = normalized_value
@@ -286,9 +297,21 @@ class SubmissionService:
             )
 
         answers_by_field_id = {str(value.form_field_id): value for value in submission.values}
+        answers_snapshot = submission.answers_json or {}
         missing_required = []
         for field in submission.form_version.fields:
-            if field.required and str(field.id) not in answers_by_field_id:
+            if not field.required:
+                continue
+            visible_if = field.config_json.get("visible_if") if field.config_json else None
+            if visible_if:
+                trigger_key = visible_if.get("field_key", "")
+                operator = visible_if.get("operator", "eq")
+                expected = str(visible_if.get("value", "")).lower()
+                actual = str(answers_snapshot.get(trigger_key, "")).lower()
+                is_visible = (actual == expected) if operator == "eq" else (actual != expected)
+                if not is_visible:
+                    continue
+            if str(field.id) not in answers_by_field_id:
                 missing_required.append(field.key)
 
         if missing_required:
@@ -334,6 +357,18 @@ class SubmissionService:
             for f in sorted_fields
         ]
 
+        breakdown = self.calculate_score_breakdown(submission)
+        score_breakdown_dict = (
+            {
+                "total_boolean": breakdown.total_boolean,
+                "conformes": breakdown.conformes,
+                "nao_conformes": breakdown.nao_conformes,
+                "sem_resposta": breakdown.sem_resposta,
+                "na_count": breakdown.na_count,
+            }
+            if breakdown
+            else None
+        )
         return generate_submission_pdf(
             company_name=submission.company.name,
             form_name=submission.form_version.form.name,
@@ -344,6 +379,7 @@ class SubmissionService:
             started_at=submission.started_at,
             finished_at=submission.finished_at,
             fields_with_answers=fields_with_answers,
+            score_breakdown=score_breakdown_dict,
         )
 
     @staticmethod
@@ -359,7 +395,11 @@ class SubmissionService:
 
     @staticmethod
     def normalize_value(field: FormField, value):
+        if field.field_type == "section":
+            return None
         if field.field_type == "boolean":
+            if value == "na" and field.config_json.get("allow_na"):
+                return "na"
             if not isinstance(value, bool):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -391,6 +431,13 @@ class SubmissionService:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Campo {field.key} espera dict ou string para select.",
             )
+        if field.field_type == "evidence":
+            if isinstance(value, dict):
+                return value
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Campo {field.key} espera dict para evidence.",
+            )
         if value is None:
             return None
         if not isinstance(value, str):
@@ -415,9 +462,14 @@ class SubmissionService:
         conformes = 0
         nao_conformes = 0
         sem_resposta = 0
+        na_count = 0
         for field in boolean_fields:
             sv = values_by_field_id.get(str(field.id))
-            if sv is None or sv.value_boolean is None:
+            if sv is None:
+                sem_resposta += 1
+            elif sv.value_text == "na":
+                na_count += 1
+            elif sv.value_boolean is None:
                 sem_resposta += 1
             elif sv.value_boolean:
                 conformes += 1
@@ -428,26 +480,33 @@ class SubmissionService:
             conformes=conformes,
             nao_conformes=nao_conformes,
             sem_resposta=sem_resposta,
+            na_count=na_count,
         )
 
     @staticmethod
     def calculate_score(submission: Submission) -> float | None:
-        boolean_answers = []
+        weighted_conformes = 0.0
+        weighted_total = 0.0
         for field in submission.form_version.fields:
             if field.field_type != "boolean":
                 continue
-            submission_value = next(
+            weight = float(field.config_json.get("weight") or 1.0)
+            sv = next(
                 (item for item in submission.values if str(item.form_field_id) == str(field.id)),
                 None,
             )
-            if submission_value is not None and submission_value.value_boolean is not None:
-                boolean_answers.append(submission_value.value_boolean)
+            if sv is None:
+                continue
+            extracted = SubmissionService.extract_value(sv, "boolean")
+            if extracted is None or extracted == "na":
+                continue
+            weighted_total += weight
+            if extracted is True:
+                weighted_conformes += weight
 
-        if not boolean_answers:
+        if weighted_total == 0:
             return None
-
-        approved = sum(1 for item in boolean_answers if item)
-        return round((approved / len(boolean_answers)) * 100, 2)
+        return round((weighted_conformes / weighted_total) * 100, 2)
 
     @staticmethod
     def serialize_submission(submission: Submission) -> SubmissionResponse:
@@ -492,6 +551,8 @@ class SubmissionService:
     @staticmethod
     def extract_value(submission_value: SubmissionValue, field_type: str):
         if field_type == "boolean":
+            if submission_value.value_text == "na":
+                return "na"
             return submission_value.value_boolean
         if field_type == "number":
             return (
@@ -501,6 +562,6 @@ class SubmissionService:
             )
         if field_type == "date":
             return submission_value.value_date
-        if field_type == "select" and submission_value.value_json is not None:
+        if field_type in {"select", "evidence"} and submission_value.value_json is not None:
             return submission_value.value_json
         return submission_value.value_text

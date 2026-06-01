@@ -21,11 +21,10 @@ Stack atual:
 - Frontend: Vue 3, Pinia, Vue Router, Tailwind CSS v4, Axios, Vitest, Playwright — porta `5174`
 - Uploads: armazenamento local em disco
 
-Baseline validado em `2026-05-28`:
+Baseline validado em `2026-05-31`:
 
-- backend: `143 passed, 3 skipped`
+- backend: `191 passed, 3 skipped`
 - frontend Vitest (19 arquivos): `119 passed`
-- frontend Playwright E2E (8 arquivos): `53 passed`
 - frontend build: `npm run build` OK
 
 ## 2. Estado real do produto
@@ -35,16 +34,25 @@ O Smart Audit ja nao esta mais em fase apenas de fundacao. O estado atual do cod
 - autenticacao JWT funcional
 - recuperacao de senha completa (forgot-password + reset via token com TTL de 1h)
 - contexto de empresa ativa e selecao de empresa
-- dashboard com metricas por periodo
+- dashboard com metricas por periodo, grafico de score por formulario e sparkline de tendencia 30 dias
 - CRUD de usuarios
 - CRUD de equipes e membros
-- formularios versionados
+- formularios versionados com suporte a secoes, evidencias e configuracao avancada por campo
+- campos de formulario configurados via `config_json`: peso, allow_na, opcoes de select, visible_if
+- regras condicionais `visible_if`: campos visiveis/obrigatorios apenas quando condicao e satisfeita
+- tipos de campo: `boolean`, `text`, `number`, `select`, `date`, `photo`, `evidence`, `section`
 - detalhe de formulario e historico de versoes
-- inspecoes com respostas tipadas e score
-- finalizacao de inspecao com calculo de score
-- evidencias anexadas por upload local
-- relatorio e exportacao PDF de inspecao
+- inspecoes com respostas tipadas e score ponderado por peso de campo
+- suporte a resposta N/A em campos booleanos com `allow_na: true`
+- modo de inspecao (card a card) e modo lista com carga progressiva (`load more`)
+- barra de progresso e atalhos rapidos por secao na execucao da inspecao
+- finalizacao de inspecao com calculo de score ponderado
+- validacao de campos obrigatorios com respeito a regras `visible_if`
+- score_breakdown com contagem de conformes, nao conformes, sem resposta e N/A
+- relatorio detalhado por inspecao com exportacao PDF profissional
+- PDF inclui: bloco de score colorido, chips de breakdown, divisores de secao, linhas coloridas por resultado
 - exportacao CSV de inspecoes com filtro de status
+- evidencias anexadas por upload local (imagem, video, audio, PDF)
 - busca em tempo real por formularios e inspecoes (`GET /search?q=`)
 - perfil do usuario (nome, senha, empresas vinculadas)
 - configuracoes da empresa (dados cadastrais, fuso horario, guard de role)
@@ -72,9 +80,9 @@ Capacidades ativas:
 - `GET /api/v1/me/companies`
 - `GET /api/v1/me/context`
 - `PATCH /api/v1/me`
-- `GET /api/v1/me/stats`
+- `GET /api/v1/me/stats` — retorna metricas por periodo com `score_by_form` e `score_trend`
 - `GET /api/v1/me/notifications` — derivadas de submissions; retorna `read: bool` persistido
-- `POST /api/v1/me/notifications/read` — marca uma notificacao como lida (persiste em `notification_reads`)
+- `POST /api/v1/me/notifications/read` — marca uma notificacao como lida
 - `POST /api/v1/me/notifications/read-all` — marca todas as notificacoes fornecidas como lidas
 - `GET /api/v1/companies/me`
 - `PATCH /api/v1/companies/me` (requer OWNER ou ADMIN)
@@ -92,10 +100,45 @@ Entidades principais:
 Capacidades ativas:
 
 - listagem paginada
-- criacao
-- publicacao de nova versao
+- criacao com campos tipados e configurados via `config_json`
+- publicacao de nova versao (imutavel pos-publicacao)
 - leitura de versao especifica
 - historico de versoes
+
+Configuracao de campo via `config_json`:
+
+| Propriedade | Tipo | Campo aplicavel | Descricao |
+|---|---|---|---|
+| `weight` | `float` | `boolean` | Peso no calculo do score ponderado (default 1.0) |
+| `allow_na` | `bool` | `boolean` | Habilita resposta N/A |
+| `options` | `string[]` | `select` | Opcoes do dropdown |
+| `visible_if` | `object` | qualquer | Regra de visibilidade condicional |
+
+Estrutura de `visible_if`:
+
+```json
+{
+  "field_key": "eh_perigoso",
+  "operator": "eq",
+  "value": true
+}
+```
+
+- `operator`: `"eq"` (igual) ou `"neq"` (diferente)
+- campo oculto pela regra nao e validado como obrigatorio na finalizacao
+
+Tipos de campo suportados:
+
+| Tipo | Armazenamento | Observacao |
+|---|---|---|
+| `boolean` | `value_boolean` | Aceita `true`, `false` ou `"na"` (com `allow_na: true`) |
+| `text` | `value_text` | String livre |
+| `number` | `value_number` | Float |
+| `date` | `value_date` | ISO 8601 |
+| `select` | `value_json` | `{ "option": "valor" }` |
+| `photo` | `value_text` | URL do arquivo |
+| `evidence` | `value_json` | Metadados de multiplos arquivos |
+| `section` | — | Divisor visual; nao gera `submission_value` |
 
 ### Inspecoes
 
@@ -111,10 +154,21 @@ Capacidades ativas:
 - criacao de inspecao
 - listagem com filtros (status, form_id, created_by)
 - detalhe
-- salvamento de respostas tipadas
-- finalizacao e calculo de score
-- exportacao PDF por inspecao
+- salvamento de respostas tipadas (todos os tipos de campo)
+- resposta N/A em booleanos com `allow_na: true` (armazenada como `value_text = "na"`)
+- finalizacao com validacao de campos obrigatorios visiveis (visible_if avaliado contra `answers_json`)
+- calculo de score ponderado por peso de campo (campos N/A e sem resposta sao excluidos)
+- score_breakdown: `conformes`, `nao_conformes`, `sem_resposta`, `na_count`, `total_boolean`
+- exportacao PDF individual com score profissional
 - exportacao CSV da lista (com filtro de status)
+
+Calculo de score:
+
+```
+score = sum(weight_i for boolean_i == true) / sum(weight_i for boolean_i answered and not na) * 100
+```
+
+Campos sem resposta e N/A nao entram no denominador.
 
 ### Evidencias
 
@@ -124,15 +178,16 @@ Entidade principal:
 
 - `attachments`
 
+Relacionamento: `attachments` vincula ao `submission_value` correspondente ao campo de evidencia.
+
 ### Uploads
 
-Responsavel por receber arquivos de imagem e gravar em disco.
-
-Observacao:
+Responsavel por receber arquivos e gravar em disco.
 
 - nao existe modulo de dominio separado para uploads
 - a logica fica encapsulada no router
-- isso e aceitavel no estado atual porque o caso de uso e pequeno e bem isolado
+- tipos permitidos: `image/jpeg`, `image/png`, `image/webp`, `video/mp4`, `video/mov`, `video/avi`, `audio/mpeg`, `audio/wav`, `audio/ogg`, `audio/m4a`, `application/pdf`
+- limite: 10 MB
 
 ### Equipes
 
@@ -166,11 +221,26 @@ A visao analitica e derivada de `submissions`. Nao existe tabela propria de noti
 Capacidades ativas:
 
 - metricas em `/api/v1/me/stats` com filtro por periodo `7d | 30d | 90d | all`
+- `score_by_form`: media de score por formulario (ultimos 10, ordem crescente — piores primeiro)
+- `score_trend`: media diaria de score dos ultimos 30 dias
 - notificacoes em `/api/v1/me/notifications`: derivadas em tempo real das submissions
-  - inspeções `in_progress` ha mais de 24h geram alerta `pending`
+  - inspecoes `in_progress` ha mais de 24h geram alerta `pending`
   - `completed` com score < 80% geram alerta `low_score`
   - `completed` com score >= 90% geram alerta `excellent`
-  - mark-as-read e dismiss existem so no estado local do frontend
+
+### Relatorio e exportacao PDF
+
+Responsavel por gerar o relatorio visual de uma inspecao em PDF.
+
+Capacidades ativas:
+
+- `GET /api/v1/submissions/{id}/export` — download do PDF
+- `GET /api/v1/submissions/{id}/export?inline=true` — abertura inline no browser
+- conteudo do PDF: bloco de score colorido (verde/amarelo/vermelho), chips de breakdown, tabela de respostas, divisores de secao, rodape com contagem de campos
+
+Restricoes:
+
+- PDF gerado com fpdf2 usando fonte Helvetica (Latin-1); caracteres fora de Latin-1 nao sao suportados
 
 ## 4. Arquitetura backend
 
@@ -234,6 +304,7 @@ Padrao principal:
 - handlers de erro: [backend/app/core/errors.py](/c:/Projetos/smart-audit/backend/app/core/errors.py)
 - envelopes: [backend/app/core/responses.py](/c:/Projetos/smart-audit/backend/app/core/responses.py)
 - router principal: [backend/app/api/v1/router.py](/c:/Projetos/smart-audit/backend/app/api/v1/router.py)
+- gerador PDF: [backend/app/modules/submissions/pdf.py](/c:/Projetos/smart-audit/backend/app/modules/submissions/pdf.py)
 
 ## 5. Arquitetura frontend
 
@@ -271,6 +342,20 @@ Referencias:
 - context store: [frontend/src/stores/context/context.store.ts](/c:/Projetos/smart-audit/frontend/src/stores/context/context.store.ts)
 - app shell: [frontend/src/components/layout/AppShell.vue](/c:/Projetos/smart-audit/frontend/src/components/layout/AppShell.vue)
 
+### Modo de inspecao
+
+A view `SubmissionDetailView.vue` opera em dois modos:
+
+- **Modo lista**: exibe todos os campos em scroll, com carga progressiva (`load more`, lote de 50)
+- **Modo inspecao**: exibe um campo por vez (card), com navegacao Anterior/Proximo
+
+Computeds relevantes:
+
+- `visibleFields`: filtra campos por regras `visible_if` avaliadas contra `draftAnswers`
+- `answerableFields`: campos visiveis e respondiveis (exclui secoes)
+- `progressPct`: percentual respondido dos campos respondiveis
+- `formSections`: lista de secoes para atalhos rapidos de navegacao
+
 ## 6. Design system e front-end visual
 
 O frontend atual ja incorporou boa parte do redesign em curso.
@@ -283,23 +368,23 @@ Base visual ativa:
 - shell dark sidebar + bottom nav mobile
 - icones SVG centralizados
 
+Classes CSS de inspecao:
+
+- `.insp-card`, `.insp-meta`, `.insp-section`, `.insp-counter`, `.insp-nav` — modo inspecao
+- `.insp-progress-bar`, `.insp-progress-fill` — barra de progresso
+- `.section-jump-bar`, `.section-jump-chip` — atalhos de secao
+- `.section-divider` — divisor visual de secao no modo lista
+
+Classes CSS de dashboard:
+
+- `.dash-chart-card`, `.dash-bar-row`, `.dash-bar-fill`, `.dash-bar-pct` — grafico de barras por formulario
+- `.dash-sparkline`, `.dash-spark-labels` — sparkline de tendencia
+
 Referencias:
 
 - estilos base: [frontend/src/style.css](/c:/Projetos/smart-audit/frontend/src/style.css)
 - icones: [frontend/src/components/ui/AppIcons.ts](/c:/Projetos/smart-audit/frontend/src/components/ui/AppIcons.ts)
 - renderer de icone: [frontend/src/components/ui/SvgIcon.vue](/c:/Projetos/smart-audit/frontend/src/components/ui/SvgIcon.vue)
-
-### Relacao com `redesign-handoff/`
-
-A pasta `redesign-handoff/` nao e mais uma proposta isolada.
-
-Hoje ela funciona como:
-
-- referencia historica do redesign
-- material de handoff para ajustes incrementais
-- comparativo entre prototipo visual e app real
-
-Ela nao deve mais ser aplicada por substituicao integral sem comparar com o estado atual do frontend.
 
 ## 7. Modulos e rotas implementados
 
@@ -310,10 +395,10 @@ Rotas agregadas hoje:
 - `health`
 - `auth` (login, me, forgot-password, reset-password)
 - `companies`
-- `me` (context, companies, stats, notifications)
+- `me` (context, companies, stats com score_by_form/score_trend, notifications)
 - `users`
 - `forms`
-- `submissions` (CRUD, answers, finish, export CSV, export PDF)
+- `submissions` (CRUD, answers, finish, export CSV, export PDF com `?inline`)
 - `search`
 - `teams`
 - `attachments`
@@ -327,14 +412,14 @@ Rotas de interface existentes hoje:
 - `/forgot-password`
 - `/reset-password` (recebe `?token=` na query string)
 - `/select-company`
-- `/`
+- `/` — dashboard com metricas, barras de score por formulario, sparkline de tendencia
 - `/users`
 - `/forms`
-- `/forms/:formId`
+- `/forms/:formId` — editor com secoes, peso, allow_na, visible_if
 - `/forms/:formId/versions`
 - `/submissions`
-- `/submissions/:id`
-- `/submissions/:id/report`
+- `/submissions/:id` — execucao com modo inspecao e modo lista, progresso, atalhos de secao
+- `/submissions/:id/report` — relatorio com botoes "Visualizar PDF" e "Baixar PDF"
 - `/profile`
 - `/company-settings`
 - `/notifications`
@@ -381,36 +466,66 @@ Rotas de interface existentes hoje:
 
 Observacao: mensagens de erro do backend nao usam acentos para evitar problemas de encoding em logs.
 
+### Resposta de stats (`GET /me/stats`)
+
+```json
+{
+  "data": {
+    "total_submissions": 42,
+    "completed": 35,
+    "in_progress": 7,
+    "avg_score": 87.5,
+    "recent": [...],
+    "score_by_form": [
+      { "form_id": "...", "form_name": "Checklist A", "avg_score": 72.3, "count": 5 }
+    ],
+    "score_trend": [
+      { "date": "2026-05-01", "avg_score": 81.0 }
+    ]
+  }
+}
+```
+
 ## 9. Testes
 
 ### Backend
 
-Estado validado em `2026-05-28`:
+Estado validado em `2026-05-31`:
 
-- `143 passed, 3 skipped`
+- `191 passed, 3 skipped`
 
 Cobertura atual:
 
-| Arquivo | Tipo |
-|---|---|
-| `test_auth.py` | integracao |
-| `test_password_reset.py` | integracao |
-| `test_forms.py` | integracao |
-| `test_submissions.py` | integracao |
-| `test_submissions_export.py` | integracao |
-| `test_search.py` | integracao |
-| `test_users.py` | integracao |
-| `test_teams.py` | integracao |
-| `test_companies.py` | integracao |
-| `test_me.py` | integracao |
-| `test_uploads.py` | integracao |
-| `test_attachments.py` | integracao |
-| `test_form_service.py` | unidade |
-| `test_submission_service.py` | unidade |
+| Arquivo | Tipo | Escopo |
+|---|---|---|
+| `test_auth.py` | integracao | login, JWT, me |
+| `test_password_reset.py` | integracao | forgot/reset password |
+| `test_forms.py` | integracao | CRUD formularios e versoes |
+| `test_submissions.py` | integracao | fluxo principal, filtros, RBAC |
+| `test_submissions_export.py` | integracao | CSV export, filtros, isolamento |
+| `test_submissions_advanced.py` | integracao | PDF, N/A, visible_if, pesos, stats, isolamento |
+| `test_search.py` | integracao | busca full-text |
+| `test_users.py` | integracao | CRUD usuarios |
+| `test_teams.py` | integracao | CRUD equipes e membros |
+| `test_companies.py` | integracao | configuracoes de empresa |
+| `test_me.py` | integracao | context, stats, notificacoes |
+| `test_uploads.py` | integracao | upload, validacao de tipo e tamanho |
+| `test_attachments.py` | integracao | evidencias |
+| `test_form_service.py` | unidade | validate_fields (todos os tipos) |
+| `test_submission_service.py` | unidade | normalize_value, calculate_score (ponderado), score_breakdown (N/A), extract_value, parse_period_start, PDF |
+
+Casos cobertos em `test_submissions_advanced.py`:
+
+- exportacao PDF: content-type, `?inline`, secoes + N/A, 404, auth guard
+- stats: `score_by_form` e `score_trend` presentes, filtro por periodo
+- N/A boolean: aceitacao, score_breakdown.na_count, exclusao do denominador do score
+- visible_if: campo oculto nao bloqueia finalizacao; campo visivel obrigatorio bloqueia
+- score ponderado: peso 3:1 gera score 75%, pesos iguais geram 50%
+- isolamento multiempresa: inspector em empresa diferente ve stats zeradas
 
 ### Frontend — Vitest (unitario e de servico)
 
-Estado validado em `2026-05-28`:
+Estado validado em `2026-05-31`:
 
 - `119 passed`
 
@@ -437,46 +552,6 @@ Cobertura atual:
 | `uploads.service.test.ts` | service |
 | `attachments.service.test.ts` | service |
 
-### Frontend — Playwright (E2E)
-
-Estado validado em `2026-05-28`:
-
-- `53 passed`
-
-Configuracao:
-
-- porta dedicada `5200` (evita conflito com outros projetos Vite na maquina)
-- `baseURL: http://localhost:5200`
-- servidor iniciado com `npm run dev -- --port 5200` (`reuseExistingServer: true`)
-- todos os chamados HTTP sao interceptados via `page.route()` — nenhuma dependencia do backend
-
-Fixture `authed` (em `frontend/e2e/fixtures.ts`):
-
-1. injeta token e `company-id` no `localStorage` via `page.addInitScript`
-2. registra rotas mock para `GET /me/companies` e `GET /me/context`
-3. entrega `page` pronta para cada teste — nao e preciso repetir bootstrap
-
-Cobertura atual:
-
-| Arquivo | Testes | Escopo |
-|---|---|---|
-| `auth.spec.ts` | 9 | login, forgot-password, reset-password |
-| `dashboard.spec.ts` | 5 | metricas, saudacao, formularios ativos, filtro de periodo |
-| `forms.spec.ts` | 7 | listagem, detalhe, criar, versoes |
-| `notifications.spec.ts` | 6 | listagem, filtro, mark-as-read, marcar todas |
-| `search.spec.ts` | 5 | input, resultados, estado vazio, navegacao |
-| `submissions.spec.ts` | 11 | listagem, criar, detalhe, finalizar, relatorio |
-| `teams.spec.ts` | 6 | listagem, stat cards, membros, estado vazio |
-| `users.spec.ts` | 5 | listagem, badges, chips, criar usuario |
-
-Comandos:
-
-```powershell
-cd frontend
-npm run test:e2e          # executa todos os testes
-npm run test:e2e:ui       # modo interativo com UI do Playwright
-```
-
 ## 10. Decisoes arquiteturais consolidadas
 
 ### Multiempresa desde o inicio
@@ -487,12 +562,54 @@ Mantida e correta. Estrutura do dominio e contratos ja assumem tenant ativo.
 
 Mantido e central para preservar historico.
 
+Publicar uma nova versao cria `FormVersion` + `FormField` novos. A versao anterior fica imutavel e as inspecoes ja finalizadas continuam legando a ela.
+
 ### Modelo hibrido de respostas
 
 Mantido:
 
 - `submission_values` como representacao estruturada
 - `answers_json` como snapshot otimizado
+
+O snapshot `answers_json` e a fonte usada na avaliacao de `visible_if` durante a finalizacao — isso evita N+1 de queries por campo.
+
+### config_json como extensao de campo
+
+Campos de formulario tem toda a sua configuracao especifica em `config_json` (JSONB). Isso evita colunas esparsas e permite adicionar novas opcoes sem migracoes de schema. A estrutura e responsabilidade do servico interpretar e validar cada propriedade.
+
+### Tipo `section` sem submission_value
+
+Campos do tipo `section` sao divisores visuais. Eles nao geram `submission_value`, nao participam do score e sao automaticamente excluidos de todas as validacoes de finalizacao. A chave e gerada automaticamente pelo frontend no formato `__section_{posicao}__`.
+
+### N/A em campos booleanos
+
+O valor N/A e armazenado como `value_text = "na"` com `value_boolean = NULL`. Isso distingue N/A de "sem resposta" (linha inexistente em `submission_values`). N/A nao entra no denominador do score ponderado — so e contado em `na_count` no breakdown.
+
+### Score ponderado
+
+O score nao e uma media simples. Cada campo booleano tem `config_json.weight` (default 1.0). O score e:
+
+```
+score = weighted_conformes / weighted_total * 100
+```
+
+onde `weighted_total` inclui apenas campos com resposta `true` ou `false` (exclui N/A e sem resposta).
+
+### Regras condicionais visible_if
+
+A avaliacao de `visible_if` na finalizacao e feita contra o snapshot `answers_json` — nao contra os registros de `submission_values`. Isso garante consistencia mesmo que o snapshot e os registros sejam gravados em operacoes separadas.
+
+A avaliacao e por comparacao de strings `str(actual).lower() == str(expected).lower()`, o que torna a logica robusta a valores booleanos serializados como `"true"`/`"false"`.
+
+### PDF em Latin-1 (fpdf2 Helvetica)
+
+A geracao de PDF usa fpdf2 com a fonte embutida Helvetica. Helvetica suporta apenas o charset Latin-1 (ISO 8859-1). Todos os textos escritos no PDF devem estar dentro deste conjunto. Em particular:
+
+- Usar `"-"` em vez de `"—"` (em dash U+2014)
+- Usar `"..."` em vez de `"…"` (elipsis U+2026)
+- Acentos do portugues (`a`, `e`, `o`, `u`, `c`) estao dentro de Latin-1 e sao seguros
+
+Para suportar Unicode completo, seria necessario registrar uma fonte TTF.
 
 ### Upload local antes de storage externo
 
@@ -508,7 +625,7 @@ As notificacoes sao derivadas do estado das submissions em tempo real. Nao exist
 
 O estado de leitura e persistido separadamente em `notification_reads` (chave composta `user_id + notification_key`). A chave e deterministica — ex.: `excellent-{submission_id}` — o que permite upsert sem conflito.
 
-Dismiss ainda e so no estado local do frontend: ao recarregar a pagina, as notificacoes dispensadas voltam a aparecer (mas com `read: true` se ja foram marcadas).
+Dismiss ainda e so no estado local do frontend.
 
 ### Recuperacao de senha
 
@@ -523,17 +640,19 @@ Implementada com token de uso unico (TTL 1h) em `password_reset_tokens`. Entrega
 - recuperacao de senha (forgot + reset)
 - shell autenticado consistente em todas as telas
 - usuarios
-- formularios e versionamento
-- inspecoes, respostas, score
-- finalizacao e relatorio
-- evidencias e uploads
+- formularios com versionamento, secoes, tipos completos e config_json
+- inspecoes com score ponderado, N/A, visible_if, modo inspecao, carga progressiva
+- finalizacao com validacao de campos visiveis
+- relatorio e exportacao PDF profissional (score colorido, breakdown, secoes)
+- evidencias e uploads (imagem, video, audio, PDF)
 - equipes
-- exportacao PDF e CSV
+- exportacao CSV
 - busca em tempo real
+- dashboard com score_by_form e score_trend
 - configuracoes da empresa (GET + PATCH com guard de role)
 - perfil (nome, senha, empresas vinculadas)
 - notificacoes derivadas (sem persistencia)
-- testes automatizados de backend (integracao + unidade), frontend unitario (stores + services) e frontend E2E (Playwright, 53 testes cobrindo todos os fluxos de interface)
+- testes automatizados: backend 191 passed (integracao + unidade), frontend 119 passed (Vitest)
 
 ### Parcial ou com limitacao conhecida
 
@@ -541,9 +660,12 @@ Implementada com token de uso unico (TTL 1h) em `password_reset_tokens`. Entrega
 - CompanySettings / aba Utilizacao: limites de uso (50 usuarios, 500 inspecoes, 100 formularios) sao hardcoded, nao vem de API
 - CompanySettings / aba Plano: botao "Falar com o comercial" nao tem acao real
 - Excluir empresa: endpoint e fluxo nao implementados; botao desabilitado na interface
+- PDF com fonte Helvetica (Latin-1 only): caracteres fora do charset causam erro em geracao
 
 ## 12. Proxima linha segura de evolucao
 
 1. limites de uso reais via API (`/me/usage` ou similar)
-2. excluir empresa: endpoint `DELETE /companies/me` + fluxo no frontend (botao desabilitado atualmente)
-3. preparar PWA apos consolidar os itens acima
+2. excluir empresa: endpoint `DELETE /companies/me` + fluxo no frontend
+3. font TTF no PDF para suporte a Unicode completo (emojis, simbolos especiais)
+4. storage externo (S3/GCS) em substituicao ao disco local
+5. preparar PWA apos consolidar os itens acima

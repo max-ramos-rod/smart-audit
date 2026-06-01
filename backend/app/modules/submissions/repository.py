@@ -1,6 +1,6 @@
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import and_, case, func, or_, select
+from sqlalchemy import Numeric, and_, case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -181,6 +181,58 @@ class SubmissionRepository(SQLAlchemyRepository[Submission]):
             "in_progress": row.in_progress,
             "avg_score": round(float(row.avg_score), 2) if row.avg_score is not None else None,
         }
+
+    async def get_score_by_form(
+        self, db: AsyncSession, company_id: str, since: datetime | None = None
+    ) -> list[dict]:
+        filters = [
+            Submission.company_id == company_id,
+            Submission.status == "completed",
+            Submission.score.is_not(None),
+        ]
+        if since:
+            filters.append(Submission.finished_at >= since)
+        result = await db.execute(
+            select(
+                Form.id.label("form_id"),
+                Form.name.label("form_name"),
+                func.count().label("count"),
+                func.avg(Submission.score).label("avg_score"),
+            )
+            .join(FormVersion, Submission.form_version_id == FormVersion.id)
+            .join(Form, FormVersion.form_id == Form.id)
+            .where(*filters)
+            .group_by(Form.id, Form.name)
+            .order_by(func.avg(Submission.score).asc())
+            .limit(10)
+        )
+        return [
+            {
+                "form_id": str(row.form_id),
+                "form_name": row.form_name,
+                "count": row.count,
+                "avg_score": round(float(row.avg_score), 2),
+            }
+            for row in result.all()
+        ]
+
+    async def get_score_trend(self, db: AsyncSession, company_id: str) -> list[dict]:
+        since_30d = datetime.now(UTC) - timedelta(days=30)
+        result = await db.execute(
+            select(
+                func.date(Submission.finished_at).label("date"),
+                func.round(func.avg(Submission.score).cast(Numeric), 1).label("avg_score"),
+            )
+            .where(
+                Submission.company_id == company_id,
+                Submission.status == "completed",
+                Submission.score.is_not(None),
+                Submission.finished_at >= since_30d,
+            )
+            .group_by(func.date(Submission.finished_at))
+            .order_by(func.date(Submission.finished_at).asc())
+        )
+        return [{"date": str(row.date), "avg_score": float(row.avg_score)} for row in result.all()]
 
     async def list_recent(
         self, db: AsyncSession, company_id: str, limit: int = 5, since: datetime | None = None

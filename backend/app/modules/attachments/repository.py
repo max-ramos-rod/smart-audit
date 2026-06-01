@@ -43,6 +43,25 @@ class AttachmentRepository(SQLAlchemyRepository[Attachment]):
     async def save_attachment(self, db: AsyncSession, attachment: Attachment) -> Attachment:
         return await self._save(db, attachment)
 
+    async def get_attachment_by_id(
+        self, db: AsyncSession, company_id: str, submission_id: str, attachment_id: str
+    ) -> Attachment | None:
+        statement = (
+            select(Attachment)
+            .join(Attachment.submission_value)
+            .join(SubmissionValue.submission)
+            .where(
+                Submission.company_id == company_id,
+                Submission.id == submission_id,
+                Attachment.id == attachment_id,
+            )
+            .options(selectinload(Attachment.submission_value).selectinload(SubmissionValue.form_field))
+        )
+        return await self._get_one(db, statement)
+
+    async def delete_attachment(self, db: AsyncSession, attachment: Attachment) -> None:
+        await self.delete(db, attachment)
+
     async def list_attachments_for_submission(
         self,
         db: AsyncSession,
@@ -56,6 +75,6 @@ class AttachmentRepository(SQLAlchemyRepository[Attachment]):
             .join(SubmissionValue.submission)
             .where(Submission.company_id == company_id, Submission.id == submission_id)
             .options(selectinload(Attachment.submission_value).selectinload(SubmissionValue.form_field))
-            .order_by(Attachment.created_at.desc())
+            .order_by(Attachment.created_at.asc())
         )
         return await self._paginate_select(db, statement, params)

@@ -74,3 +74,20 @@ class TestValidateFields:
         with pytest.raises(HTTPException) as exc_info:
             FormService.validate_fields(fields)
         assert exc_info.value.status_code == 400
+
+    def test_evidence_and_section_types_accepted(self):
+        fields = [
+            make_field("s1", 1, "section"),
+            make_field("ev1", 2, "evidence"),
+            make_field("bool1", 3, "boolean"),
+        ]
+        FormService.validate_fields(fields)
+
+    def test_section_key_uniqueness_still_enforced(self):
+        fields = [
+            make_field("same_key", 1, "section"),
+            make_field("same_key", 2, "boolean"),
+        ]
+        with pytest.raises(HTTPException) as exc_info:
+            FormService.validate_fields(fields)
+        assert exc_info.value.status_code == 400

@@ -9,9 +9,9 @@ Ele sustenta:
 - multiempresa por `company_id`
 - autenticacao e memberships por empresa
 - recuperacao de senha com token de uso unico
-- formularios versionados
-- execucao de inspecoes
-- respostas tipadas por campo
+- formularios versionados com tipos de campo extendidos e configuracao via JSONB
+- execucao de inspecoes com score ponderado e respostas N/A
+- respostas tipadas por campo com suporte a regras condicionais
 - anexos de evidencias
 - equipes e membros por empresa
 
@@ -28,6 +28,9 @@ Ele sustenta:
 - equipes foram promovidas ao modelo real do sistema
 - **nao existe tabela de notificacoes**: notificacoes sao derivadas em tempo real de `submissions` pelo servico
 - o estado de leitura e armazenado em `notification_reads` com chave deterministica por usuario
+- configuracao especifica de campo (peso, allow_na, opcoes, visible_if) fica em `form_fields.config_json`
+- valor N/A em campos booleanos e armazenado como `value_text = "na"` com `value_boolean = NULL`
+- campos do tipo `section` nao geram `submission_value`
 
 ## Contextos e relacionamentos
 
@@ -188,6 +191,23 @@ Observacoes:
 - uso unico: `used_at` e preenchido na troca de senha e valida como barreira de reuso
 - o endpoint de forgot-password nao expoe se o email existe (anti-enumeracao)
 
+### `notification_reads`
+
+- `id UUID PK`
+- `user_id UUID FK -> users.id ON DELETE CASCADE`
+- `notification_key VARCHAR(120)`
+- `created_at TIMESTAMPTZ`
+- `updated_at TIMESTAMPTZ`
+
+Restricoes:
+
+- `UNIQUE(user_id, notification_key)` — upsert idempotente via `ON CONFLICT DO NOTHING`
+
+Observacoes:
+
+- chave deterministica: `pending-{submission_id}`, `low-score-{submission_id}`, `excellent-{submission_id}`
+- a tabela armazena apenas o estado de leitura; as notificacoes em si sao derivadas em tempo real
+
 ### `forms`
 
 - `id UUID PK`
@@ -232,15 +252,43 @@ Restricoes:
 
 - `UNIQUE(form_version_id, key)`
 - `UNIQUE(form_version_id, position)`
+- `CHECK field_type IN ('boolean', 'text', 'number', 'select', 'date', 'photo', 'evidence', 'section')`
 
-Tipos de campo atualmente suportados:
+Tipos de campo e mapeamento de armazenamento:
 
-- `boolean`
-- `text`
-- `number`
-- `select`
-- `date`
-- `photo`
+| `field_type` | Coluna em `submission_values` | Observacao |
+|---|---|---|
+| `boolean` | `value_boolean` | N/A: `value_text = "na"`, `value_boolean = NULL` |
+| `text` | `value_text` | String livre |
+| `number` | `value_number` | NUMERIC(14,4) |
+| `date` | `value_date` | DATE |
+| `select` | `value_json` | `{ "option": "valor" }` |
+| `photo` | `value_text` | URL do arquivo |
+| `evidence` | `value_json` | Metadados de multiplos arquivos |
+| `section` | — | Nao gera `submission_value` |
+
+Estrutura de `config_json` por tipo:
+
+```json
+// boolean
+{
+  "weight": 3.0,
+  "allow_na": true,
+  "visible_if": { "field_key": "campo_gatilho", "operator": "eq", "value": true }
+}
+
+// select
+{
+  "options": ["Opcao A", "Opcao B", "Opcao C"],
+  "visible_if": { "field_key": "campo_gatilho", "operator": "neq", "value": false }
+}
+```
+
+- `weight` (float, default 1.0): peso no calculo de score ponderado
+- `allow_na` (bool, default false): habilita resposta N/A em campos booleanos
+- `options` (string[]): opcoes visiveis no select
+- `visible_if.operator`: `"eq"` (igual) ou `"neq"` (diferente)
+- campo oculto por `visible_if` nao e validado como obrigatorio na finalizacao
 
 ### `submissions`
 
@@ -262,8 +310,10 @@ Restricoes:
 
 Observacoes:
 
-- `status` e usado tambem para dashboard, busca e notificacoes derivadas
-- `score` e calculado no momento da finalizacao com base nos campos obrigatorios respondidos
+- `score` e calculado no momento da finalizacao com formula ponderada:
+  `score = sum(weight_i para boolean_i == true) / sum(weight_i para boolean_i respondido e nao N/A) * 100`
+- `answers_json` e um snapshot de `{ field_key: serialized_value }` gravado em `save_answers`
+- `answers_json` e a fonte usada para avaliacao de `visible_if` na finalizacao
 
 ### `submission_values`
 
@@ -282,10 +332,17 @@ Restricoes:
 
 - `UNIQUE(submission_id, form_field_id)`
 
+Observacao sobre N/A:
+
+- quando um campo booleano e respondido com N/A, `value_text = 'na'` e `value_boolean = NULL`
+- isso distingue N/A (linha existe com `value_text = 'na'`) de sem resposta (linha inexistente)
+- campos do tipo `section` nunca geram linha nesta tabela
+
 ### `attachments`
 
 - `id UUID PK`
 - `submission_value_id UUID FK -> submission_values.id ON DELETE CASCADE`
+- `field_key VARCHAR(100)`
 - `file_url TEXT`
 - `thumbnail_url TEXT NULL`
 - `mime_type VARCHAR(120)`
@@ -299,7 +356,12 @@ Observacoes:
 - o arquivo fisico fica em disco em `settings.upload_dir/<company_id>/<uuid>.<ext>`
 - `attachments` armazena apenas metadados e a URL publica
 - vinculo e com `submission_value` (nao diretamente com a submission)
+- `field_key` facilita a busca de evidencias por campo sem JOIN em `form_fields`
 - `uploaded_by` registra o usuario que fez o upload
+
+Tipos de arquivo permitidos: `image/jpeg`, `image/png`, `image/webp`, `video/mp4`, `video/quicktime`, `video/x-msvideo`, `audio/mpeg`, `audio/wav`, `audio/ogg`, `audio/m4a`, `application/pdf`
+
+Limite de tamanho: 10 MB
 
 ### `teams`
 
@@ -335,24 +397,25 @@ Isso vale para:
 - inspecoes
 - equipes
 - evidencias e uploads
+- stats e notificacoes
 
 ### Versionamento
 
 - formularios publicados nao sao editados retroativamente
-- uma mudanca estrutural relevante gera nova `form_version`
+- uma mudanca estrutural relevante gera nova `form_version` com novos `form_fields`
 - cada `submission` fica congelada na versao usada no momento da execucao
 
 ### Snapshot `answers_json`
 
 - fonte estruturada: `submission_values`
-- leitura otimizada: `answers_json`
-- ambos sao mantidos no fluxo de `save_answers`
+- leitura otimizada e avaliacao de `visible_if`: `answers_json`
+- ambos sao mantidos sincronizados no fluxo de `save_answers`
 
 ### Uploads e anexos
 
 - o arquivo e salvo fora do banco
 - o endpoint de upload devolve URL publica
-- `attachments` liga essa URL a uma submission
+- `attachments` liga essa URL a um `submission_value` especifico
 
 ### Notificacoes
 
@@ -374,6 +437,7 @@ O estado de leitura por usuario e persistido em `notification_reads` com chave d
 | `d4e5f6a7b8c9` | add campos de contato em companies (cnpj, timezone, contact_email, phone) |
 | `e5f6a7b8c9d0` | add password_reset_tokens |
 | `a1b2c3d4e5f6` | add notification_reads |
+| `b2c3d4e5f6a7` | add 'section' ao CHECK de field_type em form_fields |
 
 ## Evolucao futura prevista
 
@@ -381,4 +445,5 @@ Ainda nao implementados como tabela/modulo:
 
 - `audit_logs` — rastreabilidade de acoes criticas
 - `corrective_actions` — acoes vinculadas a itens reprovados em inspecoes
+- `usage_limits` ou campo em `companies` — limites reais de uso por plano via API
 - storage externo (S3/GCS) em substituicao ao disco local
