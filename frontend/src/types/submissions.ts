@@ -22,10 +22,27 @@ export interface ScoreBreakdown {
   na_count: number
 }
 
+export interface ConformityItem {
+  field_key: string
+  status: 'conforme' | 'nao_conforme'
+  justification: string | null
+}
+
+export interface ConformityInputItem {
+  field_key: string
+  status: 'conforme' | 'nao_conforme'
+  justification?: string | null
+}
+
+export interface ConformityUpdatePayload {
+  items: ConformityInputItem[]
+}
+
 export interface SubmissionDetail extends SubmissionListItem {
   form_version_id: string
   score_breakdown: ScoreBreakdown | null
   answers: SubmissionAnswer[]
+  conformity: ConformityItem[]
 }
 
 export interface SubmissionCreatePayload {

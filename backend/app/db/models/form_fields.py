@@ -28,3 +28,4 @@ class FormField(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     form_version = relationship("FormVersion", back_populates="fields")
     submission_values = relationship("SubmissionValue", back_populates="form_field")
+    conformities = relationship("SubmissionConformity", back_populates="form_field")

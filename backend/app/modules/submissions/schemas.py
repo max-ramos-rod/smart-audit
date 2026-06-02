@@ -1,6 +1,29 @@
 from datetime import date, datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+
+class ConformityItem(BaseModel):
+    field_key: str
+    status: str
+    justification: str | None
+
+
+class ConformityInput(BaseModel):
+    field_key: str = Field(min_length=1, max_length=100)
+    status: str = Field(min_length=1, max_length=20)
+    justification: str | None = Field(default=None, max_length=2000)
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, v: str) -> str:
+        if v not in ("conforme", "nao_conforme"):
+            raise ValueError("status deve ser 'conforme' ou 'nao_conforme'")
+        return v
+
+
+class SubmissionConformityUpdateRequest(BaseModel):
+    items: list[ConformityInput]
 
 
 class SubmissionCreateRequest(BaseModel):
@@ -41,6 +64,7 @@ class SubmissionResponse(BaseModel):
     started_at: datetime
     finished_at: datetime | None
     answers: list[SubmissionAnswerResponse]
+    conformity: list[ConformityItem] = []
 
 
 class SubmissionListItemResponse(BaseModel):

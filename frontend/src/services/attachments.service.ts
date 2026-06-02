@@ -6,7 +6,7 @@ import { http } from './api/http'
 export async function listAttachments(submissionId: string): Promise<AttachmentItem[]> {
   const response = await http.get<PaginatedEnvelope<AttachmentItem>>(
     `/submissions/${submissionId}/attachments`,
-    { params: { page: 1, page_size: 200 } },
+    { params: { page: 1, page_size: 100 } },
   )
   return response.data.data
 }

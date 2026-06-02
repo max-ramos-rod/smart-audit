@@ -34,6 +34,11 @@ async def _finish_submission(client, headers, submission_id):
         headers=headers,
         json={"answers": [{"field_key": "ok", "value": True}]},
     )
+    await client.put(
+        f"/api/v1/submissions/{submission_id}/conformity",
+        headers=headers,
+        json={"items": [{"field_key": "ok", "status": "conforme", "justification": None}]},
+    )
     resp = await client.post(f"/api/v1/submissions/{submission_id}/finish", headers=headers)
     assert resp.status_code == 200
 

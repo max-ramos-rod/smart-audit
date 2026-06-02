@@ -141,12 +141,10 @@ def _draw_score_block(
     chips = [
         (str(conformes),    "Conformes",    _C_OK),
         (str(nao_conformes),"Não conf.",    _C_ERR),
-        (str(sem_resposta), "Sem resp.",    _C_MUTED),
+        (str(sem_resposta), "Sem aval.",    _C_MUTED),
     ]
-    if na_count > 0:
-        chips.append((str(na_count), "N/A", _C_MUTED))
     if total_bool > 0:
-        chips.append((f"/{total_bool}", "Total bool.", _C_TEXT))
+        chips.append((f"/{total_bool}", "Total",      _C_TEXT))
 
     chip_x = pdf.l_margin + box_size + 6
     chip_w = (pdf.epw - box_size - 6) / len(chips)
@@ -182,6 +180,7 @@ def generate_submission_pdf(
     finished_at: datetime | None,
     fields_with_answers: list[dict],
     score_breakdown: dict | None = None,
+    non_conformities: list[dict] | None = None,
 ) -> bytes:
     pdf = _PDF(company_name=company_name, form_name=form_name)
     pdf.add_page()
@@ -273,15 +272,40 @@ def generate_submission_pdf(
         pdf.set_text_color(*_C_TEXT)
         row_num += 1
 
+    # ── Non-conformities section ─────────────────────────────────────────
+    if non_conformities:
+        pdf.ln(8)
+        pdf.set_font("Helvetica", "B", 10)
+        pdf.set_text_color(*_C_ERR)
+        pdf.cell(0, 8, "Não Conformidades", new_x="LMARGIN", new_y="NEXT")
+        pdf.set_draw_color(*_C_ERR)
+        pdf.set_line_width(0.5)
+        pdf.line(pdf.l_margin, pdf.get_y(), pdf.l_margin + pdf.epw, pdf.get_y())
+        pdf.ln(4)
+
+        for nc in non_conformities:
+            pdf.set_font("Helvetica", "B", 8)
+            pdf.set_text_color(*_C_TEXT)
+            label = nc.get("label", "")
+            pdf.cell(0, 6, label[:80] + ("..." if len(label) > 80 else ""), new_x="LMARGIN", new_y="NEXT")
+            justification = nc.get("justification", "") or "Sem justificativa."
+            pdf.set_font("Helvetica", "", 8)
+            pdf.set_text_color(*_C_MUTED)
+            pdf.set_x(pdf.l_margin + 4)
+            pdf.multi_cell(pdf.epw - 4, 5, justification)
+            pdf.ln(2)
+
     # ── Footer note ──────────────────────────────────────────────────────
     pdf.ln(6)
     pdf.set_font("Helvetica", "I", 8)
     pdf.set_text_color(*_C_MUTED)
-    total_bool = sb.get("total_boolean", 0)
+    total_fields = sb.get("total_boolean", 0)
+    conformes    = sb.get("conformes", 0)
+    nao_conf     = sb.get("nao_conformes", 0)
     pdf.multi_cell(
         0, 5,
-        f"Relatório gerado pelo Smart Audit. Score calculado com base em "
-        f"{total_bool} campo(s) booleano(s). Formulário: {form_name} v{form_version}.",
+        f"Relatório gerado pelo Smart Audit. Score calculado com base em {total_fields} campo(s) avaliados "
+        f"({conformes} conforme(s), {nao_conf} não conforme(s)). Formulário: {form_name} v{form_version}.",
     )
 
     return bytes(pdf.output())

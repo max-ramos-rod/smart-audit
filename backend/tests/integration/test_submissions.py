@@ -83,6 +83,14 @@ async def test_submission_flow_with_attachment(client, auth_headers):
     assert attachment_response.status_code == 200
     assert attachment_response.json()["data"]["field_key"] == "extintor"
 
+    await client.put(
+        f"/api/v1/submissions/{submission_id}/conformity",
+        headers=auth_headers,
+        json={"items": [
+            {"field_key": "extintor", "status": "conforme", "justification": None},
+            {"field_key": "temperatura", "status": "conforme", "justification": None},
+        ]},
+    )
     finish_response = await client.post(
         f"/api/v1/submissions/{submission_id}/finish",
         headers=auth_headers,

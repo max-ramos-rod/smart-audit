@@ -7,6 +7,7 @@ import SvgIcon from '@/components/ui/SvgIcon.vue'
 import { createAttachment, deleteAttachment, listAttachments } from '@/services/attachments.service'
 import { extractProblemMessage } from '@/services/api/problem'
 import { fetchFormVersion } from '@/services/forms.service'
+import { saveConformity } from '@/services/submissions.service'
 import { uploadFile } from '@/services/uploads.service'
 import { useSubmissionsStore } from '@/stores/submissions/submissions.store'
 import type { AttachmentItem } from '@/types/attachments'
@@ -37,10 +38,6 @@ const swipeStartX  = ref(0)
 const isSwiping    = ref(false)
 const swipeExiting = ref<'left' | 'right' | null>(null)
 
-// Bottom sheet: evidence prompt after marking non-compliant
-const showEvidenceSheet     = ref(false)
-const evidenceSheetFieldKey = ref<string | null>(null)
-
 // Progressive list loading
 const LIST_PAGE    = 50
 const listViewLimit = ref(LIST_PAGE)
@@ -49,6 +46,11 @@ const listViewLimit = ref(LIST_PAGE)
 const evidenceAttachments = reactive<Record<string, AttachmentItem[]>>({})
 const evidenceUploading   = reactive<Record<string, boolean>>({})
 const evidenceErrors      = reactive<Record<string, string>>({})
+const evidenceLoaded      = ref(false)
+
+// Conformity per field
+const conformityStatus        = reactive<Record<string, 'conforme' | 'nao_conforme'>>({})
+const conformityJustification = reactive<Record<string, string>>({})
 
 const pendingRequiredFields = ref<string[]>([])
 
@@ -82,48 +84,42 @@ const answerableFields = computed(() =>
 const progressStats = computed(() => {
   let conformes    = 0
   let naoConformes = 0
-  let naCount      = 0
-  let outros       = 0
 
   for (const field of answerableFields.value) {
-    const val = draftAnswers[field.key]
-    if (!val || val === '') continue
-    if (field.field_type === 'boolean') {
-      if (val === 'true') conformes++
-      else if (val === 'false') naoConformes++
-      else if (val === 'na') naCount++
-    } else {
-      outros++
-    }
+    const s = conformityStatus[field.key]
+    if (s === 'conforme') conformes++
+    else if (s === 'nao_conforme') naoConformes++
   }
 
-  const answered   = conformes + naoConformes + naCount + outros
   const total      = answerableFields.value.length
-  const percentage = total === 0 ? 0 : Math.round((answered / total) * 100)
-  const pending    = total - answered
+  const evaluated  = conformes + naoConformes
+  const pending    = total - evaluated
+  const percentage = total === 0 ? 0 : Math.round((evaluated / total) * 100)
 
-  return { conformes, naoConformes, naCount, outros, answered, pending, total, percentage }
+  return { conformes, naoConformes, evaluated, pending, total, percentage }
 })
 
-// Real-time weighted score (mirrors backend calculate_score logic)
+// Real-time weighted score based on conformity status (mirrors backend calculate_score logic)
 const liveScore = computed((): number | null => {
   let wConformes = 0
   let wTotal     = 0
   for (const field of answerableFields.value) {
-    if (field.field_type !== 'boolean') continue
-    const val    = draftAnswers[field.key]
+    const s      = conformityStatus[field.key]
+    if (!s) continue
     const weight = (field.config_json?.weight as number | undefined) ?? 1
-    if (val === 'true')  { wConformes += weight; wTotal += weight }
-    else if (val === 'false') { wTotal += weight }
-    // 'na' and empty are excluded from denominator
+    wTotal += weight
+    if (s === 'conforme') wConformes += weight
   }
   return wTotal === 0 ? null : Math.round((wConformes / wTotal) * 100)
 })
 
-const progressPct = computed(() => progressStats.value.percentage)
-
-// All answerable fields have a value
+// All answerable fields have a conformity status
 const allAnswered = computed(() => progressStats.value.pending === 0 && progressStats.value.total > 0)
+
+// Total evidence files across all fields
+const totalEvidenceCount = computed(() =>
+  Object.values(evidenceAttachments).reduce((sum, arr) => sum + arr.length, 0),
+)
 
 // ── Sections ──────────────────────────────────────────────────────────────────
 
@@ -135,11 +131,8 @@ const formSections = computed(() =>
       const sectionItems   = answerableFields.value.filter(
         (f) => f.position > section.position && f.position < nextSectionPos,
       )
-      const answered = sectionItems.filter((f) => {
-        const v = draftAnswers[f.key]
-        return v !== undefined && v !== ''
-      }).length
-      const pct = sectionItems.length === 0 ? 100 : Math.round((answered / sectionItems.length) * 100)
+      const evaluated = sectionItems.filter((f) => conformityStatus[f.key]).length
+      const pct = sectionItems.length === 0 ? 100 : Math.round((evaluated / sectionItems.length) * 100)
       return { key: section.key, label: section.label, pct }
     }),
 )
@@ -159,20 +152,16 @@ const inspectionSectionLabel = computed(() => {
   return ''
 })
 
-function fieldAnswerStatus(fieldKey: string, fieldType: string): 'pending' | 'conformes' | 'nao_conformes' | 'na' | 'answered' {
-  const val = draftAnswers[fieldKey]
-  if (!val || val === '') return 'pending'
-  if (fieldType === 'boolean') {
-    if (val === 'true') return 'conformes'
-    if (val === 'false') return 'nao_conformes'
-    if (val === 'na') return 'na'
-  }
-  return 'answered'
+function fieldConformityStatus(fieldKey: string): 'pending' | 'conformes' | 'nao_conformes' {
+  const s = conformityStatus[fieldKey]
+  if (s === 'conforme') return 'conformes'
+  if (s === 'nao_conforme') return 'nao_conformes'
+  return 'pending'
 }
 
 const currentFieldStatus = computed(() => {
   if (!inspectionField.value) return 'pending'
-  return fieldAnswerStatus(inspectionField.value.key, inspectionField.value.field_type)
+  return fieldConformityStatus(inspectionField.value.key)
 })
 
 // ── Navigation ────────────────────────────────────────────────────────────────
@@ -230,21 +219,13 @@ function onTouchEnd() {
   if (!field || Math.abs(delta) < 80) return
 
   if (delta > 0) {
-    // Swipe right → Conforme
-    if (field.field_type === 'boolean') {
-      draftAnswers[field.key] = 'true'
-      triggerAutoSave()
-    }
+    // Swipe right → Não conforme (conformity)
+    setConformity(field.key, 'nao_conforme')
     inspectionNext()
   } else {
-    // Swipe left → Não conforme + open evidence sheet
-    if (field.field_type === 'boolean') {
-      draftAnswers[field.key] = 'false'
-      triggerAutoSave()
-      openEvidenceSheet(field.key)
-    } else {
-      inspectionNext()
-    }
+    // Swipe left → Conforme (conformity)
+    setConformity(field.key, 'conforme')
+    inspectionNext()
   }
 }
 
@@ -264,7 +245,7 @@ const cardSwipeStyle = computed(() => {
   }
 })
 
-// Swipe indicator opacity
+// Swipe indicator opacity (right = Não conforme, left = Conforme)
 const rightIndicatorOpacity = computed(() => Math.min(1, Math.max(0, swipeDeltaX.value / 100)))
 const leftIndicatorOpacity  = computed(() => Math.min(1, Math.max(0, -swipeDeltaX.value / 100)))
 
@@ -273,24 +254,38 @@ const leftIndicatorOpacity  = computed(() => Math.min(1, Math.max(0, -swipeDelta
 function answerBoolean(fieldKey: string, value: 'true' | 'false' | 'na') {
   draftAnswers[fieldKey] = value
   triggerAutoSave()
-  if (value === 'false') {
-    openEvidenceSheet(fieldKey)
-  } else {
+}
+
+// Used only in card view: sets conformity and advances for 'conforme', stays for 'nao_conforme'
+function setConformityCard(fieldKey: string, status: 'conforme' | 'nao_conforme') {
+  setConformity(fieldKey, status)
+  if (status === 'conforme') {
     setTimeout(() => inspectionNext(), 300)
   }
 }
 
-// ── Evidence bottom sheet ─────────────────────────────────────────────────────
+// ── Conformity ────────────────────────────────────────────────────────────────
 
-function openEvidenceSheet(fieldKey: string) {
-  evidenceSheetFieldKey.value = fieldKey
-  showEvidenceSheet.value = true
+let conformitySaveTimer: ReturnType<typeof setTimeout> | null = null
+
+function setConformity(fieldKey: string, status: 'conforme' | 'nao_conforme') {
+  conformityStatus[fieldKey] = status
+  triggerConformitySave()
 }
 
-function closeEvidenceSheet() {
-  showEvidenceSheet.value = false
-  evidenceSheetFieldKey.value = null
-  inspectionNext()
+function triggerConformitySave() {
+  if (conformitySaveTimer) clearTimeout(conformitySaveTimer)
+  conformitySaveTimer = setTimeout(async () => {
+    const items = Object.entries(conformityStatus).map(([field_key, status]) => ({
+      field_key,
+      status,
+      justification: conformityJustification[field_key] || null,
+    }))
+    if (items.length === 0) return
+    try {
+      await saveConformity(submissionId.value, { items })
+    } catch { /* silent */ }
+  }, 800)
 }
 
 // ── Auto-save (debounced) ─────────────────────────────────────────────────────
@@ -318,17 +313,6 @@ const EVIDENCE_MIME_MAP: Record<string, string[]> = {
   document: ['application/pdf'],
 }
 const ALLOWED_MIMES = ([] as string[]).concat(...Object.values(EVIDENCE_MIME_MAP)).join(',')
-
-function evidenceAccept(configJson: Record<string, unknown>): string {
-  const types = configJson.allowed_types
-  if (!Array.isArray(types) || types.length === 0) return ALLOWED_MIMES
-  const mimes: string[] = []
-  for (const t of types) {
-    const mapped = EVIDENCE_MIME_MAP[t as string]
-    if (mapped) mimes.push(...mapped)
-  }
-  return mimes.join(',') || ALLOWED_MIMES
-}
 
 function evidenceMaxFiles(configJson: Record<string, unknown>): number {
   const v = configJson.max_files
@@ -382,6 +366,10 @@ function populateDraft() {
       draftAnswers[ans.field_key] = String(ans.value)
     }
   }
+  for (const c of submission.value.conformity ?? []) {
+    conformityStatus[c.field_key] = c.status
+    if (c.justification) conformityJustification[c.field_key] = c.justification
+  }
 }
 
 async function loadEvidenceAttachments() {
@@ -392,7 +380,11 @@ async function loadEvidenceAttachments() {
       if (!evidenceAttachments[att.field_key]) evidenceAttachments[att.field_key] = []
       evidenceAttachments[att.field_key].push(att)
     }
-  } catch { /* non-fatal */ }
+  } catch (err) {
+    console.error('[SubmissionDetail] loadEvidenceAttachments failed:', err)
+  } finally {
+    evidenceLoaded.value = true
+  }
 }
 
 onMounted(async () => {
@@ -471,15 +463,25 @@ function buildPayload() {
 }
 
 function validateRequiredFields(): boolean {
-  const missing = visibleFields.value
-    .filter((f) => f.field_type !== 'section' && f.required)
-    .filter((f) => {
+  const missing = new Set<string>()
+
+  for (const f of visibleFields.value) {
+    if (f.field_type === 'section') continue
+    if (f.required) {
       const val = draftAnswers[f.key]
-      return !val || val === ''
-    })
-    .map((f) => f.key)
-  pendingRequiredFields.value = missing
-  return missing.length === 0
+      if (!val || val === '') missing.add(f.key)
+      if (!conformityStatus[f.key]) missing.add(f.key)
+    }
+  }
+
+  for (const [key, s] of Object.entries(conformityStatus)) {
+    if (s === 'nao_conforme' && !(conformityJustification[key] || '').trim()) {
+      missing.add(key)
+    }
+  }
+
+  pendingRequiredFields.value = [...missing]
+  return missing.size === 0
 }
 
 async function handleSave() {
@@ -500,11 +502,19 @@ async function handleFinish() {
   savedOnce.value   = false
   pendingRequiredFields.value = []
   if (!validateRequiredFields()) {
-    finishError.value = `Campos obrigatórios pendentes: ${pendingRequiredFields.value.join(', ')}`
+    finishError.value = `Campos com pendências: ${pendingRequiredFields.value.join(', ')}`
     return
   }
   try {
     await submissionsStore.updateAnswers(submissionId.value, { answers: buildPayload() })
+    const items = Object.entries(conformityStatus).map(([field_key, status]) => ({
+      field_key,
+      status,
+      justification: conformityJustification[field_key] || null,
+    }))
+    if (items.length > 0) {
+      await saveConformity(submissionId.value, { items })
+    }
     await submissionsStore.finish(submissionId.value)
     inspectionMode.value = false
   } catch (err: any) {
@@ -588,7 +598,7 @@ function loadMoreFields() { listViewLimit.value += LIST_PAGE }
           <!-- Progress + mode toggle -->
           <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px;">
             <div class="slabel" style="margin-bottom:0;">
-              {{ progressStats.answered }}/{{ progressStats.total }} campos
+              {{ progressStats.evaluated }}/{{ progressStats.total }} avaliados
             </div>
             <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
               <!-- Live score badge -->
@@ -611,7 +621,7 @@ function loadMoreFields() { listViewLimit.value += LIST_PAGE }
 
           <!-- Segmented progress bar -->
           <div class="insp-progress-bar" style="margin-bottom:6px;height:8px;">
-            <div style="display:flex;height:100%;border-radius:99px;overflow:hidden;">
+            <div style="display:flex;height:100%;border-radius:99px;overflow:hidden;background:var(--sa-line);">
               <div
                 style="background:var(--sa-ok);transition:width .35s ease;"
                 :style="{ width: progressStats.total ? (progressStats.conformes / progressStats.total * 100) + '%' : '0%' }"
@@ -619,14 +629,6 @@ function loadMoreFields() { listViewLimit.value += LIST_PAGE }
               <div
                 style="background:var(--sa-danger);transition:width .35s ease;"
                 :style="{ width: progressStats.total ? (progressStats.naoConformes / progressStats.total * 100) + '%' : '0%' }"
-              />
-              <div
-                style="background:var(--sa-warn);transition:width .35s ease;"
-                :style="{ width: progressStats.total ? (progressStats.naCount / progressStats.total * 100) + '%' : '0%' }"
-              />
-              <div
-                style="background:var(--sa-brand);transition:width .35s ease;"
-                :style="{ width: progressStats.total ? (progressStats.outros / progressStats.total * 100) + '%' : '0%' }"
               />
             </div>
           </div>
@@ -640,10 +642,6 @@ function loadMoreFields() { listViewLimit.value += LIST_PAGE }
             <span style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--sa-muted);">
               <span style="width:8px;height:8px;border-radius:50%;background:var(--sa-danger);flex-shrink:0;"></span>
               {{ progressStats.naoConformes }} Não conforme
-            </span>
-            <span v-if="progressStats.naCount > 0" style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--sa-muted);">
-              <span style="width:8px;height:8px;border-radius:50%;background:var(--sa-warn);flex-shrink:0;"></span>
-              {{ progressStats.naCount }} N/A
             </span>
             <span v-if="progressStats.pending > 0" style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--sa-muted);">
               <span style="width:8px;height:8px;border-radius:50%;background:var(--sa-line);flex-shrink:0;"></span>
@@ -711,16 +709,16 @@ function loadMoreFields() { listViewLimit.value += LIST_PAGE }
                   display:'flex', flexDirection:'column', alignItems:'center', gap:'6px',
                   opacity: leftIndicatorOpacity, pointerEvents:'none', transition:'opacity .1s',
                 }">
-                  <div style="width:48px;height:48px;border-radius:50%;background:var(--sa-danger);display:flex;align-items:center;justify-content:center;color:#fff;font-size:22px;box-shadow:0 4px 12px rgba(220,38,38,.35);">✕</div>
-                  <span style="font-size:10px;font-weight:700;color:var(--sa-danger);">Não conforme</span>
+                  <div style="width:48px;height:48px;border-radius:50%;background:var(--sa-ok);display:flex;align-items:center;justify-content:center;color:#fff;font-size:22px;box-shadow:0 4px 12px rgba(22,163,74,.35);">✓</div>
+                  <span style="font-size:10px;font-weight:700;color:var(--sa-ok);">Conforme</span>
                 </div>
                 <div :style="{
                   position:'absolute', right:'16px', top:'50%', transform:'translateY(-50%)',
                   display:'flex', flexDirection:'column', alignItems:'center', gap:'6px',
                   opacity: rightIndicatorOpacity, pointerEvents:'none', transition:'opacity .1s',
                 }">
-                  <div style="width:48px;height:48px;border-radius:50%;background:var(--sa-ok);display:flex;align-items:center;justify-content:center;color:#fff;font-size:22px;box-shadow:0 4px 12px rgba(22,163,74,.35);">✓</div>
-                  <span style="font-size:10px;font-weight:700;color:var(--sa-ok);">Conforme</span>
+                  <div style="width:48px;height:48px;border-radius:50%;background:var(--sa-danger);display:flex;align-items:center;justify-content:center;color:#fff;font-size:22px;box-shadow:0 4px 12px rgba(220,38,38,.35);">✕</div>
+                  <span style="font-size:10px;font-weight:700;color:var(--sa-danger);">Não conforme</span>
                 </div>
 
                 <!-- Card -->
@@ -737,10 +735,8 @@ function loadMoreFields() { listViewLimit.value += LIST_PAGE }
                     margin:'-24px -20px 16px', padding:'10px 16px',
                     borderRadius:'14px 14px 0 0',
                     background:
-                      currentFieldStatus === 'conformes'    ? 'var(--sa-ok-bg)'  :
+                      currentFieldStatus === 'conformes'     ? 'var(--sa-ok-bg)'  :
                       currentFieldStatus === 'nao_conformes' ? 'var(--sa-err-bg)' :
-                      currentFieldStatus === 'na'           ? 'var(--sa-warn-bg)' :
-                      currentFieldStatus === 'answered'     ? 'var(--sa-brand-soft)' :
                       'var(--sa-panel-strong)',
                     display:'flex', alignItems:'center', justifyContent:'space-between',
                   }">
@@ -757,21 +753,17 @@ function loadMoreFields() { listViewLimit.value += LIST_PAGE }
                       <span :style="{
                         fontSize:'10px', fontWeight:700, padding:'2px 8px', borderRadius:'99px',
                         background:
-                          currentFieldStatus === 'conformes'    ? 'var(--sa-ok-bg)'  :
+                          currentFieldStatus === 'conformes'     ? 'var(--sa-ok-bg)'  :
                           currentFieldStatus === 'nao_conformes' ? 'var(--sa-err-bg)' :
-                          currentFieldStatus === 'na'           ? 'var(--sa-warn-bg)' :
                           '#f1f5f9',
                         color:
-                          currentFieldStatus === 'conformes'    ? 'var(--sa-ok)'     :
+                          currentFieldStatus === 'conformes'     ? 'var(--sa-ok)'     :
                           currentFieldStatus === 'nao_conformes' ? 'var(--sa-danger)' :
-                          currentFieldStatus === 'na'           ? 'var(--sa-warn)'   :
                           'var(--sa-muted)',
                       }">
                         {{
-                          currentFieldStatus === 'conformes'    ? 'Conforme' :
+                          currentFieldStatus === 'conformes'     ? 'Conforme' :
                           currentFieldStatus === 'nao_conformes' ? 'Não conforme' :
-                          currentFieldStatus === 'na'           ? 'N/A' :
-                          currentFieldStatus === 'answered'     ? 'Respondido' :
                           'Pendente'
                         }}
                       </span>
@@ -810,14 +802,14 @@ function loadMoreFields() { listViewLimit.value += LIST_PAGE }
                         :disabled="isCompleted"
                         @click="answerBoolean(inspectionField.key, 'true')">
                         <span style="font-size:20px;">✓</span>
-                        <span>Sim (Conforme)</span>
+                        <span>Sim</span>
                       </button>
                       <button type="button" class="bool-btn bool-nao"
                         :class="{ 'bool-btn--active': draftAnswers[inspectionField.key] === 'false' }"
                         :disabled="isCompleted"
                         @click="answerBoolean(inspectionField.key, 'false')">
                         <span style="font-size:20px;">✕</span>
-                        <span>Não (Não conforme)</span>
+                        <span>Não</span>
                       </button>
                     </div>
                     <button v-if="inspectionField.config_json?.allow_na"
@@ -857,15 +849,40 @@ function loadMoreFields() { listViewLimit.value += LIST_PAGE }
                     type="text" placeholder="Informe o valor"
                     :disabled="isCompleted" @change="triggerAutoSave()" />
 
+                  <!-- ── Conformidade ── -->
+                  <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--sa-line);">
+                    <div style="font-size:10px;font-weight:700;color:var(--sa-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Conformidade</div>
+                    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                      <button type="button" class="bool-btn-sm bool-sim"
+                        :class="{ 'bool-btn--active': conformityStatus[inspectionField.key] === 'conforme' }"
+                        :disabled="isCompleted"
+                        @click="setConformityCard(inspectionField.key, 'conforme')">✓ Conforme</button>
+                      <button type="button" class="bool-btn-sm bool-nao"
+                        :class="{ 'bool-btn--active': conformityStatus[inspectionField.key] === 'nao_conforme' }"
+                        :disabled="isCompleted"
+                        @click="setConformityCard(inspectionField.key, 'nao_conforme')">✕ Não conforme</button>
+                    </div>
+                    <textarea v-if="conformityStatus[inspectionField.key] === 'nao_conforme'"
+                      v-model="conformityJustification[inspectionField.key]"
+                      placeholder="Justificativa obrigatória"
+                      rows="2"
+                      :disabled="isCompleted"
+                      style="width:100%;margin-top:8px;font-size:12px;padding:6px 8px;border-radius:6px;border:1px solid var(--sa-danger);resize:vertical;box-sizing:border-box;"
+                      @input="triggerConformitySave()"
+                    ></textarea>
+                  </div>
+
                   <!-- ── Evidências (todos os tipos de campo) ── -->
                   <div v-if="!isCompleted || (evidenceAttachments[inspectionField.key]?.length ?? 0) > 0"
                     style="margin-top:12px;padding-top:10px;border-top:1px solid var(--sa-line);">
                     <div v-if="evidenceAttachments[inspectionField.key]?.length" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px;">
                       <div v-for="att in evidenceAttachments[inspectionField.key]" :key="att.id"
                         style="display:inline-flex;align-items:center;gap:5px;padding:4px 8px;background:var(--sa-bg);border:1px solid var(--sa-line);border-radius:6px;font-size:11px;max-width:180px;">
-                        <img v-if="mimeCategory(att.mime_type) === 'image'" :src="att.file_url" style="width:18px;height:18px;object-fit:cover;border-radius:2px;flex-shrink:0;" />
-                        <span v-else style="font-size:12px;flex-shrink:0;">📄</span>
-                        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--sa-text);">{{ att.file_url.split('/').pop() }}</span>
+                        <a :href="att.file_url" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:5px;text-decoration:none;min-width:0;">
+                          <img v-if="mimeCategory(att.mime_type) === 'image'" :src="att.file_url" style="width:18px;height:18px;object-fit:cover;border-radius:2px;flex-shrink:0;" />
+                          <span v-else style="font-size:12px;flex-shrink:0;">📄</span>
+                          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--sa-text);">{{ att.file_url.split('/').pop() }}</span>
+                        </a>
                         <button v-if="!isCompleted" type="button" @click="handleEvidenceDelete(inspectionField.key, att.id)"
                           style="border:none;background:none;cursor:pointer;color:var(--sa-danger);font-size:14px;padding:0 2px;line-height:1;flex-shrink:0;">×</button>
                       </div>
@@ -879,7 +896,7 @@ function loadMoreFields() { listViewLimit.value += LIST_PAGE }
 
                   <!-- Swipe hint (boolean only) -->
                   <p v-if="inspectionField.field_type === 'boolean'" style="font-size:11px;color:var(--sa-muted);text-align:center;margin-top:16px;opacity:.6;">
-                    ← Deslize para não conforme · Conforme para →
+                    ← Conforme · Não conforme →
                   </p>
 
                   <!-- Card navigation -->
@@ -937,17 +954,42 @@ function loadMoreFields() { listViewLimit.value += LIST_PAGE }
                     <input v-else-if="field.field_type === 'text'" v-model="draftAnswers[field.key]" type="text" :disabled="isCompleted" @change="triggerAutoSave()" />
                     <input v-else v-model="draftAnswers[field.key]" type="text" :disabled="isCompleted" @change="triggerAutoSave()" />
 
+                    <!-- Conformidade (inspection list) -->
+                    <div style="margin-top:8px;padding-top:6px;border-top:1px solid var(--sa-line);">
+                      <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;">
+                        <span style="font-size:10px;font-weight:700;color:var(--sa-muted);text-transform:uppercase;letter-spacing:.04em;margin-right:2px;">Conformidade:</span>
+                        <button type="button" class="bool-btn-sm bool-sim"
+                          :class="{ 'bool-btn--active': conformityStatus[field.key] === 'conforme' }"
+                          :disabled="isCompleted"
+                          @click="setConformity(field.key, 'conforme')">✓ Conforme</button>
+                        <button type="button" class="bool-btn-sm bool-nao"
+                          :class="{ 'bool-btn--active': conformityStatus[field.key] === 'nao_conforme' }"
+                          :disabled="isCompleted"
+                          @click="setConformity(field.key, 'nao_conforme')">✕ Não conforme</button>
+                      </div>
+                      <textarea v-if="conformityStatus[field.key] === 'nao_conforme'"
+                        v-model="conformityJustification[field.key]"
+                        placeholder="Justificativa obrigatória"
+                        rows="2"
+                        :disabled="isCompleted"
+                        style="width:100%;margin-top:6px;font-size:12px;padding:5px 7px;border-radius:6px;border:1px solid var(--sa-danger);resize:vertical;box-sizing:border-box;"
+                        @input="triggerConformitySave()"
+                      ></textarea>
+                    </div>
+
                     <!-- Evidências (todos os tipos) -->
                     <div v-if="!isCompleted || (evidenceAttachments[field.key]?.length ?? 0) > 0" style="margin-top:8px;display:flex;flex-wrap:wrap;align-items:center;gap:4px;">
                       <div v-for="att in evidenceAttachments[field.key]" :key="att.id"
                         style="display:inline-flex;align-items:center;gap:4px;padding:3px 7px;background:var(--sa-bg);border:1px solid var(--sa-line);border-radius:6px;font-size:11px;max-width:150px;">
-                        <img v-if="mimeCategory(att.mime_type) === 'image'" :src="att.file_url" style="width:16px;height:16px;object-fit:cover;border-radius:2px;flex-shrink:0;" />
-                        <span v-else style="font-size:11px;flex-shrink:0;">📄</span>
-                        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ att.file_url.split('/').pop() }}</span>
+                        <a :href="att.file_url" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:4px;text-decoration:none;min-width:0;">
+                          <img v-if="mimeCategory(att.mime_type) === 'image'" :src="att.file_url" style="width:16px;height:16px;object-fit:cover;border-radius:2px;flex-shrink:0;" />
+                          <span v-else style="font-size:11px;flex-shrink:0;">📄</span>
+                          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--sa-text);">{{ att.file_url.split('/').pop() }}</span>
+                        </a>
                         <button v-if="!isCompleted" type="button" @click="handleEvidenceDelete(field.key, att.id)"
                           style="border:none;background:none;cursor:pointer;color:var(--sa-danger);font-size:13px;padding:0;line-height:1;flex-shrink:0;">×</button>
                       </div>
-                      <label v-if="!isCompleted" style="display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:600;color:var(--sa-muted);cursor:pointer;padding:3px 7px;border:1px dashed var(--sa-line);border-radius:6px;">
+                      <label v-if="!isCompleted" style="display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:600;color:var(--sa-brand);cursor:pointer;padding:3px 7px;border:1px dashed var(--sa-brand);border-radius:6px;">
                         {{ evidenceUploading[field.key] ? '…' : '📎' }}
                         <input type="file" :accept="ALLOWED_MIMES" style="display:none;" :disabled="evidenceUploading[field.key]" @change="handleEvidenceUpload(field.key, {}, $event)" />
                       </label>
@@ -974,6 +1016,13 @@ function loadMoreFields() { listViewLimit.value += LIST_PAGE }
                 {{ sec.label }}
                 <span style="opacity:.7;font-size:10px;margin-left:2px;">{{ sec.pct }}%</span>
               </a>
+            </div>
+
+            <!-- Evidence summary for completed inspections -->
+            <div v-if="isCompleted && evidenceLoaded" style="display:flex;align-items:center;gap:6px;margin-bottom:12px;font-size:12px;color:var(--sa-muted);">
+              <span>📎</span>
+              <span v-if="totalEvidenceCount > 0" style="font-weight:600;color:var(--sa-brand);">{{ totalEvidenceCount }} evidência(s) registrada(s)</span>
+              <span v-else>Sem evidências registradas nesta inspeção</span>
             </div>
 
             <div class="fpanel" style="margin-bottom:16px;">
@@ -1021,17 +1070,47 @@ function loadMoreFields() { listViewLimit.value += LIST_PAGE }
                   <input v-else-if="field.field_type === 'text'" v-model="draftAnswers[field.key]" type="text" placeholder="Informe o valor" :disabled="isCompleted" @change="triggerAutoSave()" />
                   <input v-else v-model="draftAnswers[field.key]" type="text" placeholder="Informe o valor" :disabled="isCompleted" @change="triggerAutoSave()" />
 
+                  <!-- Conformidade (normal list) -->
+                  <div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--sa-line);">
+                    <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;">
+                      <span style="font-size:10px;font-weight:700;color:var(--sa-muted);text-transform:uppercase;letter-spacing:.04em;margin-right:2px;">Conformidade:</span>
+                      <button type="button" class="bool-btn-sm bool-sim"
+                        :class="{ 'bool-btn--active': conformityStatus[field.key] === 'conforme' }"
+                        :disabled="isCompleted"
+                        @click="setConformity(field.key, 'conforme')">✓ Conforme</button>
+                      <button type="button" class="bool-btn-sm bool-nao"
+                        :class="{ 'bool-btn--active': conformityStatus[field.key] === 'nao_conforme' }"
+                        :disabled="isCompleted"
+                        @click="setConformity(field.key, 'nao_conforme')">✕ Não conforme</button>
+                    </div>
+                    <textarea v-if="conformityStatus[field.key] === 'nao_conforme'"
+                      v-model="conformityJustification[field.key]"
+                      placeholder="Justificativa obrigatória"
+                      rows="2"
+                      :disabled="isCompleted"
+                      style="width:100%;margin-top:8px;font-size:12px;padding:6px 8px;border-radius:6px;border:1px solid var(--sa-danger);resize:vertical;box-sizing:border-box;"
+                      @input="triggerConformitySave()"
+                    ></textarea>
+                    <div v-if="isCompleted && conformityStatus[field.key] === 'nao_conforme' && conformityJustification[field.key]"
+                      style="margin-top:8px;font-size:12px;color:var(--sa-muted);background:var(--sa-err-bg);border-radius:6px;padding:6px 10px;">
+                      {{ conformityJustification[field.key] }}
+                    </div>
+                  </div>
+
                   <!-- Evidências (todos os tipos de campo) -->
                   <div v-if="!isCompleted || (evidenceAttachments[field.key]?.length ?? 0) > 0" style="margin-top:10px;">
                     <div v-if="evidenceAttachments[field.key]?.length" style="display:grid;gap:6px;margin-bottom:8px;">
                       <div v-for="att in evidenceAttachments[field.key]" :key="att.id"
-                        style="display:flex;align-items:center;gap:10px;background:var(--sa-bg);border:1px solid var(--sa-line);border-radius:8px;padding:8px 10px;">
-                        <img v-if="mimeCategory(att.mime_type) === 'image'" :src="att.file_url" alt="" style="width:40px;height:40px;object-fit:cover;border-radius:4px;flex-shrink:0;" />
-                        <div v-else style="width:40px;height:40px;border-radius:4px;flex-shrink:0;background:var(--sa-brand-soft);display:flex;align-items:center;justify-content:center;font-size:18px;">📄</div>
-                        <div style="flex:1;min-width:0;">
-                          <div style="font-size:12px;font-weight:600;color:var(--sa-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ att.file_url.split('/').pop() }}</div>
-                          <div style="font-size:11px;color:var(--sa-muted);margin-top:2px;">{{ formatFileSize(att.file_size) }}</div>
-                        </div>
+                        style="display:flex;align-items:center;gap:8px;background:var(--sa-bg);border:1px solid var(--sa-line);border-radius:8px;padding:8px 10px;overflow:hidden;">
+                        <a :href="att.file_url" target="_blank" rel="noopener"
+                          style="flex:1;min-width:0;display:flex;align-items:center;gap:8px;text-decoration:none;">
+                          <img v-if="mimeCategory(att.mime_type) === 'image'" :src="att.file_url" alt="" style="width:40px;height:40px;object-fit:cover;border-radius:4px;flex-shrink:0;" />
+                          <div v-else style="width:40px;height:40px;border-radius:4px;flex-shrink:0;background:var(--sa-brand-soft);display:flex;align-items:center;justify-content:center;font-size:18px;">📄</div>
+                          <div style="flex:1;min-width:0;">
+                            <div style="font-size:12px;font-weight:600;color:var(--sa-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ att.file_url.split('/').pop() }}</div>
+                            <div style="font-size:11px;color:var(--sa-muted);margin-top:2px;">{{ formatFileSize(att.file_size) }}</div>
+                          </div>
+                        </a>
                         <button v-if="!isCompleted" type="button" title="Remover" @click="handleEvidenceDelete(field.key, att.id)"
                           style="border:none;background:none;cursor:pointer;color:var(--sa-danger);font-size:18px;line-height:1;padding:0 4px;flex-shrink:0;">×</button>
                       </div>
@@ -1085,46 +1164,6 @@ function loadMoreFields() { listViewLimit.value += LIST_PAGE }
 
     </div>
 
-    <!-- ═══════════════════════════════════════════════════════════════════ -->
-    <!--  EVIDENCE BOTTOM SHEET                                              -->
-    <!-- ═══════════════════════════════════════════════════════════════════ -->
-    <Teleport to="body">
-      <Transition name="sheet">
-        <div v-if="showEvidenceSheet" style="position:fixed;inset:0;z-index:200;display:flex;flex-direction:column;justify-content:flex-end;">
-          <!-- Backdrop -->
-          <div style="position:absolute;inset:0;background:rgba(15,23,42,.45);" @click="closeEvidenceSheet" />
-
-          <!-- Sheet -->
-          <div style="position:relative;background:#fff;border-radius:20px 20px 0 0;padding:20px 20px 32px;max-height:80vh;overflow-y:auto;">
-            <div style="width:40px;height:4px;border-radius:99px;background:var(--sa-line);margin:0 auto 20px;"></div>
-
-            <div style="margin-bottom:16px;">
-              <div style="font-size:16px;font-weight:700;color:var(--sa-text);margin-bottom:4px;">Não-conformidade registrada</div>
-              <div style="font-size:13px;color:var(--sa-muted);">Deseja adicionar uma evidência fotográfica?</div>
-            </div>
-
-            <!-- Evidence upload shortcut -->
-            <div v-if="evidenceSheetFieldKey" style="margin-bottom:16px;">
-              <label style="display:flex;align-items:center;gap:12px;padding:14px;border:1px solid var(--sa-line);border-radius:12px;cursor:pointer;background:var(--sa-bg);transition:background .15s;">
-                <div style="width:40px;height:40px;border-radius:10px;background:var(--sa-brand-soft);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">📷</div>
-                <div>
-                  <div style="font-size:13px;font-weight:600;color:var(--sa-text);">{{ evidenceUploading[evidenceSheetFieldKey] ? 'Enviando…' : 'Adicionar foto da evidência' }}</div>
-                  <div style="font-size:11px;color:var(--sa-muted);">JPG, PNG ou WebP · máx. 10MB</div>
-                </div>
-                <input type="file" accept="image/jpeg,image/png,image/webp" style="display:none;"
-                  :disabled="evidenceUploading[evidenceSheetFieldKey || '']"
-                  @change="handleEvidenceUpload(evidenceSheetFieldKey || '', {}, $event); closeEvidenceSheet()" />
-              </label>
-              <p v-if="evidenceErrors[evidenceSheetFieldKey || '']" style="font-size:12px;color:var(--sa-danger);margin-top:6px;">{{ evidenceErrors[evidenceSheetFieldKey || ''] }}</p>
-            </div>
-
-            <button type="button" class="btn-secondary btn-full" @click="closeEvidenceSheet">
-              Pular por agora
-            </button>
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
 
   </AppShell>
 </template>

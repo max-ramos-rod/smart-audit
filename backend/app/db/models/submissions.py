@@ -40,3 +40,4 @@ class Submission(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     creator = relationship("User", back_populates="submissions_created")
     form_version = relationship("FormVersion", back_populates="submissions")
     values = relationship("SubmissionValue", back_populates="submission")
+    conformities = relationship("SubmissionConformity", back_populates="submission", cascade="all, delete-orphan")

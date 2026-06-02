@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.pagination import PageMeta, PaginationMetaBuilder, PaginationParams
 from app.db.models.form_fields import FormField
 from app.db.models.memberships import Membership
+from app.db.models.submission_conformities import SubmissionConformity
 from app.db.models.submission_values import SubmissionValue
 from app.db.models.submissions import Submission
 from app.db.models.users import User
@@ -17,12 +18,14 @@ from app.modules.submissions.pdf import generate_submission_pdf
 from app.modules.submissions.repository import SubmissionRepository
 from app.modules.submissions.schemas import (
     CompanyStatsResponse,
+    ConformityItem,
     FormScoreStat,
     NotificationItem,
     ScoreBreakdown,
     ScoreTrendPoint,
     SubmissionAnswerResponse,
     SubmissionAnswersUpdateRequest,
+    SubmissionConformityUpdateRequest,
     SubmissionCreateRequest,
     SubmissionListItemResponse,
     SubmissionResponse,
@@ -285,6 +288,56 @@ class SubmissionService:
         )
         return self.serialize_submission(updated)
 
+    async def save_conformity(
+        self,
+        db: AsyncSession,
+        membership: Membership,
+        submission_id: str,
+        payload: SubmissionConformityUpdateRequest,
+    ) -> SubmissionResponse:
+        submission = await self.repository.get_submission(
+            db, str(membership.company_id), submission_id
+        )
+        if submission is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Inspecao nao encontrada."
+            )
+        if submission.status == "completed":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Inspecao ja finalizada."
+            )
+
+        fields_by_key = {field.key: field for field in submission.form_version.fields}
+
+        for item in payload.items:
+            field = fields_by_key.get(item.field_key)
+            if field is None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Campo invalido: {item.field_key}.",
+                )
+            if field.field_type == "section":
+                continue
+
+            conformity = await self.repository.get_conformity(
+                db, str(submission.id), str(field.id)
+            )
+            if conformity is None:
+                conformity = SubmissionConformity(
+                    submission_id=submission.id,
+                    form_field_id=field.id,
+                )
+            conformity.status = item.status
+            conformity.justification = item.justification
+            await self.repository.save_conformity(db, conformity)
+
+        await db.commit()
+
+        updated = await self.repository.get_submission(
+            db, str(membership.company_id), submission_id
+        )
+        return self.serialize_submission(updated)
+
     async def finish_submission(
         self, db: AsyncSession, membership: Membership, submission_id: str
     ) -> SubmissionResponse:
@@ -299,6 +352,7 @@ class SubmissionService:
         answers_by_field_id = {str(value.form_field_id): value for value in submission.values}
         answers_snapshot = submission.answers_json or {}
         missing_required = []
+
         for field in submission.form_version.fields:
             if not field.required:
                 continue
@@ -314,10 +368,26 @@ class SubmissionService:
             if str(field.id) not in answers_by_field_id:
                 missing_required.append(field.key)
 
+        fields_by_id = {str(f.id): f for f in submission.form_version.fields}
+        missing_justification = [
+            fields_by_id[str(c.form_field_id)].key
+            for c in submission.conformities
+            if c.status == "nao_conforme"
+            and not (c.justification or "").strip()
+            and str(c.form_field_id) in fields_by_id
+        ]
+
+        errors = []
         if missing_required:
+            errors.append(f"Campos obrigatorios pendentes: {', '.join(missing_required)}")
+        if missing_justification:
+            errors.append(
+                f"Campos nao conformes sem justificativa: {', '.join(missing_justification)}"
+            )
+        if errors:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Campos obrigatorios pendentes: {', '.join(missing_required)}.",
+                detail="; ".join(errors) + ".",
             )
 
         submission.status = "completed"
@@ -369,6 +439,17 @@ class SubmissionService:
             if breakdown
             else None
         )
+
+        fields_by_id_label = {str(f.id): f.label for f in submission.form_version.fields}
+        non_conformities = [
+            {
+                "label": fields_by_id_label.get(str(c.form_field_id), ""),
+                "justification": c.justification or "",
+            }
+            for c in submission.conformities
+            if c.status == "nao_conforme"
+        ]
+
         return generate_submission_pdf(
             company_name=submission.company.name,
             form_name=submission.form_version.form.name,
@@ -380,6 +461,7 @@ class SubmissionService:
             finished_at=submission.finished_at,
             fields_with_answers=fields_with_answers,
             score_breakdown=score_breakdown_dict,
+            non_conformities=non_conformities,
         )
 
     @staticmethod
@@ -448,53 +530,41 @@ class SubmissionService:
 
     @staticmethod
     def calculate_score_breakdown(submission: Submission) -> ScoreBreakdown | None:
-        boolean_fields = [f for f in submission.form_version.fields if f.field_type == "boolean"]
-        if not boolean_fields:
+        if not submission.conformities:
             return None
-        values_by_field_id = {str(v.form_field_id): v for v in submission.values}
+        fields_by_id = {str(f.id): f for f in submission.form_version.fields}
+        total_fields = sum(1 for f in submission.form_version.fields if f.field_type != "section")
         conformes = 0
         nao_conformes = 0
-        sem_resposta = 0
-        na_count = 0
-        for field in boolean_fields:
-            sv = values_by_field_id.get(str(field.id))
-            if sv is None:
-                sem_resposta += 1
-            elif sv.value_text == "na":
-                na_count += 1
-            elif sv.value_boolean is None:
-                sem_resposta += 1
-            elif sv.value_boolean:
+        for c in submission.conformities:
+            field = fields_by_id.get(str(c.form_field_id))
+            if field is None or field.field_type == "section":
+                continue
+            if c.status == "conforme":
                 conformes += 1
-            else:
+            elif c.status == "nao_conforme":
                 nao_conformes += 1
+        sem_avaliacao = total_fields - conformes - nao_conformes
         return ScoreBreakdown(
-            total_boolean=len(boolean_fields),
+            total_boolean=total_fields,
             conformes=conformes,
             nao_conformes=nao_conformes,
-            sem_resposta=sem_resposta,
-            na_count=na_count,
+            sem_resposta=max(0, sem_avaliacao),
+            na_count=0,
         )
 
     @staticmethod
     def calculate_score(submission: Submission) -> float | None:
+        fields_by_id = {str(f.id): f for f in submission.form_version.fields}
         weighted_conformes = 0.0
         weighted_total = 0.0
-        for field in submission.form_version.fields:
-            if field.field_type != "boolean":
+        for conformity in submission.conformities:
+            field = fields_by_id.get(str(conformity.form_field_id))
+            if field is None or field.field_type == "section":
                 continue
-            weight = float(field.config_json.get("weight") or 1.0)
-            sv = next(
-                (item for item in submission.values if str(item.form_field_id) == str(field.id)),
-                None,
-            )
-            if sv is None:
-                continue
-            extracted = SubmissionService.extract_value(sv, "boolean")
-            if extracted is None or extracted == "na":
-                continue
+            weight = float((field.config_json or {}).get("weight") or 1.0)
             weighted_total += weight
-            if extracted is True:
+            if conformity.status == "conforme":
                 weighted_conformes += weight
 
         if weighted_total == 0:
@@ -515,6 +585,17 @@ class SubmissionService:
                 )
             )
 
+        fields_by_id_key = {str(field.id): field.key for field in submission.form_version.fields}
+        conformity_items = [
+            ConformityItem(
+                field_key=fields_by_id_key.get(str(c.form_field_id), ""),
+                status=c.status,
+                justification=c.justification,
+            )
+            for c in submission.conformities
+            if str(c.form_field_id) in fields_by_id_key
+        ]
+
         ordered_answers = sorted(answers, key=lambda item: item.field_key)
         return SubmissionResponse(
             id=str(submission.id),
@@ -527,6 +608,7 @@ class SubmissionService:
             started_at=submission.started_at,
             finished_at=submission.finished_at,
             answers=ordered_answers,
+            conformity=conformity_items,
         )
 
     @staticmethod

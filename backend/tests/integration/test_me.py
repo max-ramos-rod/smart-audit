@@ -34,6 +34,11 @@ async def _finish_submission(client, headers, submission_id):
         headers=headers,
         json={"answers": [{"field_key": "ok", "value": True}]},
     )
+    await client.put(
+        f"/api/v1/submissions/{submission_id}/conformity",
+        headers=headers,
+        json={"items": [{"field_key": "ok", "status": "conforme", "justification": None}]},
+    )
     resp = await client.post(f"/api/v1/submissions/{submission_id}/finish", headers=headers)
     assert resp.status_code == 200
 
@@ -136,11 +141,16 @@ async def test_stats_without_period_still_works(client, auth_headers):
 # ── /me/notifications ─────────────────────────────────────────────────────────
 
 async def _finish_submission_fail(client, headers, submission_id):
-    """Finish a submission with a False answer → score = 0%."""
+    """Finish a submission marked nao_conforme → score = 0%."""
     await client.put(
         f"/api/v1/submissions/{submission_id}/answers",
         headers=headers,
         json={"answers": [{"field_key": "ok", "value": False}]},
+    )
+    await client.put(
+        f"/api/v1/submissions/{submission_id}/conformity",
+        headers=headers,
+        json={"items": [{"field_key": "ok", "status": "nao_conforme", "justification": "Falhou"}]},
     )
     resp = await client.post(f"/api/v1/submissions/{submission_id}/finish", headers=headers)
     assert resp.status_code == 200

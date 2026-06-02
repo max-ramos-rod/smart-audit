@@ -287,6 +287,29 @@ async function handleExport(inline = false) {
           </div>
         </template>
 
+        <!-- Non-conformity justifications -->
+        <template v-if="submission.conformity?.some(c => c.status === 'nao_conforme')">
+          <div class="slabel" style="margin-bottom:10px;color:var(--sa-danger);">Não conformidades registradas</div>
+          <div class="fpanel" style="margin-bottom:16px;border:1px solid var(--sa-err-bd, #fecaca);">
+            <div
+              v-for="c in submission.conformity.filter(c => c.status === 'nao_conforme')"
+              :key="c.field_key"
+              class="frow"
+            >
+              <div style="display:flex;align-items:flex-start;gap:10px;">
+                <div style="width:20px;height:20px;border-radius:50%;background:var(--sa-err-bg);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:var(--sa-danger);flex-shrink:0;margin-top:2px;">✗</div>
+                <div style="flex:1;min-width:0;">
+                  <div class="frow-name" style="margin-bottom:4px;">{{ fields.find(f => f.key === c.field_key)?.label ?? c.field_key }}</div>
+                  <div v-if="c.justification" style="font-size:12px;color:var(--sa-muted);background:var(--sa-err-bg);border-radius:6px;padding:6px 10px;">
+                    {{ c.justification }}
+                  </div>
+                  <div v-else style="font-size:12px;color:var(--sa-muted);font-style:italic;">Sem justificativa</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </template>
+
         <!-- Info footer -->
         <div class="info-box">
           Relatório gerado pelo Smart Audit em {{ new Date().toLocaleDateString('pt-BR') }}.

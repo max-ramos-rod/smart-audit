@@ -34,6 +34,7 @@ const mockDetail: SubmissionDetail = {
   form_version_id: 'v1',
   score_breakdown: null,
   answers: [{ field_key: 'extintor_ok', field_type: 'boolean', value: true }],
+  conformity: [],
 }
 
 const mockCompletedDetail: SubmissionDetail = {

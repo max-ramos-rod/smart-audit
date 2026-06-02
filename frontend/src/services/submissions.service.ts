@@ -1,5 +1,6 @@
 import type { ApiEnvelope, PaginatedEnvelope } from '@/types/api'
 import type {
+  ConformityUpdatePayload,
   SubmissionAnswersUpdatePayload,
   SubmissionCreatePayload,
   SubmissionDetail,
@@ -36,6 +37,14 @@ export async function createSubmission(payload: SubmissionCreatePayload) {
 export async function saveAnswers(submissionId: string, payload: SubmissionAnswersUpdatePayload) {
   const response = await http.put<ApiEnvelope<SubmissionDetail>>(
     `/submissions/${submissionId}/answers`,
+    payload,
+  )
+  return response.data.data
+}
+
+export async function saveConformity(submissionId: string, payload: ConformityUpdatePayload) {
+  const response = await http.put<ApiEnvelope<SubmissionDetail>>(
+    `/submissions/${submissionId}/conformity`,
     payload,
   )
   return response.data.data
