@@ -1,7 +1,7 @@
 """remove photo field type
 
 Revision ID: a1b2c3d4e5f7
-Revises: f73cae8e6de7
+Revises: c3d4e5f6a7b8
 Create Date: 2026-06-02
 
 Remove the 'photo' field type entirely:
@@ -13,7 +13,7 @@ Remove the 'photo' field type entirely:
 from alembic import op
 
 revision = 'a1b2c3d4e5f7'
-down_revision = 'f73cae8e6de7'
+down_revision = 'c3d4e5f6a7b8'
 branch_labels = None
 depends_on = None
 
