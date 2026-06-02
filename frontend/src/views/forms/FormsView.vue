@@ -263,7 +263,7 @@ async function submitVersion() {
                     <option value="number">Número</option>
                     <option value="select">Seleção</option>
                     <option value="date">Data</option>
-                    <option value="photo">Foto</option>
+
                   </select>
                 </label>
                 <label style="display:grid;gap:6px;">
@@ -347,7 +347,7 @@ async function submitVersion() {
                     <option value="number">Número</option>
                     <option value="select">Seleção</option>
                     <option value="date">Data</option>
-                    <option value="photo">Foto</option>
+
                   </select>
                 </label>
                 <label style="display:grid;gap:6px;">

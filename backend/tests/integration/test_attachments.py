@@ -5,7 +5,7 @@ from backend.tests.integration.test_auth import assert_pagination_meta, assert_p
 _PHOTO_FIELD = {
     "key": "foto_extintor",
     "label": "Foto do extintor",
-    "field_type": "photo",
+    "field_type": "evidence",
     "required": True,
     "position": 1,
     "config_json": {},
@@ -14,7 +14,7 @@ _PHOTO_FIELD = {
 _SECOND_FIELD = {
     "key": "foto_saida",
     "label": "Foto da saida de emergencia",
-    "field_type": "photo",
+    "field_type": "evidence",
     "required": False,
     "position": 2,
     "config_json": {},

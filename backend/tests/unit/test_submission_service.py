@@ -127,10 +127,6 @@ class TestNormalizeValue:
             SubmissionService.normalize_value(make_field("text"), 123)
         assert exc_info.value.status_code == 400
 
-    def test_photo_string(self):
-        url = "https://bucket.s3.amazonaws.com/foto.jpg"
-        assert SubmissionService.normalize_value(make_field("photo"), url) == url
-
     def test_none_returns_none_for_text(self):
         assert SubmissionService.normalize_value(make_field("text"), None) is None
 
@@ -264,11 +260,6 @@ class TestExtractValue:
         sv = MagicMock()
         sv.value_text = "resposta livre"
         assert SubmissionService.extract_value(sv, "text") == "resposta livre"
-
-    def test_photo(self):
-        sv = MagicMock()
-        sv.value_text = "https://bucket/foto.jpg"
-        assert SubmissionService.extract_value(sv, "photo") == "https://bucket/foto.jpg"
 
     def test_boolean_na(self):
         sv = MagicMock()
@@ -508,8 +499,7 @@ class TestPdfGeneration:
                 {"position": 6, "label": "Número", "field_type": "number", "value": 42.5},
                 {"position": 7, "label": "Data", "field_type": "date", "value": date(2025, 6, 1)},
                 {"position": 8, "label": "Select", "field_type": "select", "value": {"option": "A"}},
-                {"position": 9, "label": "Foto", "field_type": "photo", "value": "http://x.com/f.jpg"},
-                {"position": 10, "label": "Evidência", "field_type": "evidence", "value": None},
+                {"position": 9, "label": "Evidência 2", "field_type": "evidence", "value": None},
             ]
         ))
         assert pdf[:4] == b"%PDF"

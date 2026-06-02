@@ -51,7 +51,7 @@ class TestValidateFields:
             make_field("num_field", 3, "number"),
             make_field("date_field", 4, "date"),
             make_field("sel_field", 5, "select"),
-            make_field("photo_field", 6, "photo"),
+            make_field("photo_field", 6, "evidence"),
         ]
         FormService.validate_fields(fields)
 

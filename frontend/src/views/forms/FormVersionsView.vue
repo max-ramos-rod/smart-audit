@@ -22,7 +22,7 @@ const versionFields = ref<Record<string, FormField[]>>({})
 
 const TYPE_LABEL: Record<string, string> = {
   boolean: 'Sim/Não', text: 'Texto', number: 'Número',
-  date: 'Data', photo: 'Foto', select: 'Seleção',
+  date: 'Data', select: 'Seleção',
 }
 
 onMounted(async () => {

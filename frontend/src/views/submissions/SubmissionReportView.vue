@@ -24,7 +24,7 @@ const isExporting  = ref(false)
 
 const TYPE_LABEL: Record<string, string> = {
   boolean: 'Sim/Não', text: 'Texto', number: 'Número',
-  date: 'Data', photo: 'Foto', select: 'Seleção', evidence: 'Evidências',
+  date: 'Data', select: 'Seleção', evidence: 'Evidências',
 }
 
 const evidenceAttachments = ref<Record<string, AttachmentItem[]>>({})
@@ -75,8 +75,7 @@ const enrichedAnswers = computed<EnrichedAnswer[]>(() => {
 })
 
 const boolAnswers    = computed(() => enrichedAnswers.value.filter(a => a.field.field_type === 'boolean'))
-const nonBoolAnswers = computed(() => enrichedAnswers.value.filter(a => !['boolean', 'photo', 'evidence', 'section'].includes(a.field.field_type)))
-const photoAnswers   = computed(() => enrichedAnswers.value.filter(a => a.field.field_type === 'photo' && a.value))
+const nonBoolAnswers = computed(() => enrichedAnswers.value.filter(a => !['boolean', 'evidence', 'section'].includes(a.field.field_type)))
 const evidenceFields = computed(() => enrichedAnswers.value.filter(a => a.field.field_type === 'evidence'))
 
 const conformes    = computed(() => boolAnswers.value.filter(a => a.value === true  || a.value === 'true').length)
@@ -268,25 +267,6 @@ async function handleExport(inline = false) {
               <span style="font-size:13px;font-weight:500;color:var(--sa-text);">
                 {{ formatValue(ans.value, ans.field.field_type) }}
               </span>
-            </div>
-          </div>
-        </template>
-
-        <!-- Photo evidence -->
-        <template v-if="photoAnswers.length">
-          <div class="slabel" style="margin-bottom:10px;">Evidências fotográficas</div>
-          <div class="card" style="padding:16px;margin-bottom:16px;">
-            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;">
-              <div v-for="ans in photoAnswers" :key="ans.field.key">
-                <img
-                  :src="String(ans.value)"
-                  :alt="ans.field.label"
-                  style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:8px;"
-                />
-                <div style="font-size:11px;color:var(--sa-muted);margin-top:4px;text-align:center;">
-                  {{ ans.field.label }}
-                </div>
-              </div>
             </div>
           </div>
         </template>
