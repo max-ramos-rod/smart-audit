@@ -49,8 +49,6 @@ const listViewLimit = ref(LIST_PAGE)
 const evidenceAttachments = reactive<Record<string, AttachmentItem[]>>({})
 const evidenceUploading   = reactive<Record<string, boolean>>({})
 const evidenceErrors      = reactive<Record<string, string>>({})
-const uploadingField      = ref<string | null>(null)
-const uploadErrors        = reactive<Record<string, string>>({})
 
 const pendingRequiredFields = ref<string[]>([])
 
@@ -94,8 +92,6 @@ const progressStats = computed(() => {
       if (val === 'true') conformes++
       else if (val === 'false') naoConformes++
       else if (val === 'na') naCount++
-    } else if (field.field_type === 'evidence') {
-      if ((evidenceAttachments[field.key]?.length ?? 0) > 0) outros++
     } else {
       outros++
     }
@@ -140,7 +136,6 @@ const formSections = computed(() =>
         (f) => f.position > section.position && f.position < nextSectionPos,
       )
       const answered = sectionItems.filter((f) => {
-        if (f.field_type === 'evidence') return (evidenceAttachments[f.key]?.length ?? 0) > 0
         const v = draftAnswers[f.key]
         return v !== undefined && v !== ''
       }).length
@@ -166,9 +161,6 @@ const inspectionSectionLabel = computed(() => {
 
 function fieldAnswerStatus(fieldKey: string, fieldType: string): 'pending' | 'conformes' | 'nao_conformes' | 'na' | 'answered' {
   const val = draftAnswers[fieldKey]
-  if (fieldType === 'evidence') {
-    return (evidenceAttachments[fieldKey]?.length ?? 0) > 0 ? 'answered' : 'pending'
-  }
   if (!val || val === '') return 'pending'
   if (fieldType === 'boolean') {
     if (val === 'true') return 'conformes'
@@ -317,8 +309,7 @@ function triggerAutoSave() {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const TYPE_LABEL: Record<string, string> = {
-  boolean: 'Sim/Não', text: 'Texto', number: 'Número',
-  date: 'Data', select: 'Seleção', evidence: 'Evidências',
+  boolean: 'Sim/Não', text: 'Texto', number: 'Número', date: 'Data', select: 'Seleção',
 }
 
 const EVIDENCE_MIME_MAP: Record<string, string[]> = {
@@ -394,13 +385,12 @@ function populateDraft() {
 }
 
 async function loadEvidenceAttachments() {
-  if (!submission.value || !formVersion.value) return
-  const evidenceFields = formVersion.value.fields.filter((f) => f.field_type === 'evidence')
-  if (!evidenceFields.length) return
+  if (!submission.value) return
   try {
     const all = await listAttachments(submissionId.value)
-    for (const field of evidenceFields) {
-      evidenceAttachments[field.key] = all.filter((a) => a.field_key === field.key)
+    for (const att of all) {
+      if (!evidenceAttachments[att.field_key]) evidenceAttachments[att.field_key] = []
+      evidenceAttachments[att.field_key].push(att)
     }
   } catch { /* non-fatal */ }
 }
@@ -421,24 +411,6 @@ watch(() => submissionsStore.current?.id, (newId) => {
 watch(fields, () => { listViewLimit.value = LIST_PAGE })
 
 // ── Upload handlers ───────────────────────────────────────────────────────────
-
-async function handlePhotoUpload(fieldKey: string, event: Event) {
-  const input = event.target as HTMLInputElement
-  const file  = input.files?.[0]
-  if (!file) return
-  uploadingField.value = fieldKey
-  delete uploadErrors[fieldKey]
-  try {
-    const result = await uploadFile(file)
-    draftAnswers[fieldKey] = result.url
-    await createAttachment(submissionId.value, { field_key: fieldKey, file_url: result.url, mime_type: result.mime_type, file_size: result.file_size })
-  } catch (err: any) {
-    uploadErrors[fieldKey] = extractProblemMessage(err, 'Erro ao enviar arquivo.')
-  } finally {
-    uploadingField.value = null
-    input.value = ''
-  }
-}
 
 async function handleEvidenceUpload(fieldKey: string, configJson: Record<string, unknown>, event: Event) {
   const input = event.target as HTMLInputElement
@@ -480,7 +452,7 @@ async function handleEvidenceDelete(fieldKey: string, attachmentId: string) {
 function buildPayload() {
   return visibleFields.value
     .map((field) => {
-      if (field.field_type === 'section' || field.field_type === 'evidence') return null
+      if (field.field_type === 'section') return null
       const raw = draftAnswers[field.key] ?? ''
       if (raw === '') return null
       let value: boolean | number | string | null = null
@@ -502,7 +474,6 @@ function validateRequiredFields(): boolean {
   const missing = visibleFields.value
     .filter((f) => f.field_type !== 'section' && f.required)
     .filter((f) => {
-      if (f.field_type === 'evidence') return (evidenceAttachments[f.key]?.length ?? 0) === 0
       const val = draftAnswers[f.key]
       return !val || val === ''
     })
@@ -886,34 +857,24 @@ function loadMoreFields() { listViewLimit.value += LIST_PAGE }
                     type="text" placeholder="Informe o valor"
                     :disabled="isCompleted" @change="triggerAutoSave()" />
 
-                  <!-- ── PHOTO ── -->
-                  <div v-else-if="inspectionField.field_type === 'photo'" style="margin-top:4px;">
-                    <img v-if="draftAnswers[inspectionField.key]" :src="draftAnswers[inspectionField.key]" style="max-width:100%;border-radius:8px;margin-bottom:8px;" />
-                    <label v-if="!isCompleted" class="btn-secondary btn-sm" style="cursor:pointer;display:inline-block;">
-                      {{ uploadingField === inspectionField.key ? 'Enviando…' : draftAnswers[inspectionField.key] ? 'Trocar foto' : 'Adicionar foto' }}
-                      <input type="file" accept="image/jpeg,image/png,image/webp" style="display:none;" @change="handlePhotoUpload(inspectionField.key, $event)" />
-                    </label>
-                    <p v-if="uploadErrors[inspectionField.key]" style="font-size:12px;font-weight:600;color:var(--sa-danger);margin-top:6px;">{{ uploadErrors[inspectionField.key] }}</p>
-                  </div>
-
-                  <!-- ── EVIDENCE ── -->
-                  <div v-else-if="inspectionField.field_type === 'evidence'" style="margin-top:4px;">
-                    <div v-if="evidenceAttachments[inspectionField.key]?.length" style="display:grid;gap:6px;margin-bottom:8px;">
-                      <div v-for="att in evidenceAttachments[inspectionField.key]" :key="att.id" style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--sa-bg);border:1px solid var(--sa-line);border-radius:8px;">
-                        <img v-if="mimeCategory(att.mime_type) === 'image'" :src="att.file_url" style="width:36px;height:36px;object-fit:cover;border-radius:4px;flex-shrink:0;" />
-                        <div v-else style="width:36px;height:36px;border-radius:4px;flex-shrink:0;background:var(--sa-brand-soft);display:flex;align-items:center;justify-content:center;font-size:16px;">📄</div>
-                        <div style="flex:1;min-width:0;">
-                          <div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ att.file_url.split('/').pop() }}</div>
-                          <div style="font-size:11px;color:var(--sa-muted);">{{ formatFileSize(att.file_size) }}</div>
-                        </div>
-                        <button v-if="!isCompleted" type="button" style="border:none;background:none;cursor:pointer;color:var(--sa-danger);font-size:16px;padding:0 4px;flex-shrink:0;" @click="handleEvidenceDelete(inspectionField.key, att.id)">×</button>
+                  <!-- ── Evidências (todos os tipos de campo) ── -->
+                  <div v-if="!isCompleted || (evidenceAttachments[inspectionField.key]?.length ?? 0) > 0"
+                    style="margin-top:12px;padding-top:10px;border-top:1px solid var(--sa-line);">
+                    <div v-if="evidenceAttachments[inspectionField.key]?.length" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px;">
+                      <div v-for="att in evidenceAttachments[inspectionField.key]" :key="att.id"
+                        style="display:inline-flex;align-items:center;gap:5px;padding:4px 8px;background:var(--sa-bg);border:1px solid var(--sa-line);border-radius:6px;font-size:11px;max-width:180px;">
+                        <img v-if="mimeCategory(att.mime_type) === 'image'" :src="att.file_url" style="width:18px;height:18px;object-fit:cover;border-radius:2px;flex-shrink:0;" />
+                        <span v-else style="font-size:12px;flex-shrink:0;">📄</span>
+                        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--sa-text);">{{ att.file_url.split('/').pop() }}</span>
+                        <button v-if="!isCompleted" type="button" @click="handleEvidenceDelete(inspectionField.key, att.id)"
+                          style="border:none;background:none;cursor:pointer;color:var(--sa-danger);font-size:14px;padding:0 2px;line-height:1;flex-shrink:0;">×</button>
                       </div>
                     </div>
-                    <label v-if="!isCompleted && evidenceCanAddMore(inspectionField.key, inspectionField.config_json ?? {})" class="btn-secondary btn-sm" style="cursor:pointer;display:inline-block;">
-                      {{ evidenceUploading[inspectionField.key] ? 'Enviando…' : '+ Adicionar evidência' }}
-                      <input type="file" :accept="evidenceAccept(inspectionField.config_json ?? {})" style="display:none;" :disabled="evidenceUploading[inspectionField.key]" @change="handleEvidenceUpload(inspectionField.key, inspectionField.config_json ?? {}, $event)" />
+                    <label v-if="!isCompleted" style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:var(--sa-brand);cursor:pointer;padding:4px 10px;border:1px dashed var(--sa-brand);border-radius:6px;">
+                      {{ evidenceUploading[inspectionField.key] ? 'Enviando…' : '📎 Adicionar evidência' }}
+                      <input type="file" :accept="ALLOWED_MIMES" style="display:none;" :disabled="evidenceUploading[inspectionField.key]" @change="handleEvidenceUpload(inspectionField.key, {}, $event)" />
                     </label>
-                    <p v-if="evidenceErrors[inspectionField.key]" style="font-size:12px;color:var(--sa-danger);margin-top:4px;">{{ evidenceErrors[inspectionField.key] }}</p>
+                    <p v-if="evidenceErrors[inspectionField.key]" style="font-size:11px;color:var(--sa-danger);margin-top:4px;">{{ evidenceErrors[inspectionField.key] }}</p>
                   </div>
 
                   <!-- Swipe hint (boolean only) -->
@@ -974,32 +935,24 @@ function loadMoreFields() { listViewLimit.value += LIST_PAGE }
                       <input v-else v-model="draftAnswers[field.key]" type="text" :disabled="isCompleted" @change="triggerAutoSave()" />
                     </template>
                     <input v-else-if="field.field_type === 'text'" v-model="draftAnswers[field.key]" type="text" :disabled="isCompleted" @change="triggerAutoSave()" />
-                    <div v-else-if="field.field_type === 'photo'">
-                      <img v-if="draftAnswers[field.key]" :src="draftAnswers[field.key]" style="max-width:100%;border-radius:8px;margin-bottom:8px;" />
-                      <label v-if="!isCompleted" class="btn-secondary btn-sm" style="cursor:pointer;display:inline-block;">
-                        {{ uploadingField === field.key ? 'Enviando…' : draftAnswers[field.key] ? 'Trocar foto' : 'Adicionar foto' }}
-                        <input type="file" accept="image/jpeg,image/png,image/webp" style="display:none;" @change="handlePhotoUpload(field.key, $event)" />
-                      </label>
-                    </div>
-                    <div v-else-if="field.field_type === 'evidence'">
-                      <div v-if="evidenceAttachments[field.key]?.length" style="display:grid;gap:6px;margin-bottom:8px;">
-                        <div v-for="att in evidenceAttachments[field.key]" :key="att.id" style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--sa-bg);border:1px solid var(--sa-line);border-radius:8px;">
-                          <img v-if="mimeCategory(att.mime_type) === 'image'" :src="att.file_url" style="width:32px;height:32px;object-fit:cover;border-radius:4px;flex-shrink:0;" />
-                          <div v-else style="width:32px;height:32px;border-radius:4px;flex-shrink:0;background:var(--sa-brand-soft);display:flex;align-items:center;justify-content:center;font-size:14px;">📄</div>
-                          <div style="flex:1;min-width:0;">
-                            <div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ att.file_url.split('/').pop() }}</div>
-                            <div style="font-size:11px;color:var(--sa-muted);">{{ formatFileSize(att.file_size) }}</div>
-                          </div>
-                          <button v-if="!isCompleted" type="button" style="border:none;background:none;cursor:pointer;color:var(--sa-danger);font-size:16px;padding:0 4px;" @click="handleEvidenceDelete(field.key, att.id)">×</button>
-                        </div>
-                      </div>
-                      <label v-if="!isCompleted && evidenceCanAddMore(field.key, field.config_json ?? {})" class="btn-secondary btn-sm" style="cursor:pointer;display:inline-block;">
-                        {{ evidenceUploading[field.key] ? 'Enviando…' : '+ Evidência' }}
-                        <input type="file" :accept="evidenceAccept(field.config_json ?? {})" style="display:none;" :disabled="evidenceUploading[field.key]" @change="handleEvidenceUpload(field.key, field.config_json ?? {}, $event)" />
-                      </label>
-                      <p v-if="evidenceErrors[field.key]" style="font-size:12px;color:var(--sa-danger);margin-top:4px;">{{ evidenceErrors[field.key] }}</p>
-                    </div>
                     <input v-else v-model="draftAnswers[field.key]" type="text" :disabled="isCompleted" @change="triggerAutoSave()" />
+
+                    <!-- Evidências (todos os tipos) -->
+                    <div v-if="!isCompleted || (evidenceAttachments[field.key]?.length ?? 0) > 0" style="margin-top:8px;display:flex;flex-wrap:wrap;align-items:center;gap:4px;">
+                      <div v-for="att in evidenceAttachments[field.key]" :key="att.id"
+                        style="display:inline-flex;align-items:center;gap:4px;padding:3px 7px;background:var(--sa-bg);border:1px solid var(--sa-line);border-radius:6px;font-size:11px;max-width:150px;">
+                        <img v-if="mimeCategory(att.mime_type) === 'image'" :src="att.file_url" style="width:16px;height:16px;object-fit:cover;border-radius:2px;flex-shrink:0;" />
+                        <span v-else style="font-size:11px;flex-shrink:0;">📄</span>
+                        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ att.file_url.split('/').pop() }}</span>
+                        <button v-if="!isCompleted" type="button" @click="handleEvidenceDelete(field.key, att.id)"
+                          style="border:none;background:none;cursor:pointer;color:var(--sa-danger);font-size:13px;padding:0;line-height:1;flex-shrink:0;">×</button>
+                      </div>
+                      <label v-if="!isCompleted" style="display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:600;color:var(--sa-muted);cursor:pointer;padding:3px 7px;border:1px dashed var(--sa-line);border-radius:6px;">
+                        {{ evidenceUploading[field.key] ? '…' : '📎' }}
+                        <input type="file" :accept="ALLOWED_MIMES" style="display:none;" :disabled="evidenceUploading[field.key]" @change="handleEvidenceUpload(field.key, {}, $event)" />
+                      </label>
+                      <span v-if="evidenceErrors[field.key]" style="font-size:11px;color:var(--sa-danger);">{{ evidenceErrors[field.key] }}</span>
+                    </div>
                   </div>
                 </template>
               </div>
@@ -1035,7 +988,7 @@ function loadMoreFields() { listViewLimit.value += LIST_PAGE }
                       <div class="frow-name">{{ field.label }}</div>
                     </div>
                     <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
-                      <span v-if="(field.config_json?.weight as number) > 1" style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;background:var(--sa-brand-soft);color:var(--sa-brand);">Peso {{ field.config_json.weight }}x</span>
+                      <span v-if="fieldWeight(field.config_json) > 1" style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;background:var(--sa-brand-soft);color:var(--sa-brand);">Peso {{ field.config_json.weight }}x</span>
                       <span v-if="field.required" class="status-chip status-chip--neu" style="font-size:9px;">Obrigatório</span>
                     </div>
                   </div>
@@ -1066,44 +1019,31 @@ function loadMoreFields() { listViewLimit.value += LIST_PAGE }
                     <input v-else v-model="draftAnswers[field.key]" type="text" placeholder="Informe a opção" :disabled="isCompleted" @change="triggerAutoSave()" />
                   </template>
                   <input v-else-if="field.field_type === 'text'" v-model="draftAnswers[field.key]" type="text" placeholder="Informe o valor" :disabled="isCompleted" @change="triggerAutoSave()" />
+                  <input v-else v-model="draftAnswers[field.key]" type="text" placeholder="Informe o valor" :disabled="isCompleted" @change="triggerAutoSave()" />
 
-                  <div v-else-if="field.field_type === 'photo'">
-                    <img v-if="draftAnswers[field.key]" :src="draftAnswers[field.key]" alt="Evidência" style="width:100%;height:180px;object-fit:cover;border-radius:8px;margin-bottom:8px;" />
-                    <template v-if="!isCompleted">
-                      <label style="cursor:pointer;">
-                        <span class="inline-action">
-                          {{ uploadingField === field.key ? 'Enviando…' : draftAnswers[field.key] ? 'Substituir foto' : 'Selecionar arquivo' }}
-                        </span>
-                        <input type="file" accept="image/jpeg,image/png,image/webp" style="display:none;" :disabled="uploadingField === field.key" @change="handlePhotoUpload(field.key, $event)" />
-                      </label>
-                      <p v-if="uploadErrors[field.key]" style="font-size:12px;font-weight:600;color:var(--sa-danger);margin-top:6px;">{{ uploadErrors[field.key] }}</p>
-                    </template>
-                  </div>
-
-                  <div v-else-if="field.field_type === 'evidence'">
-                    <div v-if="evidenceAttachments[field.key]?.length" style="display:grid;gap:8px;margin-bottom:10px;">
-                      <div v-for="att in evidenceAttachments[field.key]" :key="att.id" style="display:flex;align-items:center;gap:10px;background:var(--sa-bg);border:1px solid var(--sa-line);border-radius:8px;padding:8px 10px;">
+                  <!-- Evidências (todos os tipos de campo) -->
+                  <div v-if="!isCompleted || (evidenceAttachments[field.key]?.length ?? 0) > 0" style="margin-top:10px;">
+                    <div v-if="evidenceAttachments[field.key]?.length" style="display:grid;gap:6px;margin-bottom:8px;">
+                      <div v-for="att in evidenceAttachments[field.key]" :key="att.id"
+                        style="display:flex;align-items:center;gap:10px;background:var(--sa-bg);border:1px solid var(--sa-line);border-radius:8px;padding:8px 10px;">
                         <img v-if="mimeCategory(att.mime_type) === 'image'" :src="att.file_url" alt="" style="width:40px;height:40px;object-fit:cover;border-radius:4px;flex-shrink:0;" />
                         <div v-else style="width:40px;height:40px;border-radius:4px;flex-shrink:0;background:var(--sa-brand-soft);display:flex;align-items:center;justify-content:center;font-size:18px;">📄</div>
                         <div style="flex:1;min-width:0;">
                           <div style="font-size:12px;font-weight:600;color:var(--sa-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ att.file_url.split('/').pop() }}</div>
                           <div style="font-size:11px;color:var(--sa-muted);margin-top:2px;">{{ formatFileSize(att.file_size) }}</div>
                         </div>
-                        <button v-if="!isCompleted" type="button" style="border:none;background:none;cursor:pointer;color:var(--sa-danger);font-size:18px;line-height:1;padding:0 4px;flex-shrink:0;" title="Remover" @click="handleEvidenceDelete(field.key, att.id)">×</button>
+                        <button v-if="!isCompleted" type="button" title="Remover" @click="handleEvidenceDelete(field.key, att.id)"
+                          style="border:none;background:none;cursor:pointer;color:var(--sa-danger);font-size:18px;line-height:1;padding:0 4px;flex-shrink:0;">×</button>
                       </div>
                     </div>
-                    <div v-if="!evidenceAttachments[field.key]?.length && isCompleted" style="font-size:13px;color:var(--sa-muted);">Nenhuma evidência registrada.</div>
-                    <template v-if="!isCompleted && evidenceCanAddMore(field.key, field.config_json)">
+                    <template v-if="!isCompleted">
                       <label style="cursor:pointer;display:inline-block;">
-                        <span class="inline-action">{{ evidenceUploading[field.key] ? 'Enviando…' : '+ Adicionar evidência' }}</span>
-                        <input type="file" :accept="evidenceAccept(field.config_json)" style="display:none;" :disabled="evidenceUploading[field.key]" @change="handleEvidenceUpload(field.key, field.config_json, $event)" />
+                        <span class="inline-action">{{ evidenceUploading[field.key] ? 'Enviando…' : '📎 Adicionar evidência' }}</span>
+                        <input type="file" :accept="ALLOWED_MIMES" style="display:none;" :disabled="evidenceUploading[field.key]" @change="handleEvidenceUpload(field.key, {}, $event)" />
                       </label>
-                      <span style="font-size:11px;color:var(--sa-muted);margin-left:8px;">{{ evidenceAttachments[field.key]?.length ?? 0 }}/{{ evidenceMaxFiles(field.config_json) }}</span>
                     </template>
                     <p v-if="evidenceErrors[field.key]" style="font-size:12px;font-weight:600;color:var(--sa-danger);margin-top:6px;">{{ evidenceErrors[field.key] }}</p>
                   </div>
-
-                  <input v-else v-model="draftAnswers[field.key]" type="text" placeholder="Informe o valor" :disabled="isCompleted" @change="triggerAutoSave()" />
                 </div>
               </template>
             </div>

@@ -266,11 +266,6 @@ class TestExtractValue:
         sv.value_text = "na"
         assert SubmissionService.extract_value(sv, "boolean") == "na"
 
-    def test_evidence_with_json(self):
-        sv = MagicMock()
-        sv.value_json = {"files": ["a.jpg"]}
-        assert SubmissionService.extract_value(sv, "evidence") == {"files": ["a.jpg"]}
-
 
 # ---------------------------------------------------------------------------
 # normalize_value — section and N/A extensions
@@ -480,14 +475,6 @@ class TestPdfGeneration:
         pdf = generate_submission_pdf(**_base_pdf_kwargs(score=None))
         assert pdf[:4] == b"%PDF"
 
-    def test_evidence_field_rendered(self):
-        pdf = generate_submission_pdf(**_base_pdf_kwargs(
-            fields_with_answers=[
-                {"position": 1, "label": "Foto do local", "field_type": "evidence", "value": {"files": []}},
-            ]
-        ))
-        assert pdf[:4] == b"%PDF"
-
     def test_all_field_types_rendered(self):
         pdf = generate_submission_pdf(**_base_pdf_kwargs(
             fields_with_answers=[
@@ -499,7 +486,6 @@ class TestPdfGeneration:
                 {"position": 6, "label": "Número", "field_type": "number", "value": 42.5},
                 {"position": 7, "label": "Data", "field_type": "date", "value": date(2025, 6, 1)},
                 {"position": 8, "label": "Select", "field_type": "select", "value": {"option": "A"}},
-                {"position": 9, "label": "Evidência 2", "field_type": "evidence", "value": None},
             ]
         ))
         assert pdf[:4] == b"%PDF"

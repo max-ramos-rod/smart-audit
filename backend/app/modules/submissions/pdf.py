@@ -17,7 +17,6 @@ _TYPE_LABELS = {
     "number": "Número",
     "date": "Data",
     "select": "Seleção",
-    "evidence": "Evidências",
     "section": "Seção",
 }
 
@@ -47,8 +46,6 @@ def _fmt_value(field_type: str, value: object) -> str:
         if value == "na":
             return "N/A (não aplicável)"
         return "Sim (conforme)" if value else "Não (não conforme)"
-    if field_type == "evidence":
-        return "[arquivo anexado]"
     if field_type == "select" and isinstance(value, dict):
         return str(value.get("option", "-"))
     if isinstance(value, (date, datetime)):

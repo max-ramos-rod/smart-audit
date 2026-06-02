@@ -12,7 +12,7 @@ class FormField(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         UniqueConstraint("form_version_id", "key", name="uq_form_fields_version_key"),
         UniqueConstraint("form_version_id", "position", name="uq_form_fields_version_position"),
         CheckConstraint(
-            "field_type IN ('boolean', 'text', 'number', 'select', 'date', 'evidence', 'section')",
+            "field_type IN ('boolean', 'text', 'number', 'select', 'date', 'section')",
             name="ck_form_fields_type",
         ),
         Index("ix_form_fields_form_version_id", "form_version_id"),

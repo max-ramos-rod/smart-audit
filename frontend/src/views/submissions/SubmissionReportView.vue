@@ -23,8 +23,7 @@ const isLoading    = ref(true)
 const isExporting  = ref(false)
 
 const TYPE_LABEL: Record<string, string> = {
-  boolean: 'Sim/Não', text: 'Texto', number: 'Número',
-  date: 'Data', select: 'Seleção', evidence: 'Evidências',
+  boolean: 'Sim/Não', text: 'Texto', number: 'Número', date: 'Data', select: 'Seleção',
 }
 
 const evidenceAttachments = ref<Record<string, AttachmentItem[]>>({})
@@ -37,18 +36,16 @@ onMounted(async () => {
         submission.value.form_id,
         submission.value.form_version_id,
       )
-      const evidenceFields = formVersion.value?.fields.filter((f) => f.field_type === 'evidence') ?? []
-      if (evidenceFields.length > 0) {
-        try {
-          const all = await listAttachments(submissionId.value)
-          const grouped: Record<string, AttachmentItem[]> = {}
-          for (const f of evidenceFields) {
-            grouped[f.key] = all.filter((a) => a.field_key === f.key)
-          }
-          evidenceAttachments.value = grouped
-        } catch {
-          // non-fatal
+      try {
+        const all = await listAttachments(submissionId.value)
+        const grouped: Record<string, AttachmentItem[]> = {}
+        for (const att of all) {
+          if (!grouped[att.field_key]) grouped[att.field_key] = []
+          grouped[att.field_key].push(att)
         }
+        evidenceAttachments.value = grouped
+      } catch {
+        // non-fatal
       }
     }
   } finally {
@@ -75,8 +72,7 @@ const enrichedAnswers = computed<EnrichedAnswer[]>(() => {
 })
 
 const boolAnswers    = computed(() => enrichedAnswers.value.filter(a => a.field.field_type === 'boolean'))
-const nonBoolAnswers = computed(() => enrichedAnswers.value.filter(a => !['boolean', 'evidence', 'section'].includes(a.field.field_type)))
-const evidenceFields = computed(() => enrichedAnswers.value.filter(a => a.field.field_type === 'evidence'))
+const nonBoolAnswers = computed(() => enrichedAnswers.value.filter(a => !['boolean', 'section'].includes(a.field.field_type)))
 
 const conformes    = computed(() => boolAnswers.value.filter(a => a.value === true  || a.value === 'true').length)
 const naoConformes = computed(() => boolAnswers.value.filter(a => a.value === false || a.value === 'false').length)
@@ -252,6 +248,16 @@ async function handleExport(inline = false) {
                 <span v-else-if="boolResult(ans.value) === 'err'" style="font-size:13px;font-weight:700;color:var(--sa-danger);">✗ Não (não conforme)</span>
                 <span v-else-if="boolResult(ans.value) === 'na'" style="font-size:13px;font-weight:600;color:var(--sa-muted);">N/A (não aplicável)</span>
                 <span v-else style="font-size:13px;color:var(--sa-muted);">—</span>
+                <!-- Evidências do campo -->
+                <div v-if="evidenceAttachments[ans.field.key]?.length" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;">
+                  <a v-for="att in evidenceAttachments[ans.field.key]" :key="att.id"
+                    :href="att.file_url" target="_blank" rel="noopener"
+                    style="display:inline-flex;align-items:center;gap:5px;padding:3px 8px;background:var(--sa-bg);border:1px solid var(--sa-line);border-radius:6px;font-size:11px;text-decoration:none;color:var(--sa-text);">
+                    <img v-if="att.mime_type.startsWith('image/')" :src="att.file_url" style="width:18px;height:18px;object-fit:cover;border-radius:2px;flex-shrink:0;" />
+                    <span v-else style="font-size:13px;flex-shrink:0;">{{ att.mime_type.startsWith('video/') ? '🎬' : att.mime_type.startsWith('audio/') ? '🎵' : '📄' }}</span>
+                    <span style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ att.file_url.split('/').pop() }}</span>
+                  </a>
+                </div>
               </div>
             </div>
           </div>
@@ -267,46 +273,15 @@ async function handleExport(inline = false) {
               <span style="font-size:13px;font-weight:500;color:var(--sa-text);">
                 {{ formatValue(ans.value, ans.field.field_type) }}
               </span>
-            </div>
-          </div>
-        </template>
-
-        <!-- Evidence fields (multi-file) -->
-        <template v-if="evidenceFields.length">
-          <div class="slabel" style="margin-bottom:10px;">Evidências</div>
-          <div class="fpanel" style="margin-bottom:16px;">
-            <div v-for="ans in evidenceFields" :key="ans.field.key" class="frow">
-              <div class="frow-type">{{ ans.field.label }}</div>
-              <div v-if="!evidenceAttachments[ans.field.key]?.length" style="font-size:13px;color:var(--sa-muted);margin-top:6px;">
-                Nenhuma evidência registrada.
-              </div>
-              <div v-else style="display:grid;gap:8px;margin-top:8px;">
-                <div
-                  v-for="att in evidenceAttachments[ans.field.key]"
-                  :key="att.id"
-                  style="display:flex;align-items:center;gap:10px;"
-                >
-                  <img
-                    v-if="att.mime_type.startsWith('image/')"
-                    :src="att.file_url"
-                    alt=""
-                    style="width:48px;height:48px;object-fit:cover;border-radius:6px;flex-shrink:0;"
-                  />
-                  <div
-                    v-else
-                    style="width:48px;height:48px;border-radius:6px;flex-shrink:0;background:var(--sa-line);display:flex;align-items:center;justify-content:center;font-size:20px;"
-                  >
-                    {{ att.mime_type.startsWith('video/') ? '🎬' : att.mime_type.startsWith('audio/') ? '🎵' : '📄' }}
-                  </div>
-                  <div style="flex:1;min-width:0;">
-                    <div style="font-size:12px;font-weight:600;color:var(--sa-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-                      {{ att.file_url.split('/').pop() }}
-                    </div>
-                    <div style="font-size:11px;color:var(--sa-muted);margin-top:2px;">
-                      {{ att.mime_type }} · {{ (att.file_size / 1024).toFixed(0) }} KB
-                    </div>
-                  </div>
-                </div>
+              <!-- Evidências do campo -->
+              <div v-if="evidenceAttachments[ans.field.key]?.length" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;">
+                <a v-for="att in evidenceAttachments[ans.field.key]" :key="att.id"
+                  :href="att.file_url" target="_blank" rel="noopener"
+                  style="display:inline-flex;align-items:center;gap:5px;padding:3px 8px;background:var(--sa-bg);border:1px solid var(--sa-line);border-radius:6px;font-size:11px;text-decoration:none;color:var(--sa-text);">
+                  <img v-if="att.mime_type.startsWith('image/')" :src="att.file_url" style="width:18px;height:18px;object-fit:cover;border-radius:2px;flex-shrink:0;" />
+                  <span v-else style="font-size:13px;flex-shrink:0;">{{ att.mime_type.startsWith('video/') ? '🎬' : att.mime_type.startsWith('audio/') ? '🎵' : '📄' }}</span>
+                  <span style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ att.file_url.split('/').pop() }}</span>
+                </a>
               </div>
             </div>
           </div>

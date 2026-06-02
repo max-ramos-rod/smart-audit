@@ -27,12 +27,11 @@ const versionFields       = ref<FormFieldCreatePayload[]>([])
 
 const TYPE_LABEL: Record<string, string> = {
   boolean: 'Sim/Não', text: 'Texto', number: 'Número',
-  date: 'Data', select: 'Seleção', evidence: 'Evidências',
+  date: 'Data', select: 'Seleção',
 }
 const TYPE_COLOR: Record<string, string> = {
   boolean: 'var(--sa-brand)', text: 'var(--sa-muted)', number: 'var(--sa-ok)',
   date: 'var(--sa-warn)', select: 'var(--sa-muted)',
-  evidence: 'var(--sa-brand)',
 }
 
 onMounted(async () => {
@@ -299,7 +298,6 @@ async function submitVersion() {
                       <option value="number">Número</option>
                       <option value="select">Seleção</option>
                       <option value="date">Data</option>
-                      <option value="evidence">Evidências</option>
                       <option value="section">── Seção ──</option>
                     </select>
                   </label>

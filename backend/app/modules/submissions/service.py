@@ -266,7 +266,7 @@ class SubmissionService:
                 submission_value.value_number = normalized_value
             elif field.field_type == "date":
                 submission_value.value_date = normalized_value
-            elif field.field_type in {"select", "evidence"} and isinstance(normalized_value, dict):
+            elif field.field_type == "select" and isinstance(normalized_value, dict):
                 submission_value.value_json = normalized_value
             else:
                 submission_value.value_text = normalized_value
@@ -431,13 +431,6 @@ class SubmissionService:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Campo {field.key} espera dict ou string para select.",
             )
-        if field.field_type == "evidence":
-            if isinstance(value, dict):
-                return value
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Campo {field.key} espera dict para evidence.",
-            )
         if value is None:
             return None
         if not isinstance(value, str):
@@ -562,6 +555,6 @@ class SubmissionService:
             )
         if field_type == "date":
             return submission_value.value_date
-        if field_type in {"select", "evidence"} and submission_value.value_json is not None:
+        if field_type == "select" and submission_value.value_json is not None:
             return submission_value.value_json
         return submission_value.value_text
