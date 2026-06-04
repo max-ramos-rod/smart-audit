@@ -313,8 +313,9 @@ Restricoes:
 
 Observacoes:
 
-- `score` e calculado no momento da finalizacao com formula ponderada:
-  `score = sum(weight_i para boolean_i == true) / sum(weight_i para boolean_i respondido e nao N/A) * 100`
+- `score` e calculado no momento da finalizacao com formula ponderada baseada em `submission_conformities`:
+  `score = sum(weight_i para status='conforme') / sum(weight_i para avaliados em submission_conformities) * 100`
+  (campos sem avaliacao de conformidade e N/A nao entram no denominador)
 - `answers_json` e um snapshot de `{ field_key: serialized_value }` gravado em `save_answers`
 
 ### `submission_values`
@@ -384,9 +385,9 @@ Observacoes:
 - `field_key` facilita a busca de evidencias por campo sem JOIN em `form_fields`
 - `uploaded_by` registra o usuario que fez o upload
 
-Tipos de arquivo permitidos: `image/jpeg`, `image/png`, `image/webp`, `video/mp4`, `video/quicktime`, `video/x-msvideo`, `audio/mpeg`, `audio/wav`, `audio/ogg`, `audio/m4a`, `application/pdf`
+Tipos de arquivo permitidos: `image/jpeg`, `image/png`, `image/webp`, `video/mp4`, `video/quicktime`, `video/x-msvideo`, `audio/mpeg`, `audio/wav`, `audio/ogg`, `audio/mp4`, `application/pdf`
 
-Limite de tamanho: 10 MB
+Limites de tamanho: imagem 10 MB, PDF 20 MB, audio 50 MB, video 200 MB
 
 ### `teams`
 

@@ -178,8 +178,8 @@ Responsavel por receber arquivos e gravar em disco.
 
 - nao existe modulo de dominio separado para uploads
 - a logica fica encapsulada no router
-- tipos permitidos: `image/jpeg`, `image/png`, `image/webp`, `video/mp4`, `video/mov`, `video/avi`, `audio/mpeg`, `audio/wav`, `audio/ogg`, `audio/m4a`, `application/pdf`
-- limite: 10 MB
+- tipos permitidos: `image/jpeg`, `image/png`, `image/webp`, `video/mp4`, `video/quicktime`, `video/x-msvideo`, `audio/mpeg`, `audio/wav`, `audio/ogg`, `audio/mp4`, `application/pdf`
+- limites por tipo: imagem 10 MB, PDF 20 MB, audio 50 MB, video 200 MB
 
 ### Equipes
 
@@ -349,7 +349,7 @@ Computeds relevantes:
 - `answerableFields`: campos respondiveis (exclui secoes)
 - `progressPct`: percentual respondido dos campos respondiveis
 - `formSections`: lista de secoes para atalhos rapidos de navegacao
-- `liveScore`: score calculado em tempo real durante a inspecao (baseado em respostas boolean confirmadas)
+- `liveScore`: score calculado em tempo real durante a inspecao (baseado em `conformityStatus`, que espelha `submission_conformities`; mesma formula ponderada do backend)
 
 ## 6. Design system e front-end visual
 
@@ -365,9 +365,11 @@ Base visual ativa:
 
 Classes CSS de inspecao:
 
-- `.insp-card`, `.insp-meta`, `.insp-section`, `.insp-counter`, `.insp-nav` — modo inspecao
-- `.insp-progress-bar`, `.insp-progress-fill` — barra de progresso
-- `.section-jump-bar`, `.section-jump-chip` — atalhos de secao
+- `.insp-card`, `.insp-meta`, `.insp-section`, `.insp-counter`, `.insp-nav` — modo inspecao card
+- `.insp-progress-bar` — barra de progresso (preenchimento via `:style` inline)
+- `.insp-sec-chips`, `.insp-sec-chip`, `.insp-sec-chip--done`, `.insp-sec-chip--active` — chips de secao no modo inspecao (card e lista inspecao)
+- `.score-ring`, `.score-ring-inner` — anel de score conic-gradient no header de inspecao
+- `.section-jump-bar`, `.section-jump-chip` — atalhos de secao no modo lista normal (leitura)
 - `.section-divider` — divisor visual de secao no modo lista
 
 Classes CSS de dashboard:
