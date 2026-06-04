@@ -61,10 +61,6 @@ function createEmptyField(position: number): FormFieldCreatePayload {
   return { key: '', label: '', field_type: 'boolean', required: false, position, config_json: {}, instruction: null }
 }
 
-function otherAnswerableFields(fields: FormFieldCreatePayload[], index: number): FormFieldCreatePayload[] {
-  return fields.filter((f, i) => i !== index && f.field_type !== 'section')
-}
-
 function openCreateComposer() {
   showVersionComposer.value = false
   showCreateComposer.value = true
@@ -272,8 +268,7 @@ async function handleImportFile(event: Event) {
               :key="`c-${index}`"
               v-model="createState.fields[index]"
               :index="index"
-              :other-fields="otherAnswerableFields(createState.fields, index)"
-              :show-remove="createState.fields.length > 1"
+                            :show-remove="createState.fields.length > 1"
               @remove="removeCreateField(index)"
             />
           </div>
@@ -311,7 +306,6 @@ async function handleImportFile(event: Event) {
               :key="`v-${index}`"
               v-model="versionFields[index]"
               :index="index"
-              :other-fields="otherAnswerableFields(versionFields, index)"
               :show-remove="versionFields.length > 1"
               @remove="removeVersionField(index)"
             />

@@ -28,7 +28,7 @@ Ele sustenta:
 - equipes foram promovidas ao modelo real do sistema
 - **nao existe tabela de notificacoes**: notificacoes sao derivadas em tempo real de `submissions` pelo servico
 - o estado de leitura e armazenado em `notification_reads` com chave deterministica por usuario
-- configuracao especifica de campo (peso, allow_na, opcoes, visible_if) fica em `form_fields.config_json`
+- configuracao especifica de campo (peso, allow_na, opcoes) fica em `form_fields.config_json`
 - valor N/A em campos booleanos e armazenado como `value_text = "na"` com `value_boolean = NULL`
 - campos do tipo `section` nao geram `submission_value`
 
@@ -280,22 +280,18 @@ Estrutura de `config_json` por tipo:
 // boolean
 {
   "weight": 3.0,
-  "allow_na": true,
-  "visible_if": { "field_key": "campo_gatilho", "operator": "eq", "value": true }
+  "allow_na": true
 }
 
 // select
 {
-  "options": ["Opcao A", "Opcao B", "Opcao C"],
-  "visible_if": { "field_key": "campo_gatilho", "operator": "neq", "value": false }
+  "options": ["Opcao A", "Opcao B", "Opcao C"]
 }
 ```
 
 - `weight` (float, default 1.0): peso no calculo de score ponderado
 - `allow_na` (bool, default false): habilita resposta N/A em campos booleanos
 - `options` (string[]): opcoes visiveis no select
-- `visible_if.operator`: `"eq"` (igual) ou `"neq"` (diferente)
-- campo oculto por `visible_if` nao e validado como obrigatorio na finalizacao
 
 ### `submissions`
 
@@ -320,7 +316,6 @@ Observacoes:
 - `score` e calculado no momento da finalizacao com formula ponderada:
   `score = sum(weight_i para boolean_i == true) / sum(weight_i para boolean_i respondido e nao N/A) * 100`
 - `answers_json` e um snapshot de `{ field_key: serialized_value }` gravado em `save_answers`
-- `answers_json` e a fonte usada para avaliacao de `visible_if` na finalizacao
 
 ### `submission_values`
 
@@ -438,7 +433,7 @@ Isso vale para:
 ### Snapshot `answers_json`
 
 - fonte estruturada: `submission_values`
-- leitura otimizada e avaliacao de `visible_if`: `answers_json`
+- leitura otimizada: `answers_json`
 - ambos sao mantidos sincronizados no fluxo de `save_answers`
 
 ### Uploads e anexos

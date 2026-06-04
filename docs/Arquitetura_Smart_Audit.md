@@ -38,8 +38,7 @@ O Smart Audit ja nao esta mais em fase apenas de fundacao. O estado atual do cod
 - CRUD de usuarios
 - CRUD de equipes e membros
 - formularios versionados com suporte a secoes, evidencias e configuracao avancada por campo
-- campos de formulario configurados via `config_json`: peso, allow_na, opcoes de select, visible_if
-- regras condicionais `visible_if`: campos visiveis/obrigatorios apenas quando condicao e satisfeita
+- campos de formulario configurados via `config_json`: peso, allow_na, opcoes de select
 - tipos de campo: `boolean`, `text`, `number`, `select`, `date`, `section`
 - detalhe de formulario e historico de versoes
 - inspecoes com respostas tipadas e score ponderado por peso de campo
@@ -47,7 +46,6 @@ O Smart Audit ja nao esta mais em fase apenas de fundacao. O estado atual do cod
 - modo de inspecao (card a card) e modo lista com carga progressiva (`load more`)
 - barra de progresso e atalhos rapidos por secao na execucao da inspecao
 - finalizacao de inspecao com calculo de score ponderado
-- validacao de campos obrigatorios com respeito a regras `visible_if`
 - score_breakdown com contagem de conformes, nao conformes, sem resposta e N/A
 - relatorio detalhado por inspecao com exportacao PDF profissional
 - PDF inclui: bloco de score colorido, chips de breakdown, divisores de secao, linhas coloridas por resultado
@@ -113,26 +111,11 @@ Configuracao de campo via `config_json`:
 | `weight` | `float` | `boolean` | Peso no calculo do score ponderado (default 1.0) |
 | `allow_na` | `bool` | `boolean` | Habilita resposta N/A |
 | `options` | `string[]` | `select` | Opcoes do dropdown |
-| `visible_if` | `object` | qualquer | Regra de visibilidade condicional |
-
 Campo `instruction` em `form_fields`:
 
 - coluna `instruction TEXT NULL` — texto livre explicando como executar a tarefa do campo
 - editavel no formulario builder e preenchivel via importacao (coluna `instrucao` no arquivo)
 - exibido na tela de inspecao abaixo do label do campo (card view e list view)
-
-Estrutura de `visible_if`:
-
-```json
-{
-  "field_key": "eh_perigoso",
-  "operator": "eq",
-  "value": true
-}
-```
-
-- `operator`: `"eq"` (igual) ou `"neq"` (diferente)
-- campo oculto pela regra nao e validado como obrigatorio na finalizacao
 
 Tipos de campo suportados:
 
@@ -165,7 +148,7 @@ Capacidades ativas:
 - salvamento de respostas tipadas (todos os tipos de campo)
 - resposta N/A em booleanos com `allow_na: true` (armazenada como `value_text = "na"`)
 - avaliacao de conformidade por campo: `PUT /submissions/{id}/conformity` registra `conforme` ou `nao_conforme` em `submission_conformities`
-- finalizacao com validacao de campos obrigatorios visiveis (visible_if avaliado contra `answers_json`)
+- finalizacao com validacao de campos obrigatorios respondidos
 - calculo de score ponderado baseado em `submission_conformities` (campos N/A e sem conformidade sao excluidos)
 - score_breakdown: `conformes`, `nao_conformes`, `sem_resposta`, `na_count`, `total_boolean`
 - exportacao PDF individual com score profissional
@@ -363,8 +346,7 @@ Os dois modos lista usam o componente `InspectionFieldRow.vue` (prop `compact` d
 
 Computeds relevantes:
 
-- `visibleFields`: filtra campos por regras `visible_if` avaliadas contra `draftAnswers`
-- `answerableFields`: campos visiveis e respondiveis (exclui secoes)
+- `answerableFields`: campos respondiveis (exclui secoes)
 - `progressPct`: percentual respondido dos campos respondiveis
 - `formSections`: lista de secoes para atalhos rapidos de navegacao
 - `liveScore`: score calculado em tempo real durante a inspecao (baseado em respostas boolean confirmadas)
@@ -428,7 +410,7 @@ Rotas de interface existentes hoje:
 - `/` — dashboard com metricas, barras de score por formulario, sparkline de tendencia
 - `/users`
 - `/forms`
-- `/forms/:formId` — editor com secoes, peso, allow_na, visible_if, instrucao por campo
+- `/forms/:formId` — editor com secoes, peso, allow_na, instrucao por campo
 - `/forms/:formId/versions`
 - `/submissions`
 - `/submissions/:id` — execucao com modo inspecao e modo lista, progresso, atalhos de secao
@@ -517,7 +499,7 @@ Cobertura atual:
 | `test_forms.py` | integracao | CRUD formularios e versoes |
 | `test_submissions.py` | integracao | fluxo principal, filtros, RBAC |
 | `test_submissions_export.py` | integracao | CSV export, filtros, isolamento |
-| `test_submissions_advanced.py` | integracao | PDF, N/A, visible_if, pesos, stats, isolamento |
+| `test_submissions_advanced.py` | integracao | PDF, N/A, pesos, stats, isolamento |
 | `test_search.py` | integracao | busca full-text |
 | `test_users.py` | integracao | CRUD usuarios |
 | `test_teams.py` | integracao | CRUD equipes e membros |
@@ -534,7 +516,6 @@ Casos cobertos em `test_submissions_advanced.py`:
 - exportacao PDF: content-type, `?inline`, secoes + N/A, 404, auth guard
 - stats: `score_by_form` e `score_trend` presentes, filtro por periodo
 - N/A boolean: aceitacao, score_breakdown.na_count, exclusao do denominador do score
-- visible_if: campo oculto nao bloqueia finalizacao; campo visivel obrigatorio bloqueia
 - score ponderado via conformities: peso 3:1 gera score 75%, pesos iguais geram 50%
 - isolamento multiempresa: inspector em empresa diferente ve stats zeradas
 
@@ -586,7 +567,7 @@ Mantido:
 - `submission_values` como representacao estruturada
 - `answers_json` como snapshot otimizado
 
-O snapshot `answers_json` e a fonte usada na avaliacao de `visible_if` durante a finalizacao — isso evita N+1 de queries por campo.
+O snapshot `answers_json` e usado como fonte de leitura rapida durante a finalizacao — isso evita N+1 de queries por campo.
 
 ### config_json como extensao de campo
 
@@ -611,12 +592,6 @@ score = sum(weight_i para status='conforme') / sum(weight_i para avaliados) * 10
 onde `avaliados` inclui apenas campos com registro em `submission_conformities` cujo status seja `conforme` ou `nao_conforme`. Campos sem avaliacao e N/A nao entram no denominador.
 
 A separacao entre resposta (booleana, em `submission_values`) e avaliacao de conformidade (em `submission_conformities`) permite que o inspetor responda campos e decida a conformidade em etapas distintas durante a inspecao.
-
-### Regras condicionais visible_if
-
-A avaliacao de `visible_if` na finalizacao e feita contra o snapshot `answers_json` — nao contra os registros de `submission_values`. Isso garante consistencia mesmo que o snapshot e os registros sejam gravados em operacoes separadas.
-
-A avaliacao e por comparacao de strings `str(actual).lower() == str(expected).lower()`, o que torna a logica robusta a valores booleanos serializados como `"true"`/`"false"`.
 
 ### PDF em Latin-1 (fpdf2 Helvetica)
 
@@ -660,7 +635,7 @@ Implementada com token de uso unico (TTL 1h) em `password_reset_tokens`. Entrega
 - formularios com versionamento, secoes, tipos completos e config_json
 - campo `instruction` por campo de formulario (builder UI + importacao)
 - importacao de formulario via CSV ou Excel (`POST /api/v1/forms/import`)
-- inspecoes com score ponderado, N/A, visible_if, modo inspecao, carga progressiva
+- inspecoes com score ponderado, N/A, modo inspecao, carga progressiva
 - avaliacao de conformidade por campo (`submission_conformities`) — base do score e da barra de progresso
 - comportamento de avanco automatico apenas no botao "Conforme" (card view)
 - finalizacao com validacao de campos visiveis

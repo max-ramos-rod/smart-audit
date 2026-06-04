@@ -5,7 +5,6 @@ const field = defineModel<FormFieldCreatePayload>({ required: true })
 
 const props = defineProps<{
   index: number
-  otherFields: FormFieldCreatePayload[]
   showRemove: boolean
 }>()
 
@@ -23,11 +22,10 @@ function setConfig(patch: Config) {
 
 function onTypeChange(event: Event) {
   const ft = (event.target as HTMLSelectElement).value as FieldType
-  const vi = (field.value.config_json as Config).visible_if
   if (ft === 'section') {
     field.value = { ...field.value, field_type: ft, config_json: {}, required: false }
   } else {
-    field.value = { ...field.value, field_type: ft, config_json: vi ? { visible_if: vi } : {} }
+    field.value = { ...field.value, field_type: ft, config_json: {} }
   }
 }
 
@@ -39,32 +37,7 @@ function getOptionsString(): string {
 function setOptionsFromString(event: Event) {
   const opts = (event.target as HTMLInputElement).value
     .split(',').map(o => o.trim()).filter(Boolean)
-  const vi = (field.value.config_json as Config).visible_if
-  const base: Config = opts.length ? { options: opts } : {}
-  set({ config_json: vi ? { ...base, visible_if: vi } : base })
-}
-
-function visibleIf(): Config | undefined {
-  return (field.value.config_json as Config).visible_if as Config | undefined
-}
-
-function visibleIfProp(prop: string): string {
-  const vi = visibleIf()
-  return vi ? String(vi[prop] ?? '') : ''
-}
-
-function setVisibleIfProp(prop: string, value: string) {
-  setConfig({ visible_if: { ...(visibleIf() ?? {}), [prop]: value } })
-}
-
-function clearVisibleIf() {
-  const { visible_if: _vi, ...rest } = field.value.config_json as Config
-  set({ config_json: rest })
-}
-
-function triggerField(): FormFieldCreatePayload | undefined {
-  const key = visibleIfProp('field_key')
-  return key ? props.otherFields.find(f => f.key === key) : undefined
+  set({ config_json: opts.length ? { options: opts } : {} })
 }
 </script>
 
@@ -175,91 +148,6 @@ function triggerField(): FormFieldCreatePayload | undefined {
           @input="set({ instruction: ($event.target as HTMLTextAreaElement).value || null })"
         />
       </label>
-
-      <!-- Visibilidade condicional -->
-      <div v-if="field.field_type !== 'section'" style="grid-column:1/-1;border-top:1px solid var(--sa-line);padding-top:10px;margin-top:2px;">
-        <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--sa-muted);margin-bottom:8px;">
-          Visibilidade condicional
-        </div>
-
-        <div v-if="!visibleIf()">
-          <button
-            type="button"
-            class="btn-secondary btn-sm"
-            @click="setConfig({ visible_if: { field_key: '', operator: 'eq', value: 'true' } })"
-          >
-            + Adicionar condição
-          </button>
-        </div>
-
-        <div v-else style="display:grid;grid-template-columns:1fr 160px 1fr auto;gap:8px;align-items:end;">
-          <label style="display:grid;gap:4px;">
-            <span style="font-size:11px;color:var(--sa-muted);">Exibir se o campo</span>
-            <select
-              :value="visibleIfProp('field_key')"
-              @change="setVisibleIfProp('field_key', ($event.target as HTMLSelectElement).value)"
-            >
-              <option value="">— selecione —</option>
-              <option v-for="f in otherFields" :key="f.key" :value="f.key">{{ f.label || f.key }}</option>
-            </select>
-          </label>
-
-          <label style="display:grid;gap:4px;">
-            <span style="font-size:11px;color:var(--sa-muted);">Operador</span>
-            <select
-              :value="visibleIfProp('operator')"
-              @change="setVisibleIfProp('operator', ($event.target as HTMLSelectElement).value)"
-            >
-              <option value="eq">é igual a</option>
-              <option value="neq">é diferente de</option>
-            </select>
-          </label>
-
-          <label style="display:grid;gap:4px;">
-            <span style="font-size:11px;color:var(--sa-muted);">Valor</span>
-            <select
-              v-if="triggerField()?.field_type === 'boolean'"
-              :value="visibleIfProp('value')"
-              @change="setVisibleIfProp('value', ($event.target as HTMLSelectElement).value)"
-            >
-              <option value="true">Sim</option>
-              <option value="false">Não</option>
-              <option value="na">N/A</option>
-            </select>
-            <select
-              v-else-if="triggerField()?.field_type === 'select'"
-              :value="visibleIfProp('value')"
-              @change="setVisibleIfProp('value', ($event.target as HTMLSelectElement).value)"
-            >
-              <option value="">— selecione —</option>
-              <option
-                v-for="opt in (triggerField()?.config_json?.options as string[] ?? [])"
-                :key="opt"
-                :value="opt"
-              >
-                {{ opt }}
-              </option>
-            </select>
-            <input
-              v-else
-              :value="visibleIfProp('value')"
-              type="text"
-              placeholder="valor esperado"
-              @input="setVisibleIfProp('value', ($event.target as HTMLInputElement).value)"
-            />
-          </label>
-
-          <button
-            type="button"
-            class="btn-secondary btn-sm"
-            style="align-self:end;"
-            title="Remover condição"
-            @click="clearVisibleIf()"
-          >
-            ✕
-          </button>
-        </div>
-      </div>
 
     </div>
   </div>

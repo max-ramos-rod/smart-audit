@@ -66,19 +66,9 @@ const fields = computed(() =>
   [...(formVersion.value?.fields ?? [])].sort((a, b) => a.position - b.position),
 )
 
-const visibleFields = computed(() =>
-  fields.value.filter((field) => {
-    const vi = field.config_json?.visible_if as Record<string, string> | undefined
-    if (!vi?.field_key) return true
-    const actual   = String(draftAnswers[vi.field_key] ?? '').toLowerCase()
-    const expected = String(vi.value ?? '').toLowerCase()
-    return vi.operator === 'neq' ? actual !== expected : actual === expected
-  }),
-)
-
 // Fields that accept answers (skip section dividers)
 const answerableFields = computed(() =>
-  visibleFields.value.filter((f) => f.field_type !== 'section'),
+  fields.value.filter((f) => f.field_type !== 'section'),
 )
 
 // ── Progress counters ─────────────────────────────────────────────────────────
@@ -126,7 +116,7 @@ const totalEvidenceCount = computed(() =>
 // ── Sections ──────────────────────────────────────────────────────────────────
 
 const formSections = computed(() =>
-  visibleFields.value
+  fields.value
     .filter((f) => f.field_type === 'section')
     .map((section, idx, arr) => {
       const nextSectionPos = arr[idx + 1]?.position ?? Infinity
@@ -146,7 +136,7 @@ const inspectionField = computed(() => answerableFields.value[inspectionIndex.va
 const inspectionSectionLabel = computed(() => {
   const field = inspectionField.value
   if (!field) return ''
-  const allVisible = visibleFields.value
+  const allVisible = fields.value
   const idx = allVisible.findIndex((f) => f.key === field.key)
   for (let i = idx - 1; i >= 0; i--) {
     if (allVisible[i].field_type === 'section') return allVisible[i].label
@@ -189,7 +179,7 @@ function inspectionPrev() {
 }
 
 function jumpToSection(sectionKey: string) {
-  const sectionField = visibleFields.value.find((f) => f.key === sectionKey && f.field_type === 'section')
+  const sectionField = fields.value.find((f) => f.key === sectionKey && f.field_type === 'section')
   if (!sectionField) return
   const firstInSection = answerableFields.value.find((f) => f.position > sectionField.position)
   if (firstInSection) {
@@ -438,7 +428,7 @@ async function handleEvidenceDelete(fieldKey: string, attachmentId: string) {
 // ── Save / finish ─────────────────────────────────────────────────────────────
 
 function buildPayload() {
-  return visibleFields.value
+  return fields.value
     .map((field) => {
       if (field.field_type === 'section') return null
       const raw = draftAnswers[field.key] ?? ''
@@ -461,7 +451,7 @@ function buildPayload() {
 function validateRequiredFields(): boolean {
   const missing = new Set<string>()
 
-  for (const f of visibleFields.value) {
+  for (const f of fields.value) {
     if (f.field_type === 'section') continue
     if (f.required) {
       const val = draftAnswers[f.key]
@@ -520,8 +510,8 @@ async function handleFinish() {
 
 // ── List progressive loading ──────────────────────────────────────────────────
 
-const displayedListFields = computed(() => visibleFields.value.slice(0, listViewLimit.value))
-const hasMoreFields        = computed(() => listViewLimit.value < visibleFields.value.length)
+const displayedListFields = computed(() => fields.value.slice(0, listViewLimit.value))
+const hasMoreFields        = computed(() => listViewLimit.value < fields.value.length)
 function loadMoreFields() { listViewLimit.value += LIST_PAGE }
 </script>
 
@@ -940,7 +930,7 @@ function loadMoreFields() { listViewLimit.value += LIST_PAGE }
               </div>
               <div v-if="hasMoreFields" style="display:flex;justify-content:center;margin-bottom:12px;">
                 <button type="button" class="btn-secondary btn-sm" @click="loadMoreFields">
-                  Carregar mais ({{ visibleFields.length - listViewLimit }} restantes)
+                  Carregar mais ({{ fields.length - listViewLimit }} restantes)
                 </button>
               </div>
             </template>
@@ -993,7 +983,7 @@ function loadMoreFields() { listViewLimit.value += LIST_PAGE }
 
             <div v-if="hasMoreFields" style="display:flex;justify-content:center;margin-bottom:12px;">
               <button type="button" class="btn-secondary btn-sm" @click="loadMoreFields">
-                Carregar mais campos ({{ visibleFields.length - listViewLimit }} restantes)
+                Carregar mais campos ({{ fields.length - listViewLimit }} restantes)
               </button>
             </div>
             <div style="margin-bottom:68px;"></div>

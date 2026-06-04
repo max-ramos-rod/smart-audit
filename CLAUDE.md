@@ -157,14 +157,12 @@ The allowed `field_type` values (enforced by CHECK constraint on `form_fields`):
 
 #### `config_json` schema per field type
 
-- **`boolean`**: `{ weight?: number, allow_na?: boolean, visible_if?: VisibleIf }`
+- **`boolean`**: `{ weight?: number, allow_na?: boolean }`
   - `weight` (default 1) — multiplier used in score calculation
   - `allow_na` — enables a "N/A" answer option
-- **`select`**: `{ options: string[], visible_if?: VisibleIf }`
-- **`text` / `number` / `date`**: `{ visible_if?: VisibleIf }`
+- **`select`**: `{ options: string[] }`
+- **`text` / `number` / `date`**: `{}`
 - **`section`**: always `{}` — no config allowed; auto-keyed as `__section_{position}__` by the form builder
-
-`VisibleIf` shape: `{ field_key: string, operator: "eq" | "neq", value: string }`. The backend evaluates it in `finish_submission` to skip required-field validation for hidden fields. The frontend evaluates it in `visibleFields` computed to hide/show fields dynamically.
 
 #### Score calculation
 
@@ -229,9 +227,9 @@ export type FieldType = 'boolean' | 'text' | 'number' | 'date' | 'select' | 'sec
 
 #### Shared components
 
-**`frontend/src/components/forms/FormFieldEditor.vue`** — reusable field editor used in the version composer (FormDetailView). Accepts a `FormFieldCreatePayload` via `v-model`, `index`, `otherFields` (other answerable fields, for `visible_if` config), and `showRemove`. Emits `remove`.
-
 **`frontend/src/components/submissions/InspectionFieldRow.vue`** — renders a single field row inside the inspection list and normal list modes of `SubmissionDetailView`. Props: `field`, `answer`, `conformityStatus`, `conformityJustification`, `isCompleted`, `isPendingRequired`, `evidenceAttachments`, `evidenceUploading`, `evidenceError`, `compact?`. The `compact` prop controls visual density: `true` → inspection list (inline evidence chips, no justification text); `false` (default) → normal list (full card evidence with file sizes, justification on completion). Card view (swipe mode) is rendered inline in `SubmissionDetailView` and does not use this component.
+
+**`frontend/src/components/forms/FormFieldEditor.vue`** — reusable field editor used in the version composer (FormDetailView and FormsView). Accepts a `FormFieldCreatePayload` via `v-model`, `index`, and `showRemove`. Emits `remove`. Configures: label, key, field type, required, weight (boolean), allow_na (boolean), options (select), instruction.
 
 #### Submission inspection UI (`SubmissionDetailView`)
 

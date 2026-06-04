@@ -350,21 +350,11 @@ class SubmissionService:
             )
 
         answers_by_field_id = {str(value.form_field_id): value for value in submission.values}
-        answers_snapshot = submission.answers_json or {}
         missing_required = []
 
         for field in submission.form_version.fields:
             if not field.required:
                 continue
-            visible_if = field.config_json.get("visible_if") if field.config_json else None
-            if visible_if:
-                trigger_key = visible_if.get("field_key", "")
-                operator = visible_if.get("operator", "eq")
-                expected = str(visible_if.get("value", "")).lower()
-                actual = str(answers_snapshot.get(trigger_key, "")).lower()
-                is_visible = (actual == expected) if operator == "eq" else (actual != expected)
-                if not is_visible:
-                    continue
             if str(field.id) not in answers_by_field_id:
                 missing_required.append(field.key)
 

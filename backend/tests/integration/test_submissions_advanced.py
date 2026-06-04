@@ -3,7 +3,6 @@ Advanced integration tests covering:
   - PDF export endpoint (content-type, attachment vs inline)
   - Company stats: score_by_form and score_trend fields
   - N/A boolean answers (allow_na=True) do not block required-field check
-  - visible_if conditional: hidden required fields don't block finish
   - Weighted scoring: custom weights affect final score
   - Score breakdown: na_count populated correctly
   - Multi-company tenant isolation on stats
@@ -229,44 +228,6 @@ async def test_na_boolean_excluded_from_score_calculation(client, auth_headers):
     ])
     data = await _finish(client, auth_headers, sub_id)
     assert data["score"] == pytest.approx(100.0)
-
-
-# ── visible_if conditional rules ────────────────────────────────────────────
-
-async def test_visible_if_hidden_required_field_does_not_block_finish(client, auth_headers):
-    """A required field hidden by visible_if should not block completion."""
-    form_id = await _create_form(client, auth_headers, [
-        {"key": "eh_perigoso", "label": "É perigoso?", "field_type": "boolean",
-         "required": True, "position": 1, "config_json": {}},
-        {"key": "medida", "label": "Medida de segurança", "field_type": "text",
-         "required": True, "position": 2,
-         "config_json": {"visible_if": {"field_key": "eh_perigoso", "operator": "eq", "value": True}}},
-    ], name="VisibleIf Form")
-    sub_id = await _create_submission(client, auth_headers, form_id)
-    # Answer trigger as False → conditional field is hidden → should not block
-    await _answer(client, auth_headers, sub_id, [{"field_key": "eh_perigoso", "value": False}])
-
-    data = await _finish(client, auth_headers, sub_id)
-    assert data["status"] == "completed"
-
-
-async def test_visible_if_visible_required_field_blocks_finish(client, auth_headers):
-    """A required field that IS visible (visible_if condition met) still blocks if unanswered."""
-    form_id = await _create_form(client, auth_headers, [
-        {"key": "eh_perigoso", "label": "É perigoso?", "field_type": "boolean",
-         "required": True, "position": 1, "config_json": {}},
-        {"key": "medida", "label": "Medida de segurança", "field_type": "text",
-         "required": True, "position": 2,
-         "config_json": {"visible_if": {"field_key": "eh_perigoso", "operator": "eq", "value": True}}},
-    ], name="VisibleIf Required Form")
-    sub_id = await _create_submission(client, auth_headers, form_id)
-    # Answer trigger as True → conditional field IS visible → required but not answered → blocks
-    await _answer(client, auth_headers, sub_id, [{"field_key": "eh_perigoso", "value": True}])
-
-    resp = await client.post(
-        f"/api/v1/submissions/{sub_id}/finish", headers=auth_headers
-    )
-    assert_problem(resp, 400, "Campos obrigatorios pendentes: medida.")
 
 
 # ── weighted scoring ─────────────────────────────────────────────────────────

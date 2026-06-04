@@ -63,10 +63,6 @@ function createEmptyField(position: number): FormFieldCreatePayload {
   return { key: '', label: '', field_type: 'boolean', required: false, position, config_json: {}, instruction: null }
 }
 
-function otherAnswerableFields(index: number): FormFieldCreatePayload[] {
-  return versionFields.value.filter((f, i) => i !== index && f.field_type !== 'section')
-}
-
 function openVersionComposer() {
   if (!formDetail.value) return
   versionFields.value = formDetail.value.current_version.fields.map(f => ({
@@ -206,7 +202,6 @@ async function submitVersion() {
                 :key="`v-${index}`"
                 v-model="versionFields[index]"
                 :index="index"
-                :other-fields="otherAnswerableFields(index)"
                 :show-remove="versionFields.length > 1"
                 @remove="removeVersionField(index)"
               />
