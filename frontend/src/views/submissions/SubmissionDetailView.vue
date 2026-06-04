@@ -1708,15 +1708,22 @@ const currentFieldEvidenceCount = computed(() =>
    FULLSCREEN CARD INSPECTION OVERLAY
    ══════════════════════════════════════════════════════════════════════════════ */
 
-/* Outer container: overlays everything including sidebar (z-index 100) */
+/* Outer container: preenche área de conteúdo (ao lado do sidebar no desktop) */
 .insp-fullscreen {
   position: fixed;
   inset: 0;
-  z-index: 200;
+  z-index: 200; /* mobile: cobre tudo (sem sidebar) */
   background: var(--sa-bg, #f1f5f9);
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+@media (min-width: 768px) {
+  .insp-fullscreen {
+    left: 248px; /* sidebar width — fica à direita do menu */
+    z-index: 50; /* abaixo do sidebar (z-index: 100) no desktop */
+  }
 }
 
 /* ── Header ── */
