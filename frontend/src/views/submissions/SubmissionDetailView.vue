@@ -735,28 +735,33 @@ const currentFieldEvidenceCount = computed(() =>
 
       <template v-else-if="submission">
 
-        <!-- ── Header ── -->
+        <!-- ── Header (compacto em inspection mode, completo em concluído) ── -->
         <div class="back-hdr">
           <button type="button" class="back-btn" @click="router.push({ name: 'submissions' })">
             <SvgIcon name="back" :size="16" />
           </button>
           <div style="flex:1;min-width:0;">
-            <div class="eyebrow">Inspeção</div>
-            <h1 style="font-size:18px;font-weight:700;letter-spacing:-.01em;color:var(--sa-text);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+            <div v-if="!inspectionMode" class="eyebrow">Inspeção</div>
+            <h1 style="font-size:16px;font-weight:700;letter-spacing:-.01em;color:var(--sa-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
               {{ submission.form_name }}
             </h1>
-            <div style="font-size:12px;color:var(--sa-muted);margin-top:2px;">
+            <div v-if="!inspectionMode" style="font-size:12px;color:var(--sa-muted);margin-top:2px;">
               Iniciada {{ new Date(submission.started_at).toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit' }) }}
             </div>
           </div>
-          <span class="status-chip" style="flex-shrink:0;"
-            :class="{
-              'status-chip--warn': submission.status === 'in_progress',
-              'status-chip--inactive': submission.status === 'cancelled',
-              'status-chip--neu': submission.status === 'draft',
-            }">
-            {{ statusLabel(submission.status) }}
-          </span>
+          <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+            <div v-if="inspectionMode && liveScore !== null" class="score-ring" :style="scoreRingStyle">
+              <div class="score-ring-inner">{{ liveScore }}%</div>
+            </div>
+            <span class="status-chip" style="flex-shrink:0;"
+              :class="{
+                'status-chip--warn': submission.status === 'in_progress',
+                'status-chip--inactive': submission.status === 'cancelled',
+                'status-chip--neu': submission.status === 'draft',
+              }">
+              {{ statusLabel(submission.status) }}
+            </span>
+          </div>
         </div>
 
         <!-- ── Score final (completed) ── -->
@@ -790,21 +795,8 @@ const currentFieldEvidenceCount = computed(() =>
         <!-- ── Fields area ── -->
         <div v-if="fields.length">
 
-          <!-- Progress + mode toggle -->
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px;">
-            <div class="slabel" style="margin-bottom:0;">
-              {{ progressStats.evaluated }}/{{ progressStats.total }} avaliados
-            </div>
-            <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
-              <!-- Score ring (completed inspection only) -->
-              <div v-if="isCompleted && liveScore !== null" class="score-ring" :style="scoreRingStyle">
-                <div class="score-ring-inner">{{ liveScore }}%</div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Segmented progress bar -->
-          <div class="insp-progress-bar" style="margin-bottom:6px;height:8px;">
+          <!-- Progress bar (compact; legend inline apenas fora do modo inspeção) -->
+          <div class="insp-progress-bar" style="margin-bottom:4px;height:6px;">
             <div style="display:flex;height:100%;border-radius:99px;overflow:hidden;background:var(--sa-line);">
               <div
                 style="background:var(--sa-ok);transition:width .35s ease;"
@@ -817,8 +809,8 @@ const currentFieldEvidenceCount = computed(() =>
             </div>
           </div>
 
-          <!-- Progress legend -->
-          <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+          <!-- Legend compacta (só para inspeções concluídas / vista read-only) -->
+          <div v-if="!inspectionMode" style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:10px;">
             <span style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--sa-muted);">
               <span style="width:8px;height:8px;border-radius:50%;background:var(--sa-ok);flex-shrink:0;"></span>
               {{ progressStats.conformes }} Conforme
@@ -837,38 +829,6 @@ const currentFieldEvidenceCount = computed(() =>
           <!--  INSPECTION MODE                                                -->
           <!-- ═══════════════════════════════════════════════════════════════ -->
           <template v-if="inspectionMode">
-
-            <!-- View toggle (card / list) -->
-            <div style="display:flex;gap:4px;margin-bottom:12px;">
-              <button type="button"
-                :class="['btn-secondary btn-sm', viewMode === 'card' ? 'btn-view-active' : '']"
-                style="flex:1;"
-                @click="viewMode = 'card'"
-              >Cartão</button>
-              <button type="button"
-                :class="['btn-secondary btn-sm', viewMode === 'list' ? 'btn-view-active' : '']"
-                style="flex:1;"
-                @click="viewMode = 'list'"
-              >Lista</button>
-            </div>
-
-            <!-- Section jump chips (A10) -->
-            <div v-if="formSections.length" class="insp-sec-chips">
-              <button
-                v-for="sec in formSections"
-                :key="sec.key"
-                type="button"
-                class="insp-sec-chip"
-                :class="{
-                  'insp-sec-chip--done':   sec.pct === 100,
-                  'insp-sec-chip--active': sec.label === inspectionSectionLabel,
-                }"
-                @click="jumpToSection(sec.key)"
-              >
-                {{ sec.label.length > 18 ? sec.label.slice(0, 18) + '…' : sec.label }}
-                <span class="insp-sec-pct">{{ sec.pct }}%</span>
-              </button>
-            </div>
 
             <!-- Card mode: handled by fullscreen Teleport overlay above -->
             <template v-if="viewMode === 'card'">
