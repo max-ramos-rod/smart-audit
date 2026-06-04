@@ -20,12 +20,14 @@ Stack atual:
 - Backend: FastAPI, SQLAlchemy async, Alembic, PostgreSQL, slowapi, fpdf2 — porta `8003`
 - Frontend: Vue 3, Pinia, Vue Router, Tailwind CSS v4, Axios, Vitest, Playwright — porta `5174`
 - Uploads: armazenamento local em disco
+- CI: GitHub Actions com jobs separados para backend, frontend (Vitest) e E2E (Playwright)
 
-Baseline validado em `2026-05-31`:
+Baseline validado em `2026-06-04`:
 
-- backend: `191 passed, 3 skipped`
-- frontend Vitest (19 arquivos): `119 passed`
+- backend: `212 passed, 3 skipped`
+- frontend Vitest: `119 passed`
 - frontend build: `npm run build` OK
+- E2E Playwright: `53 testes` (todos mockados, sem backend necessario)
 
 ## 2. Estado real do produto
 
@@ -35,26 +37,27 @@ O Smart Audit ja nao esta mais em fase apenas de fundacao. O estado atual do cod
 - recuperacao de senha completa (forgot-password + reset via token com TTL de 1h)
 - contexto de empresa ativa e selecao de empresa
 - dashboard com metricas por periodo, grafico de score por formulario e sparkline de tendencia 30 dias
-- CRUD de usuarios
-- CRUD de equipes e membros
+- CRUD de usuarios com desativacao de usuario (`is_active`) e revogacao de acesso (`DELETE /users/{id}`)
+- CRUD de equipes e membros com desativacao soft (equipes deactivadas nao aparecem na lista)
+- memberships com soft delete via `revoked_at` — usuarios revogados nao acessam mais a empresa
 - formularios versionados com suporte a secoes, evidencias e configuracao avancada por campo
 - campos de formulario configurados via `config_json`: peso, allow_na, opcoes de select
 - tipos de campo: `boolean`, `text`, `number`, `select`, `date`, `section`
 - detalhe de formulario e historico de versoes
+- importacao de formulario via CSV ou Excel
 - inspecoes com respostas tipadas e score ponderado por peso de campo
 - suporte a resposta N/A em campos booleanos com `allow_na: true`
 - modo de inspecao (card a card) e modo lista com carga progressiva (`load more`)
 - barra de progresso e atalhos rapidos por secao na execucao da inspecao
 - finalizacao de inspecao com calculo de score ponderado
 - score_breakdown com contagem de conformes, nao conformes, sem resposta e N/A
-- relatorio detalhado por inspecao com exportacao PDF profissional
-- PDF inclui: bloco de score colorido, chips de breakdown, divisores de secao, linhas coloridas por resultado
+- relatorio detalhado por inspecao com exportacao PDF profissional com suporte a Unicode (fonte DejaVu Sans TTF)
 - exportacao CSV de inspecoes com filtro de status
 - evidencias anexadas por upload local (imagem, video, audio, PDF)
 - busca em tempo real por formularios e inspecoes (`GET /search?q=`)
 - perfil do usuario (nome, senha, empresas vinculadas)
 - configuracoes da empresa (dados cadastrais, fuso horario, guard de role)
-- notificacoes derivadas das inspecoes (sem tabela propria no banco)
+- notificacoes derivadas das inspecoes com persistencia de leitura e dismiss no banco
 
 ## 3. Bounded contexts implementados
 
@@ -79,11 +82,41 @@ Capacidades ativas:
 - `GET /api/v1/me/context`
 - `PATCH /api/v1/me`
 - `GET /api/v1/me/stats` — retorna metricas por periodo com `score_by_form` e `score_trend`
-- `GET /api/v1/me/notifications` — derivadas de submissions; retorna `read: bool` persistido
+- `GET /api/v1/me/usage` — contagens reais de uso vs limites do plano (`users`, `forms`, `submissions_this_month`)
+- `GET /api/v1/me/notifications` — derivadas de submissions; retorna `read: bool` e `dismissed: bool` persistidos
 - `POST /api/v1/me/notifications/read` — marca uma notificacao como lida
 - `POST /api/v1/me/notifications/read-all` — marca todas as notificacoes fornecidas como lidas
+- `POST /api/v1/me/notifications/dismiss` — descarta uma notificacao (persistido em `notification_reads.dismissed`)
+- `POST /api/v1/me/notifications/dismiss-all` — descarta multiplas notificacoes
 - `GET /api/v1/companies/me`
 - `PATCH /api/v1/companies/me` (requer OWNER ou ADMIN)
+
+Limites de uso por plano (definidos em `CompanyService._PLAN_LIMITS`):
+
+| Plano | Usuarios | Formularios | Inspecoes/mes |
+|---|---|---|---|
+| `starter` | 10 | 20 | 100 |
+| `pro` | 50 | 100 | 500 |
+| `enterprise` | 999 | 999 | 9999 |
+
+### Usuarios
+
+Responsavel por gerenciar membros da empresa.
+
+Capacidades ativas:
+
+- `GET /api/v1/users` — lista memberships ativos (`revoked_at IS NULL`)
+- `GET /api/v1/users/{id}`
+- `POST /api/v1/users` — cria usuario e vincula via membership
+- `PATCH /api/v1/users/{id}` — atualiza nome, senha, role, `is_active` do usuario
+- `DELETE /api/v1/users/{id}` — revoga o acesso do usuario (seta `revoked_at`); nao exclui dados
+
+Regras de revogacao:
+
+- apenas ADMIN ou superior podem revogar
+- o proprio usuario nao pode revogar o proprio acesso
+- usuario revogado desaparece da listagem e perde acesso imediato (token existente rejeitado no proximo contexto)
+- o historico de inspecoes e registros permanece intacto
 
 ### Formularios
 
@@ -111,6 +144,7 @@ Configuracao de campo via `config_json`:
 | `weight` | `float` | `boolean` | Peso no calculo do score ponderado (default 1.0) |
 | `allow_na` | `bool` | `boolean` | Habilita resposta N/A |
 | `options` | `string[]` | `select` | Opcoes do dropdown |
+
 Campo `instruction` em `form_fields`:
 
 - coluna `instruction TEXT NULL` — texto livre explicando como executar a tarefa do campo
@@ -151,7 +185,7 @@ Capacidades ativas:
 - finalizacao com validacao de campos obrigatorios respondidos
 - calculo de score ponderado baseado em `submission_conformities` (campos N/A e sem conformidade sao excluidos)
 - score_breakdown: `conformes`, `nao_conformes`, `sem_resposta`, `na_count`, `total_boolean`
-- exportacao PDF individual com score profissional
+- exportacao PDF individual com score profissional e suporte a Unicode
 - exportacao CSV da lista (com filtro de status)
 
 Calculo de score:
@@ -192,9 +226,18 @@ Entidades principais:
 
 Capacidades ativas:
 
-- CRUD de equipes
-- adicionar membro
+- listagem de equipes ativas (`is_active = TRUE`)
+- criacao de equipe
+- edicao de equipe
+- desativacao de equipe (`DELETE /teams/{id}` — soft delete via `is_active = FALSE`)
+- adicionar membro (valida se equipe esta ativa e se usuario tem membership ativo)
 - remover membro
+
+Regras de desativacao:
+
+- equipes desativadas nao aparecem na listagem nem no detalhe (retornam 404)
+- operacoes de membro em equipes inativas tambem retornam 404
+- o historico de membros permanece intacto no banco
 
 ### Busca
 
@@ -219,6 +262,8 @@ Capacidades ativas:
   - inspecoes `in_progress` ha mais de 24h geram alerta `pending`
   - `completed` com score < 80% geram alerta `low_score`
   - `completed` com score >= 90% geram alerta `excellent`
+- estado de leitura persistido em `notification_reads.read = TRUE`
+- estado de dismiss persistido em `notification_reads.dismissed = TRUE`; notificacoes dispensadas nao aparecem na listagem
 
 ### Relatorio e exportacao PDF
 
@@ -229,10 +274,7 @@ Capacidades ativas:
 - `GET /api/v1/submissions/{id}/export` — download do PDF
 - `GET /api/v1/submissions/{id}/export?inline=true` — abertura inline no browser
 - conteudo do PDF: bloco de score colorido (verde/amarelo/vermelho), chips de breakdown, tabela de respostas com resultado de conformidade, divisores de secao, rodape com contagem de campos
-
-Restricoes:
-
-- PDF gerado com fpdf2 usando fonte Helvetica (Latin-1); caracteres fora de Latin-1 nao sao suportados
+- fonte DejaVu Sans TTF embutida — suporte completo a Unicode incluindo acentos portugueses, caracteres especiais e simbolos
 
 ## 4. Arquitetura backend
 
@@ -288,6 +330,7 @@ Padrao principal:
 - Envelopes `{ data, meta }`
 - Paginacao padronizada com `PageMeta`
 - AsyncSession em todo o backend
+- Soft delete via `revoked_at` (memberships) e `is_active` (teams, forms)
 
 ### Pontos concretos do codigo
 
@@ -392,8 +435,8 @@ Rotas agregadas hoje:
 - `health`
 - `auth` (login, me, forgot-password, reset-password)
 - `companies`
-- `me` (context, companies, stats com score_by_form/score_trend, notifications)
-- `users`
+- `me` (context, companies, stats com score_by_form/score_trend, usage, notifications com read/dismiss)
+- `users` (CRUD + revogacao de acesso via `DELETE /users/{id}`)
 - `forms` (CRUD, versoes, importacao via CSV/Excel)
 - `submissions` (CRUD, answers, conformity, finish, export CSV, export PDF com `?inline`)
 - `search`
@@ -410,7 +453,7 @@ Rotas de interface existentes hoje:
 - `/reset-password` (recebe `?token=` na query string)
 - `/select-company`
 - `/` — dashboard com metricas, barras de score por formulario, sparkline de tendencia
-- `/users`
+- `/users` — lista, cria, edita, revoga acesso
 - `/forms`
 - `/forms/:formId` — editor com secoes, peso, allow_na, instrucao por campo
 - `/forms/:formId/versions`
@@ -418,10 +461,10 @@ Rotas de interface existentes hoje:
 - `/submissions/:id` — execucao com modo inspecao e modo lista, progresso, atalhos de secao
 - `/submissions/:id/report` — relatorio com botoes "Visualizar PDF" e "Baixar PDF"
 - `/profile`
-- `/company-settings`
-- `/notifications`
+- `/company-settings` — aba Geral, aba Plano, aba Utilizacao (contagens reais via API)
+- `/notifications` — com dismiss persistido
 - `/search`
-- `/teams`
+- `/teams` — lista, cria, edita, desativa equipes; gerencia membros
 
 ## 8. Contratos HTTP
 
@@ -483,14 +526,25 @@ Observacao: mensagens de erro do backend nao usam acentos para evitar problemas 
 }
 ```
 
+### Resposta de uso (`GET /me/usage`)
+
+```json
+{
+  "data": {
+    "users": { "used": 3, "limit": 10 },
+    "forms": { "used": 7, "limit": 20 },
+    "submissions_this_month": { "used": 14, "limit": 100 }
+  }
+}
+```
+
 ## 9. Testes
 
 ### Backend
 
-Estado validado em `2026-06-03`:
+Estado validado em `2026-06-04`:
 
-- `214 passed, 3 skipped` (backend)
-- `27 passed` (unit — test_form_importer.py adicionado)
+- `212 passed, 3 skipped`
 
 Cobertura atual:
 
@@ -504,9 +558,9 @@ Cobertura atual:
 | `test_submissions_advanced.py` | integracao | PDF, N/A, pesos, stats, isolamento |
 | `test_search.py` | integracao | busca full-text |
 | `test_users.py` | integracao | CRUD usuarios |
-| `test_teams.py` | integracao | CRUD equipes e membros |
+| `test_teams.py` | integracao | CRUD equipes e membros (soft delete) |
 | `test_companies.py` | integracao | configuracoes de empresa |
-| `test_me.py` | integracao | context, stats, notificacoes |
+| `test_me.py` | integracao | context, stats, notificacoes, usage |
 | `test_uploads.py` | integracao | upload, validacao de tipo e tamanho |
 | `test_attachments.py` | integracao | evidencias |
 | `test_form_service.py` | unidade | validate_fields (todos os tipos) |
@@ -549,6 +603,10 @@ Cobertura atual:
 | `users.service.test.ts` | service |
 | `uploads.service.test.ts` | service |
 | `attachments.service.test.ts` | service |
+
+### E2E — Playwright
+
+Job `e2e` no CI (`.github/workflows/ci.yml`). Todos os 53 testes usam `page.route()` para mockar chamadas de API — nao requerem backend em execucao.
 
 ## 10. Decisoes arquiteturais consolidadas
 
@@ -595,15 +653,29 @@ onde `avaliados` inclui apenas campos com registro em `submission_conformities` 
 
 A separacao entre resposta (booleana, em `submission_values`) e avaliacao de conformidade (em `submission_conformities`) permite que o inspetor responda campos e decida a conformidade em etapas distintas durante a inspecao.
 
-### PDF em Latin-1 (fpdf2 Helvetica)
+### Soft delete por tipo de entidade
 
-A geracao de PDF usa fpdf2 com a fonte embutida Helvetica. Helvetica suporta apenas o charset Latin-1 (ISO 8859-1). Todos os textos escritos no PDF devem estar dentro deste conjunto. Em particular:
+O sistema distingue dois mecanismos de soft delete conforme a semântica da entidade:
 
-- Usar `"-"` em vez de `"—"` (em dash U+2014)
-- Usar `"..."` em vez de `"…"` (elipsis U+2026)
-- Acentos do portugues (`a`, `e`, `o`, `u`, `c`) estao dentro de Latin-1 e sao seguros
+- **`memberships.revoked_at TIMESTAMPTZ NULL`** — timestamp de quando o acesso foi revogado. Todas as queries que dependem de membership ativo filtram `WHERE revoked_at IS NULL`: listagem de usuarios da empresa, resolucao de contexto, autenticacao (dependencias `get_current_membership`), e contagem de membros ativos em `/me/usage`.
 
-Para suportar Unicode completo, seria necessario registrar uma fonte TTF.
+- **`teams.is_active BOOLEAN`** — flag booleana para equipes. Listagem e detalhe de equipes filtram `WHERE is_active = TRUE`. Operacoes de membro em equipes inativas retornam 404. O `DELETE /teams/{id}` HTTP realiza desativacao em vez de exclusao fisica.
+
+Dados historicos (inspecoes, respostas, evidencias, membros de equipe) sao preservados em ambos os casos.
+
+### Notificacoes sem tabela propria
+
+As notificacoes sao derivadas do estado das submissions em tempo real. Nao existe tabela `notifications` no banco.
+
+O estado de leitura e dismiss e persistido em `notification_reads` (campos `read: bool` e `dismissed: bool`, chave composta `user_id + notification_key`). A chave e deterministica — ex.: `excellent-{submission_id}` — o que permite upsert sem conflito. Notificacoes dispensadas sao filtradas antes de retornar ao cliente.
+
+### PDF com fonte DejaVu Sans TTF
+
+O PDF e gerado com fpdf2 usando a fonte DejaVu Sans TTF embutida em `backend/app/modules/submissions/fonts/`. Essa fonte cobre Unicode completo, incluindo todos os acentos do portugues, simbolos especiais e caracteres internacionais. O arquivo TTF (~757 KB) esta versionado no repositorio.
+
+### Recuperacao de senha
+
+Implementada com token de uso unico (TTL 1h) em `password_reset_tokens`. Entrega via SMTP quando configurado, ou via log em desenvolvimento. Anti-enumeracao: o endpoint sempre retorna 200 independente de o email existir.
 
 ### Upload local antes de storage externo
 
@@ -613,18 +685,6 @@ Mantido e coerente com o momento do projeto.
 
 Ja e realidade no codigo. Qualquer documentacao antiga que ainda fale em sessao sincrona deve ser considerada obsoleta.
 
-### Notificacoes sem tabela propria
-
-As notificacoes sao derivadas do estado das submissions em tempo real. Nao existe tabela `notifications` no banco.
-
-O estado de leitura e persistido separadamente em `notification_reads` (chave composta `user_id + notification_key`). A chave e deterministica — ex.: `excellent-{submission_id}` — o que permite upsert sem conflito.
-
-Dismiss ainda e so no estado local do frontend.
-
-### Recuperacao de senha
-
-Implementada com token de uso unico (TTL 1h) em `password_reset_tokens`. Entrega via SMTP quando configurado, ou via log em desenvolvimento. Anti-enumeracao: o endpoint sempre retorna 200 independente de o email existir.
-
 ## 11. O que esta consolidado vs. parcial
 
 ### Consolidado
@@ -633,7 +693,7 @@ Implementada com token de uso unico (TTL 1h) em `password_reset_tokens`. Entrega
 - autenticacao, contexto e sessao
 - recuperacao de senha (forgot + reset)
 - shell autenticado consistente em todas as telas
-- usuarios
+- usuarios com desativacao (`is_active`) e revogacao de acesso (`DELETE /users/{id}`)
 - formularios com versionamento, secoes, tipos completos e config_json
 - campo `instruction` por campo de formulario (builder UI + importacao)
 - importacao de formulario via CSV ou Excel (`POST /api/v1/forms/import`)
@@ -641,29 +701,31 @@ Implementada com token de uso unico (TTL 1h) em `password_reset_tokens`. Entrega
 - avaliacao de conformidade por campo (`submission_conformities`) — base do score e da barra de progresso
 - comportamento de avanco automatico apenas no botao "Conforme" (card view)
 - finalizacao com validacao de campos visiveis
-- relatorio e exportacao PDF profissional (score colorido, breakdown, secoes)
+- relatorio e exportacao PDF profissional (score colorido, breakdown, secoes, Unicode via DejaVu Sans)
 - evidencias e uploads (imagem, video, audio, PDF)
-- equipes
+- equipes com soft delete (`is_active`)
+- memberships com soft delete (`revoked_at`)
 - exportacao CSV
 - busca em tempo real
 - dashboard com score_by_form e score_trend
 - configuracoes da empresa (GET + PATCH com guard de role)
 - perfil (nome, senha, empresas vinculadas)
-- notificacoes derivadas (sem persistencia)
-- testes automatizados: backend 214 passed (integracao + unidade), frontend 119 passed (Vitest)
+- notificacoes com persistencia de leitura e dismiss
+- endpoint `/me/usage` com contagens reais e limites por plano
+- CI com jobs separados: backend (ruff + pytest), frontend (vue-tsc + Vitest), E2E (Playwright)
+- testes automatizados: backend 212 passed, frontend 119 passed (Vitest), 53 E2E (Playwright)
 
 ### Parcial ou com limitacao conhecida
 
-- notificacoes: dismiss existe so no estado local do frontend; recarregar a pagina perde o estado de dismiss (mark-as-read e persistido via `notification_reads`)
-- CompanySettings / aba Utilizacao: limites de uso (50 usuarios, 500 inspecoes, 100 formularios) sao hardcoded, nao vem de API
 - CompanySettings / aba Plano: botao "Falar com o comercial" nao tem acao real
 - Excluir empresa: endpoint e fluxo nao implementados; botao desabilitado na interface
-- PDF com fonte Helvetica (Latin-1 only): caracteres fora do charset causam erro em geracao
+- Reativar usuario revogado: `DELETE /users/{id}` marca `revoked_at`; nao existe endpoint de reativacao (operacao workaround: usar `PATCH /users/{id}` para atualizar dados, mas membership revogado nao seria restaurado automaticamente)
+- Storage externo: uploads ficam em disco local; sem S3/GCS
 
 ## 12. Proxima linha segura de evolucao
 
-1. limites de uso reais via API (`/me/usage` ou similar)
-2. excluir empresa: endpoint `DELETE /companies/me` + fluxo no frontend
-3. font TTF no PDF para suporte a Unicode completo (emojis, simbolos especiais)
-4. storage externo (S3/GCS) em substituicao ao disco local
-5. preparar PWA apos consolidar os itens acima
+1. `DELETE /companies/me` — desativar empresa com cascade de memberships e dados
+2. Reativar membership revogado — endpoint `POST /users/{id}/reactivate` ou logica no `create_user` para detectar e reativar membership existente
+3. Storage externo (S3/GCS) em substituicao ao disco local
+4. `audit_logs` — rastreabilidade de acoes criticas (quem revogou, quem desativou, quando)
+5. Preparar PWA apos consolidar os itens acima

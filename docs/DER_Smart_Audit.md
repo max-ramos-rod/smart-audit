@@ -7,13 +7,13 @@ Este documento consolida o modelo de dados real do Smart Audit no estado atual d
 Ele sustenta:
 
 - multiempresa por `company_id`
-- autenticacao e memberships por empresa
+- autenticacao e memberships por empresa com soft delete via `revoked_at`
 - recuperacao de senha com token de uso unico
 - formularios versionados com tipos de campo extendidos e configuracao via JSONB
 - execucao de inspecoes com score ponderado e respostas N/A
 - respostas tipadas por campo com suporte a regras condicionais
 - anexos de evidencias
-- equipes e membros por empresa
+- equipes e membros por empresa com soft delete via `is_active`
 
 ## Decisoes de modelagem
 
@@ -27,10 +27,12 @@ Ele sustenta:
 - arquivos ficam fora do banco; `attachments` armazena apenas metadados
 - equipes foram promovidas ao modelo real do sistema
 - **nao existe tabela de notificacoes**: notificacoes sao derivadas em tempo real de `submissions` pelo servico
-- o estado de leitura e armazenado em `notification_reads` com chave deterministica por usuario
+- o estado de leitura e dismiss e armazenado em `notification_reads` com chave deterministica por usuario
 - configuracao especifica de campo (peso, allow_na, opcoes) fica em `form_fields.config_json`
 - valor N/A em campos booleanos e armazenado como `value_text = "na"` com `value_boolean = NULL`
 - campos do tipo `section` nao geram `submission_value`
+- soft delete de membership via `revoked_at TIMESTAMPTZ NULL` — preserva historico de inspecoes
+- soft delete de team via `is_active BOOLEAN` — equipes desativadas nao aparecem na listagem
 
 ## Contextos e relacionamentos
 
@@ -143,7 +145,7 @@ erDiagram
 - `name VARCHAR(150)`
 - `email VARCHAR(255) UNIQUE`
 - `password_hash VARCHAR(255)`
-- `is_active BOOLEAN`
+- `is_active BOOLEAN` — desativa o login global do usuario (independente de empresa)
 - `created_at TIMESTAMPTZ`
 - `updated_at TIMESTAMPTZ`
 
@@ -151,6 +153,7 @@ Observacoes:
 
 - email e unico globalmente
 - `password_hash` usa formato PBKDF2-SHA256 customizado (`pbkdf2_sha256$iterations$salt$digest`)
+- desativar `is_active` impede o login do usuario em qualquer empresa
 
 ### `companies`
 
@@ -172,6 +175,7 @@ Observacoes:
 - `company_id UUID FK -> companies.id`
 - `user_id UUID FK -> users.id`
 - `role VARCHAR(30)`
+- `revoked_at TIMESTAMPTZ NULL` — NULL = ativo; preenchido = acesso revogado (soft delete)
 - `created_at TIMESTAMPTZ`
 - `updated_at TIMESTAMPTZ`
 
@@ -179,6 +183,12 @@ Restricoes:
 
 - `UNIQUE(company_id, user_id)`
 - `CHECK role IN ('OWNER', 'ADMIN', 'MANAGER', 'INSPECTOR', 'VIEWER')`
+
+Observacoes:
+
+- todas as queries de membership ativo filtram `WHERE revoked_at IS NULL`
+- isso inclui: autenticacao (dependencias `get_current_membership`), listagem de usuarios, contagem de membros em `/me/usage`, contexto de empresa
+- dados de inspecoes e registros de usuarios revogados sao preservados integralmente
 
 ### `password_reset_tokens`
 
@@ -202,17 +212,21 @@ Observacoes:
 - `id UUID PK`
 - `user_id UUID FK -> users.id ON DELETE CASCADE`
 - `notification_key VARCHAR(120)`
+- `read BOOLEAN DEFAULT FALSE`
+- `dismissed BOOLEAN DEFAULT FALSE`
 - `created_at TIMESTAMPTZ`
 - `updated_at TIMESTAMPTZ`
 
 Restricoes:
 
-- `UNIQUE(user_id, notification_key)` — upsert idempotente via `ON CONFLICT DO NOTHING`
+- `UNIQUE(user_id, notification_key)` — upsert idempotente via `ON CONFLICT DO UPDATE`
 
 Observacoes:
 
 - chave deterministica: `pending-{submission_id}`, `low-score-{submission_id}`, `excellent-{submission_id}`
-- a tabela armazena apenas o estado de leitura; as notificacoes em si sao derivadas em tempo real
+- a tabela armazena o estado de leitura (`read`) e de dismiss (`dismissed`)
+- notificacoes com `dismissed = TRUE` sao filtradas antes de retornar ao cliente
+- upsert via `ON CONFLICT DO UPDATE SET dismissed = TRUE` ao dispensar
 
 ### `forms`
 
@@ -395,8 +409,15 @@ Limites de tamanho: imagem 10 MB, PDF 20 MB, audio 50 MB, video 200 MB
 - `company_id UUID FK -> companies.id`
 - `name VARCHAR(150)`
 - `created_by UUID FK -> users.id`
+- `is_active BOOLEAN DEFAULT TRUE` — FALSE = equipe desativada (soft delete)
 - `created_at TIMESTAMPTZ`
 - `updated_at TIMESTAMPTZ`
+
+Observacoes:
+
+- listagem e detalhe filtram `WHERE is_active = TRUE`
+- `DELETE /teams/{id}` seta `is_active = FALSE` (nao exclui fisicamente)
+- membros da equipe desativada sao preservados no banco
 
 ### `team_members`
 
@@ -418,12 +439,13 @@ Toda query de dominio filtra por `company_id` com base no membership atual.
 
 Isso vale para:
 
-- usuarios da empresa
+- usuarios da empresa (memberships ativos, `revoked_at IS NULL`)
 - formularios
 - inspecoes
-- equipes
+- equipes (ativas, `is_active = TRUE`)
 - evidencias e uploads
 - stats e notificacoes
+- contagens de uso em `/me/usage`
 
 ### Versionamento
 
@@ -451,7 +473,15 @@ Nao existe tabela `notifications`. O endpoint `GET /me/notifications` deriva ale
 - `completed` com score < 80% → alerta `low_score`
 - `completed` com score >= 90% → alerta `excellent`
 
-O estado de leitura por usuario e persistido em `notification_reads` com chave deterministica (`pending-{id}`, `low-score-{id}`, `excellent-{id}`). Upsert idempotente via `ON CONFLICT DO NOTHING` na constraint `uq_notification_reads_user_key`.
+O estado de leitura e dismiss por usuario e persistido em `notification_reads`. Upsert via `ON CONFLICT DO UPDATE` na constraint `uq_notification_reads_user_key`. Notificacoes com `dismissed = TRUE` sao excluidas da resposta antes de retornar ao cliente.
+
+### Soft delete
+
+Duas estrategias conforme a semântica:
+
+- **memberships**: `revoked_at TIMESTAMPTZ NULL`. Revogacao seta o timestamp atual. Queries de membership ativo filtram `WHERE revoked_at IS NULL`. Dados de inspecoes do usuario revogado permanecem intactos.
+
+- **teams**: `is_active BOOLEAN`. Desativacao seta `is_active = FALSE`. Queries de equipe ativa filtram `WHERE is_active = TRUE`. Membros e historico permanecem intactos.
 
 ## Migracoes aplicadas
 
@@ -469,12 +499,15 @@ O estado de leitura por usuario e persistido em `notification_reads` com chave d
 | `b3c4d5e6f7a8` | remove field_type 'evidence' — evidencia vira capacidade de qualquer campo via attachments |
 | `c5d6e7f8a9b0` | add submission_conformities |
 | `d6e7f8a9b0c1` | add instruction TEXT NULL em form_fields |
+| `e7f8a9b0c1d2` | add dismissed BOOLEAN em notification_reads |
+| `f8a9b0c1d2e3` | add revoked_at TIMESTAMPTZ NULL em memberships |
+| `a9b0c1d2e3f4` | add is_active BOOLEAN em teams |
 
 ## Evolucao futura prevista
 
 Ainda nao implementados como tabela/modulo:
 
-- `audit_logs` — rastreabilidade de acoes criticas
+- `audit_logs` — rastreabilidade de acoes criticas (quem revogou membership, quem desativou equipe, quando)
 - `corrective_actions` — acoes vinculadas a itens reprovados em inspecoes
-- `usage_limits` ou campo em `companies` — limites reais de uso por plano via API
+- reativacao de membership revogado — endpoint dedicado ou logica em `create_user` para detectar membership existente
 - storage externo (S3/GCS) em substituicao ao disco local
