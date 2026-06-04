@@ -539,6 +539,52 @@ async function handleFinish() {
 const displayedListFields = computed(() => fields.value.slice(0, listViewLimit.value))
 const hasMoreFields        = computed(() => listViewLimit.value < fields.value.length)
 function loadMoreFields() { listViewLimit.value += LIST_PAGE }
+
+// ── Skip ──────────────────────────────────────────────────────────────────────
+function doSkip() { inspectionNext() }
+
+// ── Non-conformity: open justification sheet ──────────────────────────────────
+function setNaoConformeCard(fieldKey: string) {
+  setConformity(fieldKey, 'nao_conforme')
+  justificationError.value = null
+  justificationFieldKey.value = fieldKey
+  showJustificationSheet.value = true
+}
+
+const justificationError = ref<string | null>(null)
+
+function confirmJustification() {
+  const key = justificationFieldKey.value
+  if (!key) return
+  const text = (conformityJustification[key] || '').trim()
+  if (!text) {
+    justificationError.value = 'Descreva o problema encontrado.'
+    return
+  }
+  justificationError.value = null
+  triggerConformitySave()
+  showJustificationSheet.value = false
+  setTimeout(() => inspectionNext(), 250)
+}
+
+// ── Nearby dots for card ──────────────────────────────────────────────────────
+const nearbyDots = computed(() => {
+  const idx   = inspectionIndex.value
+  const all   = answerableFields.value
+  const half  = 4
+  const start = Math.max(0, idx - half)
+  const end   = Math.min(all.length - 1, idx + half)
+  return all.slice(start, end + 1).map((f, i) => ({
+    key:       f.key,
+    status:    conformityStatus[f.key] ?? 'pending',
+    isCurrent: start + i === idx,
+  }))
+})
+
+// ── Evidence count for current card field ─────────────────────────────────────
+const currentFieldEvidenceCount = computed(() =>
+  inspectionField.value ? (evidenceAttachments[inspectionField.value.key]?.length ?? 0) : 0,
+)
 </script>
 
 <template>
@@ -697,235 +743,9 @@ function loadMoreFields() { listViewLimit.value += LIST_PAGE }
               </button>
             </div>
 
-            <!-- ── CARD VIEW ── -->
+            <!-- Card mode: handled by fullscreen Teleport overlay above -->
             <template v-if="viewMode === 'card'">
-
-              <!-- All done state -->
-              <div v-if="allAnswered" style="text-align:center;padding:40px 20px;">
-                <div style="width:64px;height:64px;border-radius:50%;background:var(--sa-ok-bg);border:2px solid var(--sa-ok-bd);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:28px;">✓</div>
-                <div style="font-size:18px;font-weight:700;color:var(--sa-text);margin-bottom:6px;">Todos os campos respondidos!</div>
-                <div v-if="liveScore !== null" style="margin-bottom:16px;">
-                  <span :style="{
-                    display:'inline-block', fontSize:'28px', fontWeight:800, fontVariantNumeric:'tabular-nums',
-                    color: scoreColorVar(liveScore ?? 0),
-                  }">{{ liveScore }}%</span>
-                  <div style="font-size:12px;color:var(--sa-muted);margin-top:2px;">Score parcial</div>
-                </div>
-                <button type="button" class="btn-primary" @click="inspectionMode = false">Ver resumo completo</button>
-              </div>
-
-              <!-- Swipe card -->
-              <div v-else-if="inspectionField" style="position:relative;min-height:320px;margin-bottom:80px;">
-
-                <!-- Swipe indicators: left = não conforme, right = conforme -->
-                <div :style="{
-                  position:'absolute', left:'16px', top:'50%', transform:'translateY(-50%)',
-                  display:'flex', flexDirection:'column', alignItems:'center', gap:'6px',
-                  opacity: leftIndicatorOpacity, pointerEvents:'none', transition:'opacity .1s',
-                }">
-                  <div style="width:48px;height:48px;border-radius:50%;background:var(--sa-danger);display:flex;align-items:center;justify-content:center;color:#fff;font-size:22px;box-shadow:0 4px 12px rgba(220,38,38,.35);">✕</div>
-                  <span style="font-size:10px;font-weight:700;color:var(--sa-danger);">Não conforme</span>
-                </div>
-                <div :style="{
-                  position:'absolute', right:'16px', top:'50%', transform:'translateY(-50%)',
-                  display:'flex', flexDirection:'column', alignItems:'center', gap:'6px',
-                  opacity: rightIndicatorOpacity, pointerEvents:'none', transition:'opacity .1s',
-                }">
-                  <div style="width:48px;height:48px;border-radius:50%;background:var(--sa-ok);display:flex;align-items:center;justify-content:center;color:#fff;font-size:22px;box-shadow:0 4px 12px rgba(22,163,74,.35);">✓</div>
-                  <span style="font-size:10px;font-weight:700;color:var(--sa-ok);">Conforme</span>
-                </div>
-
-                <!-- Card -->
-                <div
-                  class="insp-card"
-                  :style="cardSwipeStyle"
-                  style="will-change:transform;touch-action:pan-y;"
-                  @touchstart.passive="onTouchStart"
-                  @touchmove.passive="onTouchMove"
-                  @touchend="onTouchEnd"
-                >
-                  <!-- Card status header -->
-                  <div :style="{
-                    margin:'-24px -20px 16px', padding:'10px 16px',
-                    borderRadius:'14px 14px 0 0',
-                    background:
-                      currentFieldStatus === 'conformes'     ? 'var(--sa-ok-bg)'  :
-                      currentFieldStatus === 'nao_conformes' ? 'var(--sa-err-bg)' :
-                      'var(--sa-panel-strong)',
-                    display:'flex', alignItems:'center', justifyContent:'space-between',
-                  }">
-                    <div style="display:flex;align-items:center;gap:8px;">
-                      <span v-if="inspectionSectionLabel" class="insp-section">{{ inspectionSectionLabel }}</span>
-                    </div>
-                    <div style="display:flex;align-items:center;gap:6px;">
-                      <!-- Weight badge -->
-                      <span v-if="fieldWeight(inspectionField.config_json) > 1"
-                        style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:var(--sa-brand-soft);color:var(--sa-brand);">
-                        Peso {{ inspectionField.config_json.weight }}x
-                      </span>
-                      <!-- Status chip -->
-                      <span :style="{
-                        fontSize:'10px', fontWeight:700, padding:'2px 8px', borderRadius:'99px',
-                        background:
-                          currentFieldStatus === 'conformes'     ? 'var(--sa-ok-bg)'  :
-                          currentFieldStatus === 'nao_conformes' ? 'var(--sa-err-bg)' :
-                          '#f1f5f9',
-                        color:
-                          currentFieldStatus === 'conformes'     ? 'var(--sa-ok)'     :
-                          currentFieldStatus === 'nao_conformes' ? 'var(--sa-danger)' :
-                          'var(--sa-muted)',
-                      }">
-                        {{
-                          currentFieldStatus === 'conformes'     ? 'Conforme' :
-                          currentFieldStatus === 'nao_conformes' ? 'Não conforme' :
-                          'Pendente'
-                        }}
-                      </span>
-                    </div>
-                  </div>
-
-                  <!-- Counter -->
-                  <div class="insp-meta" style="margin-bottom:8px;">
-                    <span style="font-size:10px;font-weight:700;color:var(--sa-muted);">{{ TYPE_LABEL[inspectionField.field_type] ?? inspectionField.field_type }}</span>
-                    <span class="insp-counter">{{ inspectionIndex + 1 }} / {{ answerableFields.length }}</span>
-                  </div>
-
-                  <!-- Label -->
-                  <div style="font-size:17px;font-weight:700;color:var(--sa-text);line-height:1.35;margin-bottom:6px;">
-                    {{ inspectionField.label }}
-                  </div>
-                  <span v-if="inspectionField.required" style="display:inline-block;font-size:9px;font-weight:700;color:var(--sa-danger);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">
-                    Obrigatório
-                  </span>
-                  <!-- Instrução -->
-                  <div v-if="inspectionField.instruction"
-                    style="font-size:12px;color:var(--sa-muted);background:var(--sa-bg);border-left:3px solid var(--sa-brand);padding:7px 10px;border-radius:0 6px 6px 0;margin-bottom:12px;line-height:1.5;">
-                    {{ inspectionField.instruction }}
-                  </div>
-
-                  <div v-if="pendingRequiredFields.includes(inspectionField.key)" class="frow-error-label" style="margin-bottom:8px;">
-                    Campo obrigatório não preenchido
-                  </div>
-
-                  <!-- Evidence count badge -->
-                  <div v-if="(evidenceAttachments[inspectionField.key]?.length ?? 0) > 0"
-                    style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:var(--sa-brand);background:var(--sa-brand-soft);padding:3px 9px;border-radius:99px;margin-bottom:12px;">
-                    📎 {{ evidenceAttachments[inspectionField.key].length }} evidência(s)
-                  </div>
-
-                  <!-- ── BOOLEAN: big Sim/Não/N/A buttons ── -->
-                  <div v-if="inspectionField.field_type === 'boolean'" style="display:grid;gap:8px;margin-top:4px;">
-                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-                      <button type="button" class="bool-btn bool-sim"
-                        :class="{ 'bool-btn--active': draftAnswers[inspectionField.key] === 'true' }"
-                        :disabled="isCompleted"
-                        @click="answerBoolean(inspectionField.key, 'true')">
-                        <span style="font-size:20px;">✓</span>
-                        <span>Sim</span>
-                      </button>
-                      <button type="button" class="bool-btn bool-nao"
-                        :class="{ 'bool-btn--active': draftAnswers[inspectionField.key] === 'false' }"
-                        :disabled="isCompleted"
-                        @click="answerBoolean(inspectionField.key, 'false')">
-                        <span style="font-size:20px;">✕</span>
-                        <span>Não</span>
-                      </button>
-                    </div>
-                    <button v-if="inspectionField.config_json?.allow_na"
-                      type="button" class="bool-btn bool-na"
-                      :class="{ 'bool-btn--active': draftAnswers[inspectionField.key] === 'na' }"
-                      :disabled="isCompleted"
-                      @click="answerBoolean(inspectionField.key, 'na')">
-                      <span>N/A — Não aplicável</span>
-                    </button>
-                  </div>
-
-                  <!-- ── NUMBER ── -->
-                  <input v-else-if="inspectionField.field_type === 'number'"
-                    v-model="draftAnswers[inspectionField.key]"
-                    type="number" step="any" placeholder="Informe um número"
-                    :disabled="isCompleted" @change="triggerAutoSave()" />
-
-                  <!-- ── DATE ── -->
-                  <input v-else-if="inspectionField.field_type === 'date'"
-                    v-model="draftAnswers[inspectionField.key]"
-                    type="date" :disabled="isCompleted" @change="triggerAutoSave()" />
-
-                  <!-- ── SELECT ── -->
-                  <template v-else-if="inspectionField.field_type === 'select'">
-                    <select v-if="selectOptions(inspectionField.config_json ?? {}).length"
-                      v-model="draftAnswers[inspectionField.key]"
-                      :disabled="isCompleted" @change="triggerAutoSave()">
-                      <option value="">— Selecione —</option>
-                      <option v-for="opt in selectOptions(inspectionField.config_json ?? {})" :key="opt" :value="opt">{{ opt }}</option>
-                    </select>
-                    <input v-else v-model="draftAnswers[inspectionField.key]" type="text" :disabled="isCompleted" @change="triggerAutoSave()" />
-                  </template>
-
-                  <!-- ── TEXT ── -->
-                  <input v-else-if="inspectionField.field_type === 'text'"
-                    v-model="draftAnswers[inspectionField.key]"
-                    type="text" placeholder="Informe o valor"
-                    :disabled="isCompleted" @change="triggerAutoSave()" />
-
-                  <!-- ── Conformidade ── -->
-                  <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--sa-line);">
-                    <div style="font-size:10px;font-weight:700;color:var(--sa-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Conformidade</div>
-                    <div style="display:flex;gap:6px;flex-wrap:wrap;">
-                      <button type="button" class="bool-btn-sm bool-sim"
-                        :class="{ 'bool-btn--active': conformityStatus[inspectionField.key] === 'conforme' }"
-                        :disabled="isCompleted"
-                        @click="setConformityCard(inspectionField.key, 'conforme')">✓ Conforme</button>
-                      <button type="button" class="bool-btn-sm bool-nao"
-                        :class="{ 'bool-btn--active': conformityStatus[inspectionField.key] === 'nao_conforme' }"
-                        :disabled="isCompleted"
-                        @click="setConformityCard(inspectionField.key, 'nao_conforme')">✕ Não conforme</button>
-                    </div>
-                    <textarea v-if="conformityStatus[inspectionField.key] === 'nao_conforme'"
-                      v-model="conformityJustification[inspectionField.key]"
-                      placeholder="Justificativa obrigatória"
-                      rows="2"
-                      :disabled="isCompleted"
-                      style="width:100%;margin-top:8px;font-size:12px;padding:6px 8px;border-radius:6px;border:1px solid var(--sa-danger);resize:vertical;box-sizing:border-box;"
-                      @input="triggerConformitySave()"
-                    ></textarea>
-                  </div>
-
-                  <!-- ── Evidências (todos os tipos de campo) ── -->
-                  <div v-if="!isCompleted || (evidenceAttachments[inspectionField.key]?.length ?? 0) > 0"
-                    style="margin-top:12px;padding-top:10px;border-top:1px solid var(--sa-line);">
-                    <div v-if="evidenceAttachments[inspectionField.key]?.length" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px;">
-                      <div v-for="att in evidenceAttachments[inspectionField.key]" :key="att.id"
-                        style="display:inline-flex;align-items:center;gap:5px;padding:4px 8px;background:var(--sa-bg);border:1px solid var(--sa-line);border-radius:6px;font-size:11px;max-width:180px;">
-                        <a :href="att.file_url" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:5px;text-decoration:none;min-width:0;">
-                          <img v-if="mimeCategory(att.mime_type) === 'image'" :src="att.file_url" style="width:18px;height:18px;object-fit:cover;border-radius:2px;flex-shrink:0;" />
-                          <span v-else style="font-size:12px;flex-shrink:0;">📄</span>
-                          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--sa-text);">{{ att.file_url.split('/').pop() }}</span>
-                        </a>
-                        <button v-if="!isCompleted" type="button" @click="handleEvidenceDelete(inspectionField.key, att.id)"
-                          style="border:none;background:none;cursor:pointer;color:var(--sa-danger);font-size:14px;padding:0 2px;line-height:1;flex-shrink:0;">×</button>
-                      </div>
-                    </div>
-                    <label v-if="!isCompleted" style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:var(--sa-brand);cursor:pointer;padding:4px 10px;border:1px dashed var(--sa-brand);border-radius:6px;">
-                      {{ evidenceUploading[inspectionField.key] ? 'Enviando…' : '📎 Adicionar evidência' }}
-                      <input type="file" :accept="ALLOWED_MIMES" style="display:none;" :disabled="evidenceUploading[inspectionField.key]" @change="handleEvidenceUpload(inspectionField.key, {}, $event)" />
-                    </label>
-                    <p v-if="evidenceErrors[inspectionField.key]" style="font-size:11px;color:var(--sa-danger);margin-top:4px;">{{ evidenceErrors[inspectionField.key] }}</p>
-                  </div>
-
-                  <!-- Swipe hint (boolean only) -->
-                  <p v-if="inspectionField.field_type === 'boolean'" style="font-size:11px;color:var(--sa-muted);text-align:center;margin-top:16px;opacity:.6;">
-                    ← Não conforme · Conforme →
-                  </p>
-
-                  <!-- Card navigation -->
-                  <div class="insp-nav">
-                    <button type="button" class="btn-secondary" :disabled="inspectionIndex === 0" @click="inspectionPrev">← Anterior</button>
-                    <button v-if="inspectionIndex < answerableFields.length - 1" type="button" class="btn-primary" @click="inspectionNext">Próximo →</button>
-                    <button v-else type="button" class="btn-primary" @click="inspectionMode = false">Ver resumo</button>
-                  </div>
-                </div>
-              </div>
+              <!-- placeholder: overlay covers this area -->
             </template>
 
             <!-- ── LIST VIEW (inside inspection mode) ── -->
@@ -1022,8 +842,8 @@ function loadMoreFields() { listViewLimit.value += LIST_PAGE }
           <p v-if="finishError" style="font-size:13px;font-weight:600;color:var(--sa-danger);margin-bottom:8px;">{{ finishError }}</p>
         </div>
 
-        <!-- ── Sticky actions ── -->
-        <div class="sticky-act">
+        <!-- ── Sticky actions (hidden in card inspection mode) ── -->
+        <div v-if="!(inspectionMode && viewMode === 'card' && !isCompleted)" class="sticky-act">
           <template v-if="!isCompleted">
             <button type="button" class="btn-secondary" :disabled="submissionsStore.isSaving" @click="handleSave">
               {{ submissionsStore.isSaving ? 'Salvando…' : savedOnce ? '✓ Salvo' : 'Salvar rascunho' }}
@@ -1045,6 +865,301 @@ function loadMoreFields() { listViewLimit.value += LIST_PAGE }
       </div>
 
     </div>
+
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <!--  FULLSCREEN CARD INSPECTION OVERLAY                                   -->
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <Teleport to="body">
+      <div
+        v-if="submission && inspectionMode && viewMode === 'card' && !isCompleted"
+        class="insp-fullscreen"
+      >
+        <!-- ── 1. HEADER ── -->
+        <div class="insp-fhdr">
+          <button type="button" class="insp-fback" @click="inspectionMode = false">
+            <SvgIcon name="back" :size="16" />
+          </button>
+          <div class="insp-fhdr-info">
+            <div class="insp-fhdr-name">{{ submission.form_name }}</div>
+            <div class="insp-fhdr-sub">Em andamento</div>
+          </div>
+          <div class="score-ring" :style="scoreRingStyle">
+            <div class="score-ring-inner">{{ liveScore !== null ? liveScore + '%' : '—' }}</div>
+          </div>
+        </div>
+
+        <!-- ── 2. PROGRESS AREA ── -->
+        <div class="insp-fprog">
+          <div class="insp-fprog-row">
+            <div class="insp-fprog-bar">
+              <div :style="{
+                height: '100%',
+                background: 'var(--sa-ok)',
+                width: progressStats.total ? (progressStats.conformes / progressStats.total * 100) + '%' : '0%',
+                transition: 'width .35s ease',
+              }" />
+              <div :style="{
+                height: '100%',
+                background: 'var(--sa-danger)',
+                width: progressStats.total ? (progressStats.naoConformes / progressStats.total * 100) + '%' : '0%',
+                transition: 'width .35s ease',
+              }" />
+            </div>
+            <div class="insp-fprog-lbl">{{ progressStats.evaluated }}/{{ progressStats.total }}</div>
+          </div>
+          <div v-if="formSections.length" class="insp-sec-chips">
+            <button
+              v-for="sec in formSections"
+              :key="sec.key"
+              type="button"
+              class="insp-sec-chip"
+              :class="{
+                'insp-sec-chip--done':   sec.pct === 100,
+                'insp-sec-chip--active': sec.label === inspectionSectionLabel,
+              }"
+              @click="jumpToSection(sec.key)"
+            >
+              {{ sec.label.length > 15 ? sec.label.slice(0, 15) + '…' : sec.label }}
+              <span class="insp-sec-pct">{{ sec.pct }}%</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- ── 3. SWIPE ZONE ── -->
+        <div class="insp-fswipe">
+
+          <!-- All done -->
+          <div v-if="allAnswered" class="insp-fdone">
+            <div class="done-ring">✓</div>
+            <div v-if="liveScore !== null" class="done-score" :style="{ color: scoreColorVar(liveScore) }">
+              {{ liveScore }}%
+            </div>
+            <div class="done-sub">Todos os campos respondidos</div>
+            <button type="button" class="done-btn" @click="inspectionMode = false">
+              Ver resumo completo
+            </button>
+          </div>
+
+          <!-- Swipe card -->
+          <template v-else-if="inspectionField">
+
+            <!-- Side indicators -->
+            <div class="insp-find insp-find--left" :style="{ opacity: leftIndicatorOpacity }">
+              <div class="ind-icon ind-err">✕</div>
+              <div class="ind-lbl ind-lbl--err">Não conforme</div>
+            </div>
+            <div class="insp-find insp-find--right" :style="{ opacity: rightIndicatorOpacity }">
+              <div class="ind-icon ind-ok">✓</div>
+              <div class="ind-lbl ind-lbl--ok">Conforme</div>
+            </div>
+
+            <!-- Card wrapper (max-width + centered) -->
+            <div class="insp-card-outer">
+              <div
+                class="insp-card"
+                :style="cardSwipeStyle"
+                style="will-change:transform;touch-action:pan-y;"
+                @touchstart.passive="onTouchStart"
+                @touchmove.passive="onTouchMove"
+                @touchend="onTouchEnd"
+              >
+                <!-- Stamps -->
+                <div class="stamp stamp-conf"  :style="{ opacity: Math.min(1, rightIndicatorOpacity * 2) }">Conforme</div>
+                <div class="stamp stamp-nconf" :style="{ opacity: Math.min(1, leftIndicatorOpacity  * 2) }">Não conforme</div>
+
+                <!-- Card header: seção | peso + contador + status -->
+                <div class="card-hdr" :style="{
+                  background:
+                    currentFieldStatus === 'conformes'     ? 'var(--sa-ok-bg)'  :
+                    currentFieldStatus === 'nao_conformes' ? 'var(--sa-err-bg)' :
+                    '#f8fafc',
+                }">
+                  <span class="card-sec">{{ inspectionSectionLabel || 'Geral' }}</span>
+                  <div class="card-meta">
+                    <span
+                      v-if="fieldWeight(inspectionField.config_json) > 1"
+                      class="card-weight"
+                    >Peso {{ inspectionField.config_json.weight }}x</span>
+                    <span class="card-counter">{{ inspectionIndex + 1 }} / {{ answerableFields.length }}</span>
+                    <span class="card-status" :class="{
+                      'card-status--ok':   currentFieldStatus === 'conformes',
+                      'card-status--err':  currentFieldStatus === 'nao_conformes',
+                      'card-status--pend': currentFieldStatus === 'pending',
+                    }">{{
+                      currentFieldStatus === 'conformes'     ? 'Conforme'     :
+                      currentFieldStatus === 'nao_conformes' ? 'Não conforme' :
+                      'Pendente'
+                    }}</span>
+                  </div>
+                </div>
+
+                <!-- Card body -->
+                <div class="card-body">
+
+                  <!-- Type label + field label + required + instruction -->
+                  <div class="card-type-lbl">{{ TYPE_LABEL[inspectionField.field_type] ?? 'Campo' }}</div>
+                  <div class="card-label">{{ inspectionField.label }}</div>
+                  <div v-if="inspectionField.required" class="card-req">Obrigatório</div>
+                  <div v-if="inspectionField.instruction" class="card-instr">
+                    {{ inspectionField.instruction }}
+                  </div>
+
+                  <!-- ── RESPOSTA ── -->
+                  <div class="card-sep"><span class="card-sep-lbl">Resposta</span></div>
+
+                  <!-- Boolean -->
+                  <div v-if="inspectionField.field_type === 'boolean'" style="display:grid;gap:8px;">
+                    <div class="bool-grid">
+                      <button type="button" class="bool-btn bool-sim"
+                        :class="{ 'bool-btn--active': draftAnswers[inspectionField.key] === 'true' }"
+                        @click="answerBoolean(inspectionField.key, 'true')">
+                        <span class="b-icon">✓</span><span class="b-lbl">Sim</span>
+                      </button>
+                      <button type="button" class="bool-btn bool-nao"
+                        :class="{ 'bool-btn--active': draftAnswers[inspectionField.key] === 'false' }"
+                        @click="answerBoolean(inspectionField.key, 'false')">
+                        <span class="b-icon">✕</span><span class="b-lbl">Não</span>
+                      </button>
+                    </div>
+                    <button v-if="inspectionField.config_json?.allow_na"
+                      type="button" class="na-btn"
+                      :class="{ 'na-btn--active': draftAnswers[inspectionField.key] === 'na' }"
+                      @click="answerBoolean(inspectionField.key, 'na')">
+                      N/A — Não aplicável
+                    </button>
+                  </div>
+
+                  <!-- Number -->
+                  <input v-else-if="inspectionField.field_type === 'number'"
+                    v-model="draftAnswers[inspectionField.key]"
+                    class="field-input" type="number" step="any" placeholder="Informe um número"
+                    @change="triggerAutoSave()" />
+
+                  <!-- Date -->
+                  <input v-else-if="inspectionField.field_type === 'date'"
+                    v-model="draftAnswers[inspectionField.key]"
+                    class="field-input" type="date"
+                    @change="triggerAutoSave()" />
+
+                  <!-- Select -->
+                  <select v-else-if="inspectionField.field_type === 'select'"
+                    v-model="draftAnswers[inspectionField.key]"
+                    class="field-input"
+                    @change="triggerAutoSave()">
+                    <option value="">— Selecione —</option>
+                    <option
+                      v-for="opt in selectOptions(inspectionField.config_json ?? {})"
+                      :key="opt" :value="opt">{{ opt }}</option>
+                  </select>
+
+                  <!-- Text -->
+                  <input v-else-if="inspectionField.field_type === 'text'"
+                    v-model="draftAnswers[inspectionField.key]"
+                    class="field-input" type="text" placeholder="Informe o valor"
+                    @change="triggerAutoSave()" />
+
+                  <!-- ── CONFORMIDADE ── -->
+                  <div class="card-sep"><span class="card-sep-lbl">Conformidade</span></div>
+                  <div class="conf-grid">
+                    <button type="button" class="conf-btn conf-ok"
+                      :class="{ active: conformityStatus[inspectionField.key] === 'conforme' }"
+                      @click="setConformityCard(inspectionField.key, 'conforme')">
+                      ✓ Conforme
+                    </button>
+                    <button type="button" class="conf-btn conf-err"
+                      :class="{ active: conformityStatus[inspectionField.key] === 'nao_conforme' }"
+                      @click="setNaoConformeCard(inspectionField.key)">
+                      ✕ Não conforme
+                    </button>
+                  </div>
+                  <!-- Justification preview (read-only) -->
+                  <div
+                    v-if="conformityStatus[inspectionField.key] === 'nao_conforme' && conformityJustification[inspectionField.key]"
+                    class="conf-just-preview"
+                    @click="setNaoConformeCard(inspectionField.key)"
+                  >
+                    ✎ {{ conformityJustification[inspectionField.key] }}
+                  </div>
+                  <p
+                    v-if="inspectionField.field_type === 'boolean'"
+                    class="swipe-hint"
+                  >← Não conforme · Conforme →</p>
+
+                  <!-- ── EVIDÊNCIAS DESTE CAMPO ── -->
+                  <div class="card-sep"><span class="card-sep-lbl">Evidências deste campo</span></div>
+                  <div class="evid-row">
+                    <button
+                      type="button"
+                      class="evid-btn"
+                      :disabled="!!evidenceUploading[inspectionField.key]"
+                      @click="openEvidenceSheet(inspectionField.key)"
+                    >
+                      <span>📎</span>
+                      <span
+                        v-if="currentFieldEvidenceCount > 0"
+                        class="evid-badge"
+                      >{{ currentFieldEvidenceCount }}</span>
+                      <span>{{ evidenceUploading[inspectionField.key] ? 'Enviando…' : 'Adicionar evidência' }}</span>
+                    </button>
+                    <div class="evid-thumbs">
+                      <div
+                        v-for="att in (evidenceAttachments[inspectionField.key] ?? []).slice(0, 3)"
+                        :key="att.id"
+                        class="evid-thumb"
+                      >
+                        <img
+                          v-if="att.mime_type.startsWith('image/')"
+                          :src="att.file_url"
+                          style="width:100%;height:100%;object-fit:cover;border-radius:4px;"
+                        />
+                        <span v-else style="font-size:16px;">📄</span>
+                      </div>
+                    </div>
+                  </div>
+                  <p v-if="evidenceErrors[inspectionField.key]" style="font-size:11px;color:var(--sa-danger);margin-top:4px;">
+                    {{ evidenceErrors[inspectionField.key] }}
+                  </p>
+
+                </div><!-- /card-body -->
+              </div><!-- /insp-card -->
+            </div><!-- /insp-card-outer -->
+
+            <!-- Dots -->
+            <div class="card-dots">
+              <div
+                v-for="dot in nearbyDots"
+                :key="dot.key"
+                class="card-dot"
+                :class="{
+                  'card-dot--active': dot.isCurrent,
+                  'card-dot--ok':  !dot.isCurrent && dot.status === 'conforme',
+                  'card-dot--err': !dot.isCurrent && dot.status === 'nao_conforme',
+                }"
+              />
+            </div>
+
+          </template>
+        </div><!-- /insp-fswipe -->
+
+        <!-- ── 4. NAV ROW (fora do card) ── -->
+        <div class="insp-fnav">
+          <button
+            type="button"
+            class="btn-nav"
+            :disabled="inspectionIndex === 0"
+            @click="inspectionPrev"
+          >← Anterior</button>
+          <button type="button" class="btn-skip" @click="doSkip">Pular</button>
+          <button
+            type="button"
+            class="btn-nav"
+            :disabled="allAnswered"
+            @click="inspectionNext"
+          >Próximo →</button>
+        </div>
+
+      </div><!-- /insp-fullscreen -->
+    </Teleport>
 
     <!-- ── Justification bottom sheet ── -->
     <Teleport to="body">
@@ -1072,12 +1187,20 @@ function loadMoreFields() { listViewLimit.value += LIST_PAGE }
               class="sheet-textarea"
               placeholder="Descreva o motivo da não conformidade..."
               rows="4"
-              @input="triggerConformitySave()"
+              @input="triggerConformitySave(); justificationError = null"
             />
+            <p v-if="justificationError" style="font-size:12px;color:var(--sa-danger);margin-top:8px;font-weight:600;">
+              {{ justificationError }}
+            </p>
           </div>
           <div class="sheet-acts">
-            <button type="button" class="sheet-cancel" @click="closeJustificationSheet()">Cancelar</button>
-            <button type="button" class="sheet-confirm" @click="closeJustificationSheet()">Confirmar</button>
+            <button type="button" class="sheet-cancel" @click="showJustificationSheet = false; justificationError = null">Cancelar</button>
+            <button
+              type="button"
+              class="sheet-confirm"
+              :disabled="!justificationFieldKey || !(conformityJustification[justificationFieldKey] || '').trim()"
+              @click="confirmJustification()"
+            >Confirmar</button>
           </div>
         </div>
       </div>
@@ -1403,4 +1526,475 @@ function loadMoreFields() { listViewLimit.value += LIST_PAGE }
   cursor: pointer;
   margin-top: 12px;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   FULLSCREEN CARD INSPECTION OVERLAY
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* Outer container: overlays everything */
+.insp-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: var(--sa-bg, #f1f5f9);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── Header ── */
+.insp-fhdr {
+  background: #fff;
+  border-bottom: 1px solid var(--sa-line);
+  padding: 0 14px;
+  height: 52px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.insp-fback {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--sa-line);
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--sa-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.insp-fhdr-info { flex: 1; min-width: 0; }
+.insp-fhdr-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--sa-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.insp-fhdr-sub { font-size: 10px; color: var(--sa-muted); }
+
+/* ── Progress area ── */
+.insp-fprog {
+  background: #fff;
+  border-bottom: 1px solid var(--sa-line);
+  padding: 10px 14px 0;
+  flex-shrink: 0;
+}
+.insp-fprog-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.insp-fprog-bar {
+  flex: 1;
+  height: 8px;
+  background: var(--sa-line);
+  border-radius: 99px;
+  overflow: hidden;
+  display: flex;
+}
+.insp-fprog-lbl {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--sa-muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Swipe zone ── */
+.insp-fswipe {
+  flex: 1;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 10px 12px;
+  gap: 10px;
+}
+
+/* ── Card wrapper: max-width centered ── */
+.insp-card-outer {
+  width: 100%;
+  max-width: 520px;
+  position: relative;
+}
+
+/* ── Card overrides for fullscreen mode ── */
+.insp-fullscreen .insp-card {
+  border-radius: 20px;
+  border: none;
+  box-shadow: 0 8px 32px rgba(0,0,0,.12), 0 2px 8px rgba(0,0,0,.06);
+  padding: 0;
+  overflow: hidden;
+  cursor: grab;
+  max-height: calc(100dvh - 52px - 80px - 72px - 48px); /* viewport minus header/prog/nav/dots */
+  overflow-y: auto;
+}
+.insp-fullscreen .insp-card:active { cursor: grabbing; }
+
+/* ── Card header (title bar) ── */
+.card-hdr {
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--sa-line);
+  transition: background .2s;
+  flex-shrink: 0;
+}
+.card-sec {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  color: var(--sa-brand);
+}
+.card-meta { display: flex; align-items: center; gap: 6px; }
+.card-weight {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--sa-brand-soft);
+  color: var(--sa-brand);
+}
+.card-counter {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--sa-muted);
+  font-variant-numeric: tabular-nums;
+}
+.card-status {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 99px;
+}
+.card-status--ok   { background: var(--sa-ok-bg);  color: var(--sa-ok); }
+.card-status--err  { background: var(--sa-err-bg); color: var(--sa-danger); }
+.card-status--pend { background: #f1f5f9;           color: var(--sa-muted); }
+
+/* ── Card body ── */
+.card-body { padding: 14px; display: flex; flex-direction: column; gap: 0; }
+.card-type-lbl {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  color: var(--sa-muted);
+  margin-bottom: 5px;
+}
+.card-label {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--sa-text);
+  line-height: 1.3;
+}
+.card-req {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--sa-danger);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  margin-top: 4px;
+}
+.card-instr {
+  font-size: 12px;
+  color: var(--sa-muted);
+  background: var(--sa-bg);
+  border-left: 3px solid var(--sa-brand);
+  padding: 6px 9px;
+  border-radius: 0 6px 6px 0;
+  margin-top: 8px;
+  line-height: 1.5;
+}
+
+/* ── Section separator ── */
+.card-sep {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0 8px;
+}
+.card-sep::before,
+.card-sep::after { content: ''; flex: 1; height: 1px; background: var(--sa-line); }
+.card-sep-lbl {
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  color: var(--sa-muted);
+  white-space: nowrap;
+}
+
+/* ── Boolean buttons (fullscreen card) ── */
+.bool-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.b-icon { font-size: 22px; line-height: 1; }
+.b-lbl  { font-size: 14px; font-weight: 700; color: var(--sa-text); }
+.na-btn {
+  width: 100%;
+  margin-top: 6px;
+  padding: 9px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--sa-line);
+  background: #fff;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--sa-muted);
+  cursor: pointer;
+  transition: all .12s;
+}
+.na-btn--active { border-color: var(--sa-warn); background: var(--sa-warn-bg); color: var(--sa-warn); }
+
+/* ── Field inputs inside card ── */
+.field-input {
+  width: 100%;
+  padding: 11px 13px;
+  border: 1px solid var(--sa-line);
+  border-radius: 10px;
+  font-size: 15px;
+  font-family: inherit;
+  outline: none;
+  color: var(--sa-text);
+  background: #fff;
+  box-sizing: border-box;
+}
+.field-input:focus { border-color: var(--sa-brand); box-shadow: 0 0 0 3px rgba(37,99,235,.1); }
+
+/* ── Conformity buttons ── */
+.conf-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.conf-btn {
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid var(--sa-line);
+  background: #fff;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--sa-muted);
+  cursor: pointer;
+  transition: all .12s;
+  text-align: center;
+}
+.conf-btn:active { transform: scale(.96); }
+.conf-ok.active  { border-color: var(--sa-ok);     background: var(--sa-ok-bg);  color: var(--sa-ok); }
+.conf-err.active { border-color: var(--sa-danger);  background: var(--sa-err-bg); color: var(--sa-danger); }
+.conf-just-preview {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--sa-danger);
+  background: var(--sa-err-bg);
+  border: 1px solid var(--sa-err-bd);
+  border-radius: 6px;
+  padding: 5px 9px;
+  cursor: pointer;
+  line-height: 1.4;
+}
+.swipe-hint {
+  font-size: 10px;
+  color: var(--sa-muted);
+  text-align: center;
+  margin-top: 6px;
+  opacity: .55;
+}
+
+/* ── Evidence row ── */
+.evid-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.evid-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border: 1px solid var(--sa-line);
+  border-radius: 8px;
+  background: #fff;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--sa-muted);
+  cursor: pointer;
+  transition: all .12s;
+}
+.evid-btn:hover:not(:disabled) { border-color: var(--sa-brand); color: var(--sa-brand); background: var(--sa-brand-soft); }
+.evid-badge {
+  background: var(--sa-brand);
+  color: #fff;
+  border-radius: 99px;
+  padding: 1px 6px;
+  font-size: 10px;
+  font-weight: 800;
+  min-width: 18px;
+  text-align: center;
+}
+.evid-thumbs { display: flex; gap: 4px; }
+.evid-thumb {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: var(--sa-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1px solid var(--sa-line);
+  overflow: hidden;
+}
+
+/* ── Stamps ── */
+.stamp {
+  position: absolute;
+  top: 18px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  border: 3px solid;
+  pointer-events: none;
+  z-index: 10;
+  text-transform: uppercase;
+}
+.stamp-conf  { left: 14px;  transform: rotate(15deg);  color: var(--sa-ok);     border-color: var(--sa-ok);     }
+.stamp-nconf { right: 14px; transform: rotate(-15deg); color: var(--sa-danger); border-color: var(--sa-danger); }
+
+/* ── Swipe side indicators ── */
+.insp-find {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  pointer-events: none;
+  z-index: 5;
+  transition: opacity .05s;
+}
+.insp-find--left  { left: 4px; }
+.insp-find--right { right: 4px; }
+.ind-icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  font-weight: 800;
+  color: #fff;
+}
+.ind-ok  { background: var(--sa-ok);     box-shadow: 0 4px 14px rgba(22,163,74,.4); }
+.ind-err { background: var(--sa-danger); box-shadow: 0 4px 14px rgba(220,38,38,.4); }
+.ind-lbl { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
+.ind-lbl--ok  { color: var(--sa-ok); }
+.ind-lbl--err { color: var(--sa-danger); }
+
+/* ── Dots ── */
+.card-dots {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.card-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--sa-line);
+  transition: all .2s;
+  flex-shrink: 0;
+}
+.card-dot--active { width: 20px; border-radius: 3px; background: var(--sa-brand); }
+.card-dot--ok     { background: var(--sa-ok); }
+.card-dot--err    { background: var(--sa-danger); }
+.card-dot--na     { background: var(--sa-warn); }
+
+/* ── Done state ── */
+.insp-fdone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 24px;
+  text-align: center;
+}
+.done-ring {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: var(--sa-ok-bg);
+  border: 3px solid var(--sa-ok);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 36px;
+  margin-bottom: 16px;
+}
+.done-score {
+  font-size: 44px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  margin-bottom: 6px;
+}
+.done-sub   { font-size: 13px; color: var(--sa-muted); margin-bottom: 20px; }
+.done-btn {
+  padding: 13px 28px;
+  border: none;
+  border-radius: 12px;
+  background: var(--sa-brand);
+  color: #fff;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* ── Nav row (outside card) ── */
+.insp-fnav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: #fff;
+  border-top: 1px solid var(--sa-line);
+  flex-shrink: 0;
+}
+.btn-nav {
+  flex: 1;
+  padding: 10px;
+  border: 1px solid var(--sa-line);
+  border-radius: 10px;
+  background: #fff;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--sa-text);
+  cursor: pointer;
+  transition: background .15s;
+}
+.btn-nav:hover:not(:disabled) { background: var(--sa-bg); }
+.btn-nav:disabled { opacity: .35; cursor: not-allowed; }
+.btn-skip {
+  padding: 10px 14px;
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--sa-muted);
+  cursor: pointer;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+.btn-skip:hover { color: var(--sa-text); background: var(--sa-bg); }
 </style>
