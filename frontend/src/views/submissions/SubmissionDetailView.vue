@@ -54,6 +54,14 @@ const evidenceLoaded      = ref(false)
 const conformityStatus        = reactive<Record<string, 'conforme' | 'nao_conforme'>>({})
 const conformityJustification = reactive<Record<string, string>>({})
 
+// Justification bottom sheet
+const showJustificationSheet = ref(false)
+const justificationFieldKey  = ref<string | null>(null)
+
+// Evidence bottom sheet
+const showEvidenceSheet = ref(false)
+const evidenceSheetKey  = ref<string | null>(null)
+
 const pendingRequiredFields = ref<string[]>([])
 
 // ── Derived ───────────────────────────────────────────────────────────────────
@@ -107,6 +115,14 @@ const liveScore = computed((): number | null => {
 
 // All answerable fields have a conformity status
 const allAnswered = computed(() => progressStats.value.pending === 0 && progressStats.value.total > 0)
+
+// Score ring style (conic-gradient based on liveScore)
+const scoreRingStyle = computed(() => {
+  if (liveScore.value === null) return { background: 'conic-gradient(#e2e8f0 100%, #e2e8f0 0)' }
+  const pct   = liveScore.value
+  const color = pct >= 85 ? '#16a34a' : pct >= 65 ? '#d97706' : '#dc2626'
+  return { background: `conic-gradient(${color} ${pct}%, #e2e8f0 0)`, transition: 'background .5s' }
+})
 
 // Total evidence files across all fields
 const totalEvidenceCount = computed(() =>
@@ -211,13 +227,10 @@ function onTouchEnd() {
   if (!field || Math.abs(delta) < 80) return
 
   if (delta > 0) {
-    // Swipe right → Não conforme (conformity)
-    setConformity(field.key, 'nao_conforme')
-    inspectionNext()
-  } else {
-    // Swipe left → Conforme (conformity)
     setConformity(field.key, 'conforme')
-    inspectionNext()
+  } else {
+    setConformity(field.key, 'nao_conforme')
+    openJustificationSheet(field.key)
   }
 }
 
@@ -237,7 +250,7 @@ const cardSwipeStyle = computed(() => {
   }
 })
 
-// Swipe indicator opacity (right = Não conforme, left = Conforme)
+// Swipe indicator opacity (right = Conforme, left = Não conforme)
 const rightIndicatorOpacity = computed(() => Math.min(1, Math.max(0, swipeDeltaX.value / 100)))
 const leftIndicatorOpacity  = computed(() => Math.min(1, Math.max(0, -swipeDeltaX.value / 100)))
 
@@ -254,6 +267,24 @@ function setConformityCard(fieldKey: string, status: 'conforme' | 'nao_conforme'
   if (status === 'conforme') {
     setTimeout(() => inspectionNext(), 300)
   }
+}
+
+// ── Sheet helpers ─────────────────────────────────────────────────────────────
+
+function openJustificationSheet(fieldKey: string) {
+  justificationFieldKey.value = fieldKey
+  showJustificationSheet.value = true
+}
+function closeJustificationSheet() {
+  showJustificationSheet.value = false
+}
+
+function openEvidenceSheet(fieldKey: string) {
+  evidenceSheetKey.value = fieldKey
+  showEvidenceSheet.value = true
+}
+function closeEvidenceSheet() {
+  showEvidenceSheet.value = false
 }
 
 // ── Conformity ────────────────────────────────────────────────────────────────
@@ -299,12 +330,7 @@ const TYPE_LABEL: Record<string, string> = {
   boolean: 'Sim/Não', text: 'Texto', number: 'Número', date: 'Data', select: 'Seleção',
 }
 
-const EVIDENCE_MIME_MAP: Record<string, string[]> = {
-  image:    ['image/jpeg', 'image/png', 'image/webp'],
-  pdf:      ['application/pdf'],
-  document: ['application/pdf'],
-}
-const ALLOWED_MIMES = ([] as string[]).concat(...Object.values(EVIDENCE_MIME_MAP)).join(',')
+const ALLOWED_MIMES = 'image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/x-msvideo,audio/mpeg,audio/wav,audio/ogg,audio/mp4,application/pdf'
 
 function evidenceMaxFiles(configJson: Record<string, unknown>): number {
   const v = configJson.max_files
@@ -587,13 +613,12 @@ function loadMoreFields() { listViewLimit.value += LIST_PAGE }
               {{ progressStats.evaluated }}/{{ progressStats.total }} avaliados
             </div>
             <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
-              <!-- Live score badge -->
-              <span v-if="liveScore !== null" :style="{
-                fontSize:'11px', fontWeight:700, fontVariantNumeric:'tabular-nums',
-                color: scoreColorVar(liveScore ?? 0),
-              }">
-                Score {{ liveScore }}%
-              </span>
+              <!-- Score ring (A9) -->
+              <div v-if="inspectionMode" class="score-ring" :style="scoreRingStyle">
+                <div class="score-ring-inner">
+                  {{ liveScore !== null ? liveScore + '%' : '—' }}
+                </div>
+              </div>
               <button
                 v-if="!isCompleted"
                 type="button"
@@ -654,18 +679,21 @@ function loadMoreFields() { listViewLimit.value += LIST_PAGE }
               >Lista</button>
             </div>
 
-            <!-- Section jump chips (inspection mode) -->
-            <div v-if="formSections.length" style="display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:12px;scrollbar-width:none;">
+            <!-- Section jump chips (A10) -->
+            <div v-if="formSections.length" class="insp-sec-chips">
               <button
                 v-for="sec in formSections"
                 :key="sec.key"
                 type="button"
-                class="section-jump-chip"
-                :style="sec.pct === 100 ? 'background:var(--sa-ok);color:#fff;border-color:var(--sa-ok);' : ''"
+                class="insp-sec-chip"
+                :class="{
+                  'insp-sec-chip--done':   sec.pct === 100,
+                  'insp-sec-chip--active': sec.label === inspectionSectionLabel,
+                }"
                 @click="jumpToSection(sec.key)"
               >
                 {{ sec.label.length > 18 ? sec.label.slice(0, 18) + '…' : sec.label }}
-                <span style="opacity:.75;font-size:10px;margin-left:3px;">{{ sec.pct }}%</span>
+                <span class="insp-sec-pct">{{ sec.pct }}%</span>
               </button>
             </div>
 
@@ -689,22 +717,22 @@ function loadMoreFields() { listViewLimit.value += LIST_PAGE }
               <!-- Swipe card -->
               <div v-else-if="inspectionField" style="position:relative;min-height:320px;margin-bottom:80px;">
 
-                <!-- Swipe indicators -->
+                <!-- Swipe indicators: left = não conforme, right = conforme -->
                 <div :style="{
                   position:'absolute', left:'16px', top:'50%', transform:'translateY(-50%)',
                   display:'flex', flexDirection:'column', alignItems:'center', gap:'6px',
                   opacity: leftIndicatorOpacity, pointerEvents:'none', transition:'opacity .1s',
                 }">
-                  <div style="width:48px;height:48px;border-radius:50%;background:var(--sa-ok);display:flex;align-items:center;justify-content:center;color:#fff;font-size:22px;box-shadow:0 4px 12px rgba(22,163,74,.35);">✓</div>
-                  <span style="font-size:10px;font-weight:700;color:var(--sa-ok);">Conforme</span>
+                  <div style="width:48px;height:48px;border-radius:50%;background:var(--sa-danger);display:flex;align-items:center;justify-content:center;color:#fff;font-size:22px;box-shadow:0 4px 12px rgba(220,38,38,.35);">✕</div>
+                  <span style="font-size:10px;font-weight:700;color:var(--sa-danger);">Não conforme</span>
                 </div>
                 <div :style="{
                   position:'absolute', right:'16px', top:'50%', transform:'translateY(-50%)',
                   display:'flex', flexDirection:'column', alignItems:'center', gap:'6px',
                   opacity: rightIndicatorOpacity, pointerEvents:'none', transition:'opacity .1s',
                 }">
-                  <div style="width:48px;height:48px;border-radius:50%;background:var(--sa-danger);display:flex;align-items:center;justify-content:center;color:#fff;font-size:22px;box-shadow:0 4px 12px rgba(220,38,38,.35);">✕</div>
-                  <span style="font-size:10px;font-weight:700;color:var(--sa-danger);">Não conforme</span>
+                  <div style="width:48px;height:48px;border-radius:50%;background:var(--sa-ok);display:flex;align-items:center;justify-content:center;color:#fff;font-size:22px;box-shadow:0 4px 12px rgba(22,163,74,.35);">✓</div>
+                  <span style="font-size:10px;font-weight:700;color:var(--sa-ok);">Conforme</span>
                 </div>
 
                 <!-- Card -->
@@ -887,7 +915,7 @@ function loadMoreFields() { listViewLimit.value += LIST_PAGE }
 
                   <!-- Swipe hint (boolean only) -->
                   <p v-if="inspectionField.field_type === 'boolean'" style="font-size:11px;color:var(--sa-muted);text-align:center;margin-top:16px;opacity:.6;">
-                    ← Conforme · Não conforme →
+                    ← Não conforme · Conforme →
                   </p>
 
                   <!-- Card navigation -->
@@ -1018,11 +1046,158 @@ function loadMoreFields() { listViewLimit.value += LIST_PAGE }
 
     </div>
 
+    <!-- ── Justification bottom sheet ── -->
+    <Teleport to="body">
+      <div
+        class="sheet-overlay"
+        :class="{ open: showJustificationSheet }"
+        @click="closeJustificationSheet()"
+      >
+        <div class="sheet" @click.stop>
+          <div class="sheet-handle"></div>
+          <div class="sheet-hdr">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;">
+              <div style="width:28px;height:28px;border-radius:50%;background:var(--sa-err-bg);border:2px solid var(--sa-err-bd);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:var(--sa-danger);">✕</div>
+              <div class="sheet-title">Não conforme</div>
+            </div>
+            <div class="sheet-sub">Descreva o problema encontrado</div>
+          </div>
+          <div class="sheet-body">
+            <div v-if="justificationFieldKey" class="sheet-field-ctx">
+              {{ fields.find(f => f.key === justificationFieldKey)?.label ?? justificationFieldKey }}
+            </div>
+            <textarea
+              v-if="justificationFieldKey"
+              v-model="conformityJustification[justificationFieldKey]"
+              class="sheet-textarea"
+              placeholder="Descreva o motivo da não conformidade..."
+              rows="4"
+              @input="triggerConformitySave()"
+            />
+          </div>
+          <div class="sheet-acts">
+            <button type="button" class="sheet-cancel" @click="closeJustificationSheet()">Cancelar</button>
+            <button type="button" class="sheet-confirm" @click="closeJustificationSheet()">Confirmar</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- ── Evidence bottom sheet ── -->
+    <Teleport to="body">
+      <div
+        class="sheet-overlay"
+        :class="{ open: showEvidenceSheet }"
+        @click="closeEvidenceSheet()"
+      >
+        <div class="sheet" @click.stop>
+          <div class="sheet-handle"></div>
+          <div class="sheet-hdr">
+            <div class="sheet-title">Evidências</div>
+            <div v-if="evidenceSheetKey" class="sheet-sub">
+              {{ fields.find(f => f.key === evidenceSheetKey)?.label ?? evidenceSheetKey }}
+            </div>
+          </div>
+          <div class="sheet-body">
+            <div v-if="evidenceSheetKey">
+              <div
+                v-for="att in (evidenceAttachments[evidenceSheetKey] ?? [])"
+                :key="att.id"
+                class="evid-sheet-item"
+              >
+                <div class="evid-sheet-thumb">
+                  {{ att.mime_type.startsWith('image/') ? '🖼' : att.mime_type === 'application/pdf' ? '📄' : '📎' }}
+                </div>
+                <a :href="att.file_url" target="_blank" rel="noopener" class="evid-sheet-name">
+                  {{ att.file_url.split('/').pop() }}
+                </a>
+                <button
+                  type="button"
+                  class="evid-sheet-del"
+                  @click="evidenceSheetKey && handleEvidenceDelete(evidenceSheetKey, att.id)"
+                >×</button>
+              </div>
+              <label class="add-evid-btn">
+                {{ evidenceUploading[evidenceSheetKey] ? 'Enviando…' : '📎 Adicionar evidência' }}
+                <input
+                  type="file"
+                  style="display:none;"
+                  accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/x-msvideo,audio/mpeg,audio/wav,audio/ogg,audio/mp4,application/pdf"
+                  :disabled="!!evidenceUploading[evidenceSheetKey]"
+                  @change="(e) => evidenceSheetKey && handleEvidenceUpload(evidenceSheetKey, inspectionField?.config_json ?? {}, e)"
+                />
+              </label>
+              <p v-if="evidenceErrors[evidenceSheetKey]" style="color:var(--sa-danger);font-size:12px;margin-top:8px;">
+                {{ evidenceErrors[evidenceSheetKey] }}
+              </p>
+            </div>
+          </div>
+          <div class="sheet-acts">
+            <button type="button" class="sheet-confirm" @click="closeEvidenceSheet()">Fechar</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
 
   </AppShell>
 </template>
 
 <style scoped>
+/* ── Score ring (A9) ── */
+.score-ring {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.score-ring-inner {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--sa-muted);
+}
+
+/* ── Section chips inspection (A10) ── */
+.insp-sec-chips {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  margin-bottom: 12px;
+  scrollbar-width: none;
+}
+.insp-sec-chips::-webkit-scrollbar { display: none; }
+
+.insp-sec-chip {
+  padding: 4px 11px;
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1px solid var(--sa-line);
+  background: #fff;
+  color: var(--sa-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-family: inherit;
+  transition: all .15s;
+}
+.insp-sec-chip--done   { background: var(--sa-ok);   border-color: var(--sa-ok);   color: #fff; }
+.insp-sec-chip--active { background: var(--sa-brand-soft); border-color: var(--sa-brand); color: var(--sa-brand); }
+.insp-sec-chip--done.insp-sec-chip--active { background: var(--sa-ok); border-color: var(--sa-ok); color: #fff; opacity: .85; }
+
+.insp-sec-pct { opacity: .75; font-size: 10px; margin-left: 3px; }
+
 /* ── Boolean buttons ── */
 .bool-btn {
   display: flex;
@@ -1077,13 +1252,155 @@ function loadMoreFields() { listViewLimit.value += LIST_PAGE }
   color: var(--sa-brand);
 }
 
-/* Bottom sheet transition */
-.sheet-enter-active,
-.sheet-leave-active { transition: opacity .25s ease; }
-.sheet-enter-active > div:last-child,
-.sheet-leave-active > div:last-child { transition: transform .25s ease; }
-.sheet-enter-from { opacity: 0; }
-.sheet-enter-from > div:last-child { transform: translateY(100%); }
-.sheet-leave-to { opacity: 0; }
-.sheet-leave-to > div:last-child { transform: translateY(100%); }
+/* ── Bottom sheets ── */
+.sheet-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.5);
+  z-index: 1000;
+  display: flex;
+  align-items: flex-end;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .25s;
+  backdrop-filter: blur(2px);
+}
+.sheet-overlay.open { opacity: 1; pointer-events: all; }
+
+.sheet {
+  width: 100%;
+  background: #fff;
+  border-radius: 20px 20px 0 0;
+  transform: translateY(100%);
+  transition: transform .28s cubic-bezier(.32,1,.4,1);
+  max-height: 85dvh;
+  overflow-y: auto;
+}
+.sheet-overlay.open .sheet { transform: translateY(0); }
+
+.sheet-handle {
+  width: 36px;
+  height: 4px;
+  background: var(--sa-line);
+  border-radius: 99px;
+  margin: 12px auto 0;
+}
+.sheet-hdr {
+  padding: 14px 20px 12px;
+  border-bottom: 1px solid var(--sa-line);
+}
+.sheet-title { font-size: 16px; font-weight: 700; color: var(--sa-text); }
+.sheet-sub   { font-size: 12px; color: var(--sa-muted); margin-top: 2px; }
+.sheet-body  { padding: 14px 20px; }
+
+.sheet-field-ctx {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--sa-text);
+  background: var(--sa-err-bg);
+  border: 1px solid var(--sa-err-bd);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+}
+.sheet-textarea {
+  width: 100%;
+  border: 1px solid var(--sa-line);
+  border-radius: 10px;
+  padding: 11px;
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--sa-text);
+  outline: none;
+  resize: vertical;
+  min-height: 80px;
+}
+.sheet-textarea:focus { border-color: var(--sa-danger); box-shadow: 0 0 0 3px rgba(220,38,38,.1); }
+
+.sheet-acts {
+  display: flex;
+  gap: 10px;
+  padding: 12px 20px 20px;
+}
+.sheet-cancel {
+  flex: 1;
+  padding: 12px;
+  border: 1px solid var(--sa-line);
+  border-radius: 10px;
+  background: #fff;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--sa-muted);
+  cursor: pointer;
+}
+.sheet-confirm {
+  flex: 2;
+  padding: 12px;
+  border: none;
+  border-radius: 10px;
+  background: var(--sa-danger);
+  color: #fff;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* Evidence sheet items */
+.evid-sheet-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--sa-line);
+}
+.evid-sheet-thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  background: var(--sa-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  flex-shrink: 0;
+}
+.evid-sheet-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--sa-text);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.evid-sheet-del {
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--sa-danger);
+  font-size: 20px;
+  flex-shrink: 0;
+  line-height: 1;
+  padding: 4px;
+}
+.add-evid-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px;
+  border: 1px dashed var(--sa-brand);
+  border-radius: 10px;
+  background: none;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--sa-brand);
+  cursor: pointer;
+  margin-top: 12px;
+}
 </style>
