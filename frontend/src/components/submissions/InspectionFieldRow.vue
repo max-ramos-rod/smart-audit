@@ -79,6 +79,7 @@ function formatFileSize(bytes: number): string {
     </div>
 
     <!-- ── Answer input ── -->
+    <div class="sep-lbl">Resposta</div>
     <div v-if="field.field_type === 'boolean'" style="display:flex;gap:6px;flex-wrap:wrap;">
       <button type="button" class="bool-btn-sm bool-sim"
         :class="{ 'bool-btn--active': answer === 'true' }"
@@ -122,16 +123,14 @@ function formatFileSize(bytes: number): string {
       @input="$emit('updateAnswer', ($event.target as HTMLInputElement).value)" />
 
     <!-- ── Conformity ── -->
-    <div :style="compact
-      ? 'margin-top:8px;padding-top:6px;border-top:1px solid var(--sa-line);'
-      : 'margin-top:10px;padding-top:8px;border-top:1px solid var(--sa-line);'">
-      <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;">
-        <span style="font-size:10px;font-weight:700;color:var(--sa-muted);text-transform:uppercase;letter-spacing:.04em;margin-right:2px;">Conformidade:</span>
-        <button type="button" class="bool-btn-sm bool-sim"
+    <div class="sep-lbl">Conformidade</div>
+    <div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+        <button type="button" class="bool-btn-sm bool-sim conf-q"
           :class="{ 'bool-btn--active': conformityStatus === 'conforme' }"
           :disabled="isCompleted"
           @click="$emit('setConformity', 'conforme')">✓ Conforme</button>
-        <button type="button" class="bool-btn-sm bool-nao"
+        <button type="button" class="bool-btn-sm bool-nao conf-q"
           :class="{ 'bool-btn--active': conformityStatus === 'nao_conforme' }"
           :disabled="isCompleted"
           @click="$emit('setConformity', 'nao_conforme')">✕ Não conforme</button>
@@ -154,6 +153,7 @@ function formatFileSize(bytes: number): string {
     </div>
 
     <!-- ── Evidence: compact (inspection list) ── -->
+    <div class="sep-lbl" v-if="compact && (!isCompleted || evidenceAttachments.length > 0)">Evidências deste campo</div>
     <div v-if="compact && (!isCompleted || evidenceAttachments.length > 0)"
       style="margin-top:8px;display:flex;flex-wrap:wrap;align-items:center;gap:4px;">
       <div v-for="att in evidenceAttachments" :key="att.id"
@@ -181,39 +181,42 @@ function formatFileSize(bytes: number): string {
     </div>
 
     <!-- ── Evidence: full (normal list) ── -->
-    <div v-else-if="!compact && (!isCompleted || evidenceAttachments.length > 0)" style="margin-top:10px;">
-      <div v-if="evidenceAttachments.length" style="display:grid;gap:6px;margin-bottom:8px;">
-        <div v-for="att in evidenceAttachments" :key="att.id"
-          style="display:flex;align-items:center;gap:8px;background:var(--sa-bg);border:1px solid var(--sa-line);border-radius:8px;padding:8px 10px;overflow:hidden;">
-          <a :href="att.file_url" target="_blank" rel="noopener"
-            style="flex:1;min-width:0;display:flex;align-items:center;gap:8px;text-decoration:none;">
-            <img v-if="mimeCategory(att.mime_type) === 'image'" :src="att.file_url" alt=""
-              style="width:40px;height:40px;object-fit:cover;border-radius:4px;flex-shrink:0;" />
-            <div v-else
-              style="width:40px;height:40px;border-radius:4px;flex-shrink:0;background:var(--sa-brand-soft);display:flex;align-items:center;justify-content:center;font-size:18px;">📄</div>
-            <div style="flex:1;min-width:0;">
-              <div style="font-size:12px;font-weight:600;color:var(--sa-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-                {{ att.file_url.split('/').pop() }}
+    <template v-else-if="!compact && (!isCompleted || evidenceAttachments.length > 0)">
+      <div class="sep-lbl">Evidências deste campo</div>
+      <div style="margin-top:10px;">
+        <div v-if="evidenceAttachments.length" style="display:grid;gap:6px;margin-bottom:8px;">
+          <div v-for="att in evidenceAttachments" :key="att.id"
+            style="display:flex;align-items:center;gap:8px;background:var(--sa-bg);border:1px solid var(--sa-line);border-radius:8px;padding:8px 10px;overflow:hidden;">
+            <a :href="att.file_url" target="_blank" rel="noopener"
+              style="flex:1;min-width:0;display:flex;align-items:center;gap:8px;text-decoration:none;">
+              <img v-if="mimeCategory(att.mime_type) === 'image'" :src="att.file_url" alt=""
+                style="width:40px;height:40px;object-fit:cover;border-radius:4px;flex-shrink:0;" />
+              <div v-else
+                style="width:40px;height:40px;border-radius:4px;flex-shrink:0;background:var(--sa-brand-soft);display:flex;align-items:center;justify-content:center;font-size:18px;">📄</div>
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:12px;font-weight:600;color:var(--sa-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                  {{ att.file_url.split('/').pop() }}
+                </div>
+                <div style="font-size:11px;color:var(--sa-muted);margin-top:2px;">{{ formatFileSize(att.file_size) }}</div>
               </div>
-              <div style="font-size:11px;color:var(--sa-muted);margin-top:2px;">{{ formatFileSize(att.file_size) }}</div>
-            </div>
-          </a>
-          <button v-if="!isCompleted" type="button" title="Remover"
-            style="border:none;background:none;cursor:pointer;color:var(--sa-danger);font-size:18px;line-height:1;padding:0 4px;flex-shrink:0;"
-            @click="$emit('deleteEvidence', att.id)">×</button>
+            </a>
+            <button v-if="!isCompleted" type="button" title="Remover"
+              style="border:none;background:none;cursor:pointer;color:var(--sa-danger);font-size:18px;line-height:1;padding:0 4px;flex-shrink:0;"
+              @click="$emit('deleteEvidence', att.id)">×</button>
+          </div>
         </div>
+        <template v-if="!isCompleted">
+          <label style="cursor:pointer;display:inline-block;">
+            <span class="inline-action">{{ evidenceUploading ? 'Enviando…' : '📎 Adicionar evidência' }}</span>
+            <input type="file" :accept="ALLOWED_MIMES" style="display:none;"
+              :disabled="evidenceUploading" @change="$emit('uploadEvidence', $event)" />
+          </label>
+        </template>
+        <p v-if="evidenceError" style="font-size:12px;font-weight:600;color:var(--sa-danger);margin-top:6px;">
+          {{ evidenceError }}
+        </p>
       </div>
-      <template v-if="!isCompleted">
-        <label style="cursor:pointer;display:inline-block;">
-          <span class="inline-action">{{ evidenceUploading ? 'Enviando…' : '📎 Adicionar evidência' }}</span>
-          <input type="file" :accept="ALLOWED_MIMES" style="display:none;"
-            :disabled="evidenceUploading" @change="$emit('uploadEvidence', $event)" />
-        </label>
-      </template>
-      <p v-if="evidenceError" style="font-size:12px;font-weight:600;color:var(--sa-danger);margin-top:6px;">
-        {{ evidenceError }}
-      </p>
-    </div>
+    </template>
 
   </div>
 </template>

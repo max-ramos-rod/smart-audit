@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import AppShell from '@/components/layout/AppShell.vue'
 import InspectionFieldRow from '@/components/submissions/InspectionFieldRow.vue'
+import InspectionListRow from '@/components/submissions/InspectionListRow.vue'
 import SvgIcon from '@/components/ui/SvgIcon.vue'
 import { scoreColorVar } from '@/utils/score'
 import { createAttachment, deleteAttachment, listAttachments } from '@/services/attachments.service'
@@ -63,6 +64,21 @@ const showEvidenceSheet = ref(false)
 const evidenceSheetKey  = ref<string | null>(null)
 
 const pendingRequiredFields = ref<string[]>([])
+
+// ── List-mode filter state ─────────────────────────────────────────────────────
+
+const FILTERS = [
+  { id: 'all',   label: 'Todos',       cls: ''     },
+  { id: 'pend',  label: '⚡ Pendentes', cls: 'warn' },
+  { id: 'conf',  label: '✓ Conformes', cls: 'ok'   },
+  { id: 'nconf', label: '✕ Não conf.', cls: 'err'  },
+  { id: 'bool',  label: 'S/N',         cls: ''     },
+  { id: 'sel',   label: 'Seleção',     cls: ''     },
+] as const
+
+type ListFilter = typeof FILTERS[number]['id']
+const listFilter = ref<ListFilter>('all')
+const expandedListKey = ref<string | null>(null)
 
 // ── Derived ───────────────────────────────────────────────────────────────────
 
@@ -144,6 +160,30 @@ const formSections = computed(() =>
       return { key: section.key, label: section.label, pct }
     }),
 )
+
+// ── List-mode filtered fields ─────────────────────────────────────────────────
+
+const filteredListFields = computed(() => {
+  return fields.value.filter(f => {
+    if (f.field_type === 'section') return true
+    if (listFilter.value === 'pend')  return !conformityStatus[f.key]
+    if (listFilter.value === 'conf')  return conformityStatus[f.key] === 'conforme'
+    if (listFilter.value === 'nconf') return conformityStatus[f.key] === 'nao_conforme'
+    if (listFilter.value === 'bool')  return f.field_type === 'boolean'
+    if (listFilter.value === 'sel')   return f.field_type === 'select'
+    return true
+  })
+})
+
+const visibleSectionKeys = computed(() => {
+  const keys = new Set<string>()
+  let currentSec: string | null = null
+  for (const f of filteredListFields.value) {
+    if (f.field_type === 'section') { currentSec = f.key; continue }
+    if (currentSec) keys.add(currentSec)
+  }
+  return keys
+})
 
 // ── Inspection card (current field) ───────────────────────────────────────────
 
@@ -543,6 +583,98 @@ function loadMoreFields() { listViewLimit.value += LIST_PAGE }
 // ── Skip ──────────────────────────────────────────────────────────────────────
 function doSkip() { inspectionNext() }
 
+// ── List-mode helpers ─────────────────────────────────────────────────────────
+
+function filterCount(filterId: ListFilter): number {
+  const af = answerableFields.value
+  if (filterId === 'all')   return af.length
+  if (filterId === 'pend')  return af.filter(f => !conformityStatus[f.key]).length
+  if (filterId === 'conf')  return af.filter(f => conformityStatus[f.key] === 'conforme').length
+  if (filterId === 'nconf') return af.filter(f => conformityStatus[f.key] === 'nao_conforme').length
+  if (filterId === 'bool')  return af.filter(f => f.field_type === 'boolean').length
+  if (filterId === 'sel')   return af.filter(f => f.field_type === 'select').length
+  return 0
+}
+
+function fieldPosition(field: { key: string }): number {
+  return answerableFields.value.findIndex(f => f.key === field.key) + 1
+}
+
+function sectionFields(sectionKey: string) {
+  const all = filteredListFields.value
+  const secIdx = all.findIndex(f => f.field_type === 'section' && f.key === sectionKey)
+  if (secIdx === -1) return []
+  const result: typeof all = []
+  for (let i = secIdx + 1; i < all.length; i++) {
+    if (all[i].field_type === 'section') break
+    result.push(all[i])
+  }
+  return result
+}
+
+function sectionPct(sectionKey: string): number {
+  const sf = sectionFields(sectionKey)
+  if (sf.length === 0) return 0
+  const done = sf.filter(f => !!conformityStatus[f.key]).length
+  return Math.round((done / sf.length) * 100)
+}
+
+function sectionProgress(sectionKey: string): string {
+  const sf = sectionFields(sectionKey)
+  const done = sf.filter(f => !!conformityStatus[f.key]).length
+  return `${done}/${sf.length}`
+}
+
+function sectionRingStyle(sectionKey: string): Record<string, string> {
+  const pct = sectionPct(sectionKey)
+  const col = pct === 100 ? 'var(--sa-ok)' : pct > 0 ? 'var(--sa-brand)' : 'var(--sa-line)'
+  return { background: `conic-gradient(${col} ${pct}%, var(--sa-line) 0)` }
+}
+
+function toggleListRow(key: string) {
+  expandedListKey.value = expandedListKey.value === key ? null : key
+  if (expandedListKey.value === key) {
+    nextTick(() => {
+      const el = document.getElementById(`list-row-${key}`)
+      const container = document.getElementById('list-scroll-container')
+      if (el && container) container.scrollTo({ top: el.offsetTop - 64, behavior: 'smooth' })
+    })
+  }
+}
+
+function jumpFirstPending() {
+  const first = answerableFields.value.find(f => !conformityStatus[f.key])
+  if (!first) return
+  listFilter.value = 'all'
+  expandedListKey.value = first.key
+  nextTick(() => {
+    const el = document.getElementById(`list-row-${first.key}`)
+    const container = document.getElementById('list-scroll-container')
+    if (el && container) container.scrollTo({ top: el.offsetTop - 64, behavior: 'smooth' })
+  })
+}
+
+function jumpNextPending(afterKey: string) {
+  const keys = answerableFields.value.map(f => f.key)
+  const idx = keys.indexOf(afterKey)
+  for (let i = idx + 1; i < keys.length; i++) {
+    if (!conformityStatus[keys[i]]) {
+      const el = document.getElementById(`list-row-${keys[i]}`)
+      const container = document.getElementById('list-scroll-container')
+      if (el && container) container.scrollTo({ top: el.offsetTop - 64, behavior: 'smooth' })
+      return
+    }
+  }
+}
+
+function setConformityList(key: string, status: 'conforme' | 'nao_conforme') {
+  setConformity(key, status)
+  if (status === 'conforme') {
+    expandedListKey.value = null
+    nextTick(() => setTimeout(() => jumpNextPending(key), 400))
+  }
+}
+
 // ── Non-conformity: open justification sheet ──────────────────────────────────
 function setNaoConformeCard(fieldKey: string) {
   setConformity(fieldKey, 'nao_conforme')
@@ -750,37 +882,82 @@ const currentFieldEvidenceCount = computed(() =>
 
             <!-- ── LIST VIEW (inside inspection mode) ── -->
             <template v-else>
-              <div class="fpanel" style="margin-bottom:16px;">
-                <template v-for="field in displayedListFields">
-                  <div v-if="field.field_type === 'section'" :key="`sec-${field.id}`" :id="`sec-${field.key}`" class="section-divider">
-                    <span>{{ field.label }}</span>
-                  </div>
-                  <InspectionFieldRow
-                    v-else
-                    :key="field.id"
-                    :field="field"
-                    :answer="draftAnswers[field.key] ?? ''"
-                    :conformity-status="conformityStatus[field.key]"
-                    :conformity-justification="conformityJustification[field.key] ?? ''"
-                    :is-completed="isCompleted"
-                    :is-pending-required="pendingRequiredFields.includes(field.key)"
-                    :evidence-attachments="evidenceAttachments[field.key] ?? []"
-                    :evidence-uploading="evidenceUploading[field.key] ?? false"
-                    :evidence-error="evidenceErrors[field.key]"
-                    :compact="true"
-                    @update-answer="v => { draftAnswers[field.key] = v; triggerAutoSave() }"
-                    @set-conformity="s => setConformity(field.key, s)"
-                    @update-justification="v => { conformityJustification[field.key] = v; triggerConformitySave() }"
-                    @upload-evidence="e => handleEvidenceUpload(field.key, {}, e)"
-                    @delete-evidence="id => handleEvidenceDelete(field.key, id)"
-                  />
-                </template>
-              </div>
-              <div v-if="hasMoreFields" style="display:flex;justify-content:center;margin-bottom:12px;">
-                <button type="button" class="btn-secondary btn-sm" @click="loadMoreFields">
-                  Carregar mais ({{ fields.length - listViewLimit }} restantes)
+
+              <!-- ViewToggle bar -->
+              <div class="insp-view-toggle-bar">
+                <div class="insp-vt-seg">
+                  <button class="insp-vt-btn" @click="viewMode='card'">Cartão</button>
+                  <button class="insp-vt-btn active" @click="viewMode='list'">Lista</button>
+                </div>
+                <button
+                  class="insp-jump-pend"
+                  :disabled="filterCount('pend') === 0"
+                  @click="jumpFirstPending()"
+                >
+                  ⚡ Ir para pendentes
+                  <span class="insp-jump-pend-cnt">{{ filterCount('pend') }}</span>
                 </button>
               </div>
+
+              <!-- Filter bar -->
+              <div class="insp-filter-bar">
+                <button
+                  v-for="f in FILTERS"
+                  :key="f.id"
+                  class="insp-fchip"
+                  :class="[f.cls, { active: listFilter === f.id }]"
+                  @click="listFilter = f.id"
+                >
+                  {{ f.label }}
+                  <span class="insp-fchip-n">{{ filterCount(f.id) }}</span>
+                </button>
+              </div>
+
+              <!-- Scrollable list container -->
+              <div id="list-scroll-container" class="insp-list-container">
+                <template v-for="field in filteredListFields">
+
+                  <!-- Section header sticky -->
+                  <div
+                    v-if="field.field_type === 'section'"
+                    :key="`sec-${field.key}`"
+                    v-show="visibleSectionKeys.has(field.key)"
+                    :id="`sec-${field.key}`"
+                    class="insp-list-sec-hdr"
+                  >
+                    <div class="insp-list-sec-ring" :style="sectionRingStyle(field.key)">
+                      <div class="insp-list-sec-ring-inner">
+                        {{ sectionPct(field.key) === 100 ? '✓' : sectionPct(field.key) + '%' }}
+                      </div>
+                    </div>
+                    <span class="insp-list-sec-name">{{ field.label }}</span>
+                    <span class="insp-list-sec-cnt">{{ sectionProgress(field.key) }}</span>
+                  </div>
+
+                  <!-- Field row -->
+                  <div v-else :key="`row-${field.key}`" :id="`list-row-${field.key}`">
+                    <InspectionListRow
+                      :field="field"
+                      :position="fieldPosition(field)"
+                      :answer="draftAnswers[field.key] ?? ''"
+                      :conformity-status="conformityStatus[field.key]"
+                      :conformity-justification="conformityJustification[field.key] ?? ''"
+                      :is-completed="isCompleted"
+                      :is-pending-required="pendingRequiredFields.includes(field.key)"
+                      :evidence-count="evidenceAttachments[field.key]?.length ?? 0"
+                      :is-expanded="expandedListKey === field.key"
+                      @toggle="toggleListRow(field.key)"
+                      @update-answer="v => { draftAnswers[field.key] = v; triggerAutoSave() }"
+                      @set-conformity="s => setConformityList(field.key, s)"
+                      @update-justification="v => { conformityJustification[field.key] = v; triggerConformitySave() }"
+                      @request-evidence="openEvidenceSheet(field.key)"
+                      @request-justification="() => { setConformity(field.key, 'nao_conforme'); openJustificationSheet(field.key) }"
+                    />
+                  </div>
+
+                </template>
+              </div>
+
             </template>
           </template>
 
@@ -1997,4 +2174,89 @@ const currentFieldEvidenceCount = computed(() =>
   flex-shrink: 0;
 }
 .btn-skip:hover { color: var(--sa-text); background: var(--sa-bg); }
+
+/* View toggle bar */
+.insp-view-toggle-bar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 0; margin-bottom: 8px; flex-shrink: 0;
+}
+.insp-vt-seg {
+  display: flex; background: var(--sa-bg); border-radius: 8px; padding: 3px; gap: 2px;
+}
+.insp-vt-btn {
+  padding: 5px 14px; border-radius: 6px; border: none; background: none;
+  font-family: inherit; font-size: 12px; font-weight: 600; color: var(--sa-muted); cursor: pointer;
+}
+.insp-vt-btn.active {
+  background: #fff; color: var(--sa-brand); box-shadow: 0 1px 3px rgba(0,0,0,.1);
+}
+.insp-jump-pend {
+  display: flex; align-items: center; gap: 6px; margin-left: auto;
+  padding: 5px 11px; border: 1px solid var(--sa-line); border-radius: 8px;
+  background: #fff; font-family: inherit; font-size: 11px; font-weight: 700;
+  color: var(--sa-warn); cursor: pointer; white-space: nowrap;
+}
+.insp-jump-pend:disabled { opacity: .4; pointer-events: none; }
+.insp-jump-pend:hover:not(:disabled) { border-color: var(--sa-warn); background: var(--sa-warn-bg); }
+.insp-jump-pend-cnt {
+  background: var(--sa-warn); color: #fff; border-radius: 99px;
+  padding: 0 6px; font-size: 10px; min-width: 18px; text-align: center;
+}
+
+/* Filter bar */
+.insp-filter-bar {
+  display: flex; gap: 6px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 4px;
+  -webkit-overflow-scrolling: touch; scrollbar-width: none; flex-shrink: 0;
+}
+.insp-filter-bar::-webkit-scrollbar { display: none; }
+.insp-fchip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 12px; border-radius: 99px; font-size: 11px; font-weight: 700;
+  border: 1px solid var(--sa-line); background: #fff; color: var(--sa-muted);
+  white-space: nowrap; flex-shrink: 0; cursor: pointer; font-family: inherit;
+  transition: all .15s;
+}
+.insp-fchip.active { border-color: var(--sa-brand); background: var(--sa-brand-soft); color: var(--sa-brand); }
+.insp-fchip.warn   { border-color: var(--sa-warn-bd, #fde68a); }
+.insp-fchip.ok     { border-color: var(--sa-ok-bd); }
+.insp-fchip.err    { border-color: var(--sa-err-bd); }
+.insp-fchip.warn.active { border-color: var(--sa-warn); background: var(--sa-warn-bg); color: var(--sa-warn); }
+.insp-fchip.ok.active   { border-color: var(--sa-ok);  background: var(--sa-ok-bg);  color: var(--sa-ok); }
+.insp-fchip.err.active  { border-color: var(--sa-danger); background: var(--sa-err-bg); color: var(--sa-danger); }
+.insp-fchip-n {
+  background: rgba(0,0,0,.08); border-radius: 99px; padding: 0 5px;
+  font-size: 10px; min-width: 16px; text-align: center;
+}
+
+/* List container */
+.insp-list-container {
+  overflow-y: auto; flex: 1; -webkit-overflow-scrolling: touch;
+}
+.insp-list-container::-webkit-scrollbar { width: 3px; }
+.insp-list-container::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 99px; }
+
+/* Section header */
+.insp-list-sec-hdr {
+  position: sticky; top: 0; z-index: 10;
+  background: var(--sa-bg);
+  border-top: 1px solid var(--sa-line); border-bottom: 1px solid var(--sa-line);
+  padding: 5px 12px; display: flex; align-items: center; gap: 8px;
+}
+.insp-list-sec-ring {
+  width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.insp-list-sec-ring-inner {
+  width: 20px; height: 20px; border-radius: 50%; background: var(--sa-bg);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 8px; font-weight: 800; font-family: var(--mono, 'DM Mono', monospace); color: var(--sa-muted);
+}
+.insp-list-sec-name {
+  font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .1em;
+  color: var(--sa-muted); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.insp-list-sec-cnt {
+  font-size: 10px; font-weight: 700; color: var(--sa-muted);
+  font-family: 'DM Mono', monospace; white-space: nowrap; flex-shrink: 0;
+}
 </style>
