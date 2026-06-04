@@ -693,7 +693,7 @@ Ja e realidade no codigo. Qualquer documentacao antiga que ainda fale em sessao 
 - autenticacao, contexto e sessao
 - recuperacao de senha (forgot + reset)
 - shell autenticado consistente em todas as telas
-- usuarios com desativacao (`is_active`) e revogacao de acesso (`DELETE /users/{id}`)
+- usuarios com desativacao (`is_active`), revogacao (`DELETE /users/{id}`) e reativacao (`POST /users/{id}/reactivate`)
 - formularios com versionamento, secoes, tipos completos e config_json
 - campo `instruction` por campo de formulario (builder UI + importacao)
 - importacao de formulario via CSV ou Excel (`POST /api/v1/forms/import`)
@@ -704,7 +704,9 @@ Ja e realidade no codigo. Qualquer documentacao antiga que ainda fale em sessao 
 - relatorio e exportacao PDF profissional (score colorido, breakdown, secoes, Unicode via DejaVu Sans)
 - evidencias e uploads (imagem, video, audio, PDF)
 - equipes com soft delete (`is_active`)
-- memberships com soft delete (`revoked_at`)
+- memberships com soft delete (`revoked_at`) e reativacao
+- desativacao de empresa (`DELETE /companies/me`) com cascade de memberships e equipes; modal de confirmacao com digitacao do nome + logout automatico
+- audit_logs: tabela imutavel, bounded context completo, eventos company.deactivated / membership.revoked / membership.reactivated / user.created / team.deactivated; view com filtro e paginacao
 - exportacao CSV
 - busca em tempo real
 - dashboard com score_by_form e score_trend
@@ -713,19 +715,18 @@ Ja e realidade no codigo. Qualquer documentacao antiga que ainda fale em sessao 
 - notificacoes com persistencia de leitura e dismiss
 - endpoint `/me/usage` com contagens reais e limites por plano
 - CI com jobs separados: backend (ruff + pytest), frontend (vue-tsc + Vitest), E2E (Playwright)
-- testes automatizados: backend 212 passed, frontend 119 passed (Vitest), 53 E2E (Playwright)
+- testes automatizados: backend 218 passed, frontend 119 passed (Vitest), 53 E2E (Playwright)
 
 ### Parcial ou com limitacao conhecida
 
 - CompanySettings / aba Plano: botao "Falar com o comercial" nao tem acao real
-- Excluir empresa: endpoint e fluxo nao implementados; botao desabilitado na interface
-- Reativar usuario revogado: `DELETE /users/{id}` marca `revoked_at`; nao existe endpoint de reativacao (operacao workaround: usar `PATCH /users/{id}` para atualizar dados, mas membership revogado nao seria restaurado automaticamente)
 - Storage externo: uploads ficam em disco local; sem S3/GCS
 
 ## 12. Proxima linha segura de evolucao
 
-1. `DELETE /companies/me` — desativar empresa com cascade de memberships e dados
-2. Reativar membership revogado — endpoint `POST /users/{id}/reactivate` ou logica no `create_user` para detectar e reativar membership existente
-3. Storage externo (S3/GCS) em substituicao ao disco local
-4. `audit_logs` — rastreabilidade de acoes criticas (quem revogou, quem desativou, quando)
-5. Preparar PWA apos consolidar os itens acima
+1. ~~`DELETE /companies/me`~~ — concluido
+2. ~~Reativar membership revogado~~ — concluido
+3. ~~`audit_logs`~~ — concluido
+4. Storage externo (S3/GCS) em substituicao ao disco local
+5. `corrective_actions` — acoes corretivas vinculadas a itens reprovados em inspecoes
+6. Preparar PWA apos consolidar os itens acima

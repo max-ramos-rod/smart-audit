@@ -502,12 +502,11 @@ Duas estrategias conforme a semântica:
 | `e7f8a9b0c1d2` | add dismissed BOOLEAN em notification_reads |
 | `f8a9b0c1d2e3` | add revoked_at TIMESTAMPTZ NULL em memberships |
 | `a9b0c1d2e3f4` | add is_active BOOLEAN em teams |
+| `b0c1d2e3f4a5` | create audit_logs |
 
 ## Evolucao futura prevista
 
 Ainda nao implementados como tabela/modulo:
 
-- `audit_logs` — rastreabilidade de acoes criticas (quem revogou membership, quem desativou equipe, quando)
 - `corrective_actions` — acoes vinculadas a itens reprovados em inspecoes
-- reativacao de membership revogado — endpoint dedicado ou logica em `create_user` para detectar membership existente
 - storage externo (S3/GCS) em substituicao ao disco local
