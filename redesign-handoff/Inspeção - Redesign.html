@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Inspeção — Smart Audit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --sa-bg:        #f1f5f9;
+  --sa-panel:     #ffffff;
+  --sa-text:      #0f172a;
+  --sa-muted:     #64748b;
+  --sa-line:      #e2e8f0;
+  --sa-brand:     #2563eb;
+  --sa-brand-s:   #1d4ed8;
+  --sa-brand-soft:#eff6ff;
+  --sa-ok:        #16a34a;
+  --sa-ok-bg:     #f0fdf4;
+  --sa-ok-bd:     #bbf7d0;
+  --sa-danger:    #dc2626;
+  --sa-err-bg:    #fef2f2;
+  --sa-err-bd:    #fecaca;
+  --sa-warn:      #d97706;
+  --sa-warn-bg:   #fffbeb;
+  --sa-warn-bd:   #fde68a;
+  --bnav-h:       64px;
+  --sans: 'Plus Jakarta Sans', system-ui, sans-serif;
+  --mono: 'DM Mono', monospace;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-family: var(--sans); -webkit-font-smoothing: antialiased; }
+body { background: var(--sa-bg); color: var(--sa-text); height: 100dvh; overflow: hidden; display: flex; flex-direction: column; }
+
+/* ── HEADER ── */
+.mob-hdr { background: #fff; border-bottom: 1px solid var(--sa-line); padding: 0 14px; height: 52px; flex-shrink: 0; display: flex; align-items: center; gap: 10px; }
+.hdr-back { width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--sa-line); background: #fff; display: flex; align-items: center; justify-content: center; color: var(--sa-muted); font-size: 14px; cursor: pointer; flex-shrink: 0; }
+.hdr-info { flex: 1; min-width: 0; }
+.hdr-name { font-size: 13px; font-weight: 700; color: var(--sa-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hdr-sub  { font-size: 10px; color: var(--sa-muted); font-family: var(--mono); }
+.score-ring { width: 44px; height: 44px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: background .5s; }
+.score-ring-inner { width: 34px; height: 34px; border-radius: 50%; background: #fff; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 800; font-family: var(--mono); color: var(--sa-muted); transition: color .3s; }
+
+/* ── PROGRESS ── */
+.progress-area { background: #fff; border-bottom: 1px solid var(--sa-line); padding: 10px 14px 0; flex-shrink: 0; }
+.progress-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.prog-bar { flex: 1; height: 8px; background: var(--sa-line); border-radius: 99px; overflow: hidden; display: flex; }
+.pb-conf  { height: 100%; background: var(--sa-ok); transition: width .35s; }
+.pb-nconf { height: 100%; background: var(--sa-danger); transition: width .35s; }
+.prog-lbl { font-size: 11px; font-weight: 700; color: var(--sa-muted); font-family: var(--mono); white-space: nowrap; }
+.sec-chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 10px; -webkit-overflow-scrolling: touch; }
+.sec-chips::-webkit-scrollbar { display: none; }
+.sec-chip { padding: 4px 11px; border-radius: 99px; font-size: 11px; font-weight: 700; cursor: pointer; border: 1px solid var(--sa-line); background: #fff; color: var(--sa-muted); white-space: nowrap; flex-shrink: 0; font-family: inherit; transition: all .15s; }
+.sec-chip.done   { background: var(--sa-ok); border-color: var(--sa-ok); color: #fff; }
+.sec-chip.active { border-color: var(--sa-brand); background: var(--sa-brand-soft); color: var(--sa-brand); }
+
+/* ── SWIPE ZONE ── */
+.swipe-zone { flex: 1; position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; padding: 10px 12px; }
+.side-ind { position: absolute; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; align-items: center; gap: 4px; opacity: 0; pointer-events: none; z-index: 5; transition: opacity .05s; }
+.side-ind.left  { left: 4px; }
+.side-ind.right { right: 4px; }
+.ind-icon { width: 46px; height: 46px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 800; color: #fff; }
+.ind-icon.ok  { background: var(--sa-ok); box-shadow: 0 4px 14px rgba(22,163,74,.4); }
+.ind-icon.err { background: var(--sa-danger); box-shadow: 0 4px 14px rgba(220,38,38,.4); }
+.ind-lbl { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
+.ind-lbl.ok  { color: var(--sa-ok); }
+.ind-lbl.err { color: var(--sa-danger); }
+
+/* ── CARD ── */
+.card-outer { width: 100%; max-width: 420px; position: relative; }
+.insp-card {
+  width: 100%; background: #fff; border-radius: 20px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.12), 0 2px 8px rgba(0,0,0,.06);
+  overflow: hidden; position: relative;
+  touch-action: pan-y; user-select: none; cursor: grab; will-change: transform;
+}
+.insp-card:active { cursor: grabbing; }
+
+/* Stamps */
+.stamp { position: absolute; top: 18px; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 900; letter-spacing: .08em; border: 3px solid; opacity: 0; pointer-events: none; z-index: 10; text-transform: uppercase; }
+.stamp-conf  { left: 14px;  transform: rotate(15deg);  color: var(--sa-ok);     border-color: var(--sa-ok);     }
+.stamp-nconf { right: 14px; transform: rotate(-15deg); color: var(--sa-danger); border-color: var(--sa-danger); }
+
+/* Card header */
+.card-hdr { padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--sa-line); transition: background .2s; }
+.card-sec  { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .1em; color: var(--sa-brand); }
+.card-meta { display: flex; align-items: center; gap: 6px; }
+.card-weight { font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; background: var(--sa-brand-soft); color: var(--sa-brand); }
+.card-counter { font-size: 10px; font-weight: 700; color: var(--sa-muted); font-family: var(--mono); }
+.card-status { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 99px; }
+.card-status.conf  { background: var(--sa-ok-bg); color: var(--sa-ok); }
+.card-status.nconf { background: var(--sa-err-bg); color: var(--sa-danger); }
+.card-status.pend  { background: #f1f5f9; color: var(--sa-muted); }
+
+/* Card body */
+.card-body { padding: 14px; display: flex; flex-direction: column; gap: 0; }
+.card-type-lbl { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: var(--sa-muted); margin-bottom: 5px; }
+.card-label { font-size: 16px; font-weight: 700; color: var(--sa-text); line-height: 1.3; }
+.card-req   { font-size: 9px; font-weight: 700; color: var(--sa-danger); text-transform: uppercase; letter-spacing: .06em; margin-top: 4px; }
+.card-instr { font-size: 12px; color: var(--sa-muted); background: var(--sa-bg); border-left: 3px solid var(--sa-brand); padding: 6px 9px; border-radius: 0 6px 6px 0; margin-top: 8px; line-height: 1.5; }
+
+/* Section divider within card */
+.card-sep { display: flex; align-items: center; gap: 8px; margin: 12px 0 8px; }
+.card-sep::before, .card-sep::after { content: ''; flex: 1; height: 1px; background: var(--sa-line); }
+.card-sep-lbl { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .1em; color: var(--sa-muted); white-space: nowrap; }
+
+/* ── ANSWER SECTION ── */
+/* Boolean answer buttons — factual observation */
+.bool-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.bool-btn {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  padding: 14px 8px; border-radius: 12px; border: 2px solid var(--sa-line); background: #fff;
+  font-family: inherit; cursor: pointer; transition: all .12s; -webkit-tap-highlight-color: transparent;
+}
+.bool-btn .b-icon { font-size: 22px; line-height: 1; }
+.bool-btn .b-lbl  { font-size: 14px; font-weight: 700; color: var(--sa-text); }
+.bool-btn:active { transform: scale(.96); }
+.bool-btn.sim.active { border-color: var(--sa-ok); background: var(--sa-ok-bg); }
+.bool-btn.sim.active .b-lbl { color: var(--sa-ok); }
+.bool-btn.nao.active { border-color: var(--sa-danger); background: var(--sa-err-bg); }
+.bool-btn.nao.active .b-lbl { color: var(--sa-danger); }
+.na-btn { width: 100%; margin-top: 6px; padding: 9px 14px; border-radius: 10px; border: 1px solid var(--sa-line); background: #fff; font-family: inherit; font-size: 12px; font-weight: 600; color: var(--sa-muted); cursor: pointer; transition: all .12s; -webkit-tap-highlight-color: transparent; }
+.na-btn.active { border-color: var(--sa-warn); background: var(--sa-warn-bg); color: var(--sa-warn); }
+
+/* Non-boolean inputs */
+.field-input { width: 100%; padding: 11px 13px; border: 1px solid var(--sa-line); border-radius: 10px; font-size: 15px; font-family: inherit; outline: none; color: var(--sa-text); background: #fff; }
+.field-input:focus { border-color: var(--sa-brand); box-shadow: 0 0 0 3px rgba(37,99,235,.1); }
+
+/* ── CONFORMITY SECTION — separate from answer ── */
+.conf-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.conf-btn { padding: 10px; border-radius: 10px; border: 1px solid var(--sa-line); background: #fff; font-family: inherit; font-size: 12px; font-weight: 700; color: var(--sa-muted); cursor: pointer; transition: all .12s; -webkit-tap-highlight-color: transparent; text-align: center; }
+.conf-btn:active { transform: scale(.96); }
+.conf-btn.ok.active  { border-color: var(--sa-ok); background: var(--sa-ok-bg); color: var(--sa-ok); }
+.conf-btn.err.active { border-color: var(--sa-danger); background: var(--sa-err-bg); color: var(--sa-danger); }
+.swipe-hint { font-size: 10px; color: var(--sa-muted); text-align: center; margin-top: 6px; opacity: .55; }
+
+/* ── EVIDENCE SECTION — per field ── */
+.evid-row { display: flex; align-items: center; gap: 8px; }
+.evid-btn { display: flex; align-items: center; gap: 6px; padding: 7px 12px; border: 1px solid var(--sa-line); border-radius: 8px; background: #fff; font-family: inherit; font-size: 12px; font-weight: 600; color: var(--sa-muted); cursor: pointer; transition: all .12s; -webkit-tap-highlight-color: transparent; }
+.evid-btn:hover { border-color: var(--sa-brand); color: var(--sa-brand); background: var(--sa-brand-soft); }
+.evid-badge { background: var(--sa-brand); color: #fff; border-radius: 99px; padding: 1px 6px; font-size: 10px; font-weight: 800; min-width: 18px; text-align: center; }
+.evid-thumbs { display: flex; gap: 4px; flex: 1; overflow: hidden; }
+.evid-thumb { width: 28px; height: 28px; border-radius: 6px; background: var(--sa-bg); display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; border: 1px solid var(--sa-line); }
+
+/* Dots */
+.card-dots { display: flex; align-items: center; justify-content: center; gap: 4px; margin-top: 10px; }
+.card-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--sa-line); transition: all .2s; }
+.card-dot.active  { width: 20px; border-radius: 3px; background: var(--sa-brand); }
+.card-dot.done-ok  { background: var(--sa-ok); }
+.card-dot.done-err { background: var(--sa-danger); }
+.card-dot.done-na  { background: var(--sa-warn); }
+
+/* ── NAV ROW ── */
+.nav-row { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: #fff; border-top: 1px solid var(--sa-line); flex-shrink: 0; }
+.btn-nav  { flex: 1; padding: 10px; border: 1px solid var(--sa-line); border-radius: 10px; background: #fff; font-family: inherit; font-size: 13px; font-weight: 600; color: var(--sa-text); cursor: pointer; transition: background .15s; }
+.btn-nav:disabled { opacity: .35; cursor: not-allowed; }
+.btn-skip { padding: 10px 12px; border: none; background: none; font-family: inherit; font-size: 12px; font-weight: 600; color: var(--sa-muted); cursor: pointer; border-radius: 8px; }
+
+/* ── BOTTOM NAV ── */
+.bot-nav { display: flex; height: var(--bnav-h); background: #fff; border-top: 1px solid var(--sa-line); flex-shrink: 0; }
+.bn-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 9px; font-weight: 700; text-transform: uppercase; color: #94a3b8; border: none; background: none; font-family: inherit; cursor: pointer; }
+.bn-item.active { color: var(--sa-brand); }
+
+/* ── BOTTOM SHEET ── */
+.sheet-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 100; display: flex; align-items: flex-end; opacity: 0; pointer-events: none; transition: opacity .25s; backdrop-filter: blur(2px); }
+.sheet-overlay.open { opacity: 1; pointer-events: all; }
+.sheet { width: 100%; background: #fff; border-radius: 20px 20px 0 0; transform: translateY(100%); transition: transform .28s cubic-bezier(.32,1,.4,1); max-height: 85dvh; overflow-y: auto; }
+.sheet-overlay.open .sheet { transform: translateY(0); }
+.sheet-handle { width: 36px; height: 4px; background: var(--sa-line); border-radius: 99px; margin: 12px auto 0; }
+.sheet-hdr  { padding: 14px 20px 12px; border-bottom: 1px solid var(--sa-line); }
+.sheet-title { font-size: 16px; font-weight: 700; color: var(--sa-text); }
+.sheet-sub   { font-size: 12px; color: var(--sa-muted); margin-top: 2px; }
+.sheet-body  { padding: 14px 20px; }
+.sheet-field-ctx { font-size: 13px; font-weight: 600; color: var(--sa-text); background: var(--sa-err-bg); border: 1px solid var(--sa-err-bd); border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; }
+.sheet-textarea { width: 100%; border: 1px solid var(--sa-line); border-radius: 10px; padding: 11px; font-size: 14px; font-family: inherit; color: var(--sa-text); outline: none; resize: vertical; min-height: 80px; }
+.sheet-textarea:focus { border-color: var(--sa-danger); box-shadow: 0 0 0 3px rgba(220,38,38,.1); }
+.sheet-acts { display: flex; gap: 10px; padding: 12px 20px 20px; }
+.sheet-cancel  { flex: 1; padding: 12px; border: 1px solid var(--sa-line); border-radius: 10px; background: #fff; font-family: inherit; font-size: 14px; font-weight: 600; color: var(--sa-muted); cursor: pointer; }
+.sheet-confirm { flex: 2; padding: 12px; border: none; border-radius: 10px; background: var(--sa-danger); color: #fff; font-family: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
+.sheet-confirm:hover { background: #b91c1c; }
+
+/* Evidence sheet */
+.evid-sheet-item { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--sa-line); }
+.evid-sheet-thumb { width: 44px; height: 44px; border-radius: 8px; background: var(--sa-bg); display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0; }
+.evid-sheet-name { font-size: 13px; font-weight: 600; color: var(--sa-text); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.evid-sheet-del { border: none; background: none; cursor: pointer; color: var(--sa-danger); font-size: 20px; flex-shrink: 0; line-height: 1; }
+.add-evid-btn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 12px; border: 1px dashed var(--sa-brand); border-radius: 10px; background: none; font-family: inherit; font-size: 13px; font-weight: 600; color: var(--sa-brand); cursor: pointer; margin-top: 12px; }
+
+/* Done state */
+.done-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; padding: 32px 24px; text-align: center; }
+.done-ring  { width: 96px; height: 96px; border-radius: 50%; background: var(--sa-ok-bg); border: 3px solid var(--sa-ok); display: flex; align-items: center; justify-content: center; font-size: 40px; margin-bottom: 18px; }
+.done-score { font-size: 48px; font-weight: 800; font-family: var(--mono); line-height: 1; margin: 6px 0 4px; }
+.done-sub   { font-size: 13px; color: var(--sa-muted); margin-bottom: 20px; }
+.done-grid  { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; max-width: 300px; margin-bottom: 24px; }
+.dbd { border-radius: 12px; padding: 12px; text-align: center; }
+.dbd.ok  { background: var(--sa-ok-bg); border: 1px solid var(--sa-ok-bd); }
+.dbd.err { background: var(--sa-err-bg); border: 1px solid var(--sa-err-bd); }
+.dbd-n   { font-size: 28px; font-weight: 800; font-family: var(--mono); }
+.dbd-lbl { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--sa-muted); margin-top: 2px; }
+.done-btn { width: 100%; max-width: 300px; padding: 14px; border: none; border-radius: 12px; background: var(--sa-brand); color: #fff; font-family: inherit; font-size: 15px; font-weight: 700; cursor: pointer; }
+
+/* Animations */
+@keyframes slideInR { from { opacity:0; transform: translateX(50px);  } to { opacity:1; transform: translateX(0); } }
+@keyframes slideInL { from { opacity:0; transform: translateX(-50px); } to { opacity:1; transform: translateX(0); } }
+.anim-r { animation: slideInR .2s cubic-bezier(.22,1,.36,1); }
+.anim-l { animation: slideInL .2s cubic-bezier(.22,1,.36,1); }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="mob-hdr">
+  <button class="hdr-back">←</button>
+  <div class="hdr-info">
+    <div class="hdr-name">Checklist NR-35 — Trabalho em Altura</div>
+    <div class="hdr-sub">v2 · Em andamento</div>
+  </div>
+  <div class="score-ring" id="scoreRing" style="background:conic-gradient(#e2e8f0 100%,#e2e8f0 0);">
+    <div class="score-ring-inner" id="scoreInner">—</div>
+  </div>
+</header>
+
+<!-- PROGRESS + SECTION CHIPS -->
+<div class="progress-area">
+  <div class="progress-row">
+    <div class="prog-bar">
+      <div class="pb-conf"  id="pbConf"  style="width:0"></div>
+      <div class="pb-nconf" id="pbNconf" style="width:0"></div>
+    </div>
+    <div class="prog-lbl" id="progLbl">0/11</div>
+  </div>
+  <div class="sec-chips" id="secChips"></div>
+</div>
+
+<!-- SWIPE ZONE -->
+<div class="swipe-zone" id="swipeZone">
+  <div class="side-ind left" id="indLeft">
+    <div class="ind-icon err">✕</div>
+    <div class="ind-lbl err">Não conforme</div>
+  </div>
+  <div class="side-ind right" id="indRight">
+    <div class="ind-icon ok">✓</div>
+    <div class="ind-lbl ok">Conforme</div>
+  </div>
+
+  <div class="card-outer">
+    <div class="insp-card" id="mainCard"
+         ontouchstart="ts(event)" ontouchmove="tm(event)" ontouchend="te()"
+         onmousedown="ms(event)">
+      <div class="stamp stamp-conf"  id="stampC">Conforme</div>
+      <div class="stamp stamp-nconf" id="stampN">Não conforme</div>
+      <div id="cardContent"></div>
+    </div>
+  </div>
+
+  <div class="card-dots" id="cardDots"></div>
+</div>
+
+<!-- NAV ROW -->
+<div class="nav-row">
+  <button class="btn-nav" id="btnPrev" onclick="doPrev()" disabled>← Anterior</button>
+  <button class="btn-skip" onclick="doSkip()">Pular</button>
+  <button class="btn-nav" id="btnNext" onclick="doNext()">Próximo →</button>
+</div>
+
+<!-- BOTTOM NAV -->
+<nav class="bot-nav">
+  <button class="bn-item">
+    <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+    Resumo
+  </button>
+  <button class="bn-item active">
+    <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+    Inspeções
+  </button>
+  <button class="bn-item">
+    <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>
+    Forms
+  </button>
+  <button class="bn-item">
+    <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+    Usuários
+  </button>
+</nav>
+
+<!-- JUSTIFICATION SHEET -->
+<div class="sheet-overlay" id="justSheet">
+  <div class="sheet" onclick="event.stopPropagation()">
+    <div class="sheet-handle"></div>
+    <div class="sheet-hdr">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;">
+        <div style="width:28px;height:28px;border-radius:50%;background:var(--sa-err-bg);border:2px solid var(--sa-err-bd);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:var(--sa-danger);">✕</div>
+        <div class="sheet-title">Não conforme</div>
+      </div>
+      <div class="sheet-sub">Descreva o problema encontrado (obrigatório)</div>
+    </div>
+    <div class="sheet-body">
+      <div class="sheet-field-ctx" id="justCtx">—</div>
+      <textarea class="sheet-textarea" id="justTxt" placeholder="Ex: Capacete com rachadura na aba frontal. Trabalhador orientado a substituir antes de retomar."></textarea>
+    </div>
+    <div class="sheet-acts">
+      <button class="sheet-cancel" onclick="closeJust()">Cancelar</button>
+      <button class="sheet-confirm" onclick="confirmJust()">Confirmar não conformidade</button>
+    </div>
+  </div>
+</div>
+
+<!-- EVIDENCE SHEET (per field) -->
+<div class="sheet-overlay" id="evidSheet">
+  <div class="sheet" onclick="event.stopPropagation()">
+    <div class="sheet-handle"></div>
+    <div class="sheet-hdr">
+      <div class="sheet-title">Evidências do campo</div>
+      <div class="sheet-sub" id="evidCtx">—</div>
+    </div>
+    <div class="sheet-body">
+      <div id="evidList"></div>
+      <button class="add-evid-btn" onclick="addEvid()">
+        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+        Adicionar evidência
+      </button>
+    </div>
+    <div style="height:16px;"></div>
+    <div class="sheet-acts">
+      <button class="sheet-cancel" style="flex:1;" onclick="closeEvid()">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── DATA ──
+const SECS = [
+  { id:'epi',       lbl:'EPI'         },
+  { id:'estrutura', lbl:'Estrutura'   },
+  { id:'docs',      lbl:'Documentação'},
+];
+
+const FIELDS = [
+  { id:1,  sec:'epi',       type:'boolean', lbl:'Capacete de proteção em uso adequado',                   key:'capacete',  req:true,  w:2.0, na:false, instr:'Verifique se está fixado corretamente e sem rachaduras.' },
+  { id:2,  sec:'epi',       type:'boolean', lbl:'Cinto de segurança tipo paraquedista',                   key:'cinto',     req:true,  w:3.0, na:false },
+  { id:3,  sec:'epi',       type:'boolean', lbl:'Talabarte duplo devidamente conectado ao ponto de ancoragem', key:'talabarte', req:true, w:3.0, na:false },
+  { id:4,  sec:'epi',       type:'boolean', lbl:'Luvas de proteção em bom estado',                        key:'luvas',     req:false, w:1.0, na:true  },
+  { id:5,  sec:'epi',       type:'select',  lbl:'Condição geral dos EPIs',                                key:'epi_cond',  req:true,  opts:['Ótimo','Bom','Regular','Inadequado'] },
+  { id:6,  sec:'epi',       type:'text',    lbl:'Observações sobre os EPIs',                              key:'obs_epis',  req:false  },
+  { id:7,  sec:'estrutura', type:'boolean', lbl:'Andaime devidamente travado e nivelado',                 key:'andaime',   req:true,  w:3.0, na:false },
+  { id:8,  sec:'estrutura', type:'boolean', lbl:'Guarda-corpos instalados em todo o perímetro',          key:'guarda',    req:true,  w:2.5, na:false },
+  { id:9,  sec:'estrutura', type:'number',  lbl:'Altura máxima de trabalho (metros)',                    key:'altura',    req:true   },
+  { id:10, sec:'docs',      type:'boolean', lbl:'Permissão de Trabalho (PT) assinada',                   key:'pt',        req:true,  w:2.5, na:false },
+  { id:11, sec:'docs',      type:'boolean', lbl:'Treinamento NR-35 válido e em dia',                     key:'nr35',      req:true,  w:3.0, na:false },
+];
+
+const TNAME = { boolean:'Sim / Não', text:'Texto livre', number:'Número', select:'Seleção' };
+
+// ── STATE ──
+let idx = 0;
+let answers      = {}; // field.key → value (factual observation)
+let conformity   = {}; // field.key → 'conforme' | 'nao_conforme' | 'na'
+let justifications = {};
+let evidences    = {}; // field.key → [{name, emoji}]
+
+// Swipe
+let swStartX=0, swDx=0, swDrag=false, swLocked=false;
+let mouseDown=false;
+
+// Sheet state
+let justKey = null;
+let evidKey = null;
+
+// ── SCORE ──
+function calcScore() {
+  let wC=0, wT=0;
+  for (const f of FIELDS) {
+    if (f.type !== 'boolean') continue;
+    const c = conformity[f.key];
+    if (!c || c==='na') continue;
+    const w = f.w||1;
+    wT += w;
+    if (c==='conforme') wC += w;
+  }
+  return wT===0 ? null : Math.round(wC/wT*100);
+}
+
+function updateScoreRing() {
+  const s = calcScore();
+  const ring  = document.getElementById('scoreRing');
+  const inner = document.getElementById('scoreInner');
+  if (s===null) {
+    ring.style.background = 'conic-gradient(#e2e8f0 100%,#e2e8f0 0)';
+    inner.textContent = '—'; inner.style.color = 'var(--sa-muted)'; return;
+  }
+  const c = s>=80 ? 'var(--sa-ok)' : s>=60 ? 'var(--sa-warn)' : 'var(--sa-danger)';
+  ring.style.background = `conic-gradient(${c} ${s}%,#e2e8f0 0)`;
+  inner.textContent = s+'%'; inner.style.color = c;
+}
+
+// ── PROGRESS / CHIPS / DOTS ──
+function updateProgress() {
+  const T = FIELDS.length;
+  const C = Object.values(conformity).filter(v=>v==='conforme').length;
+  const N = Object.values(conformity).filter(v=>v==='nao_conforme').length;
+  const A = Object.values(conformity).filter(v=>v==='na').length;
+  const D = C+N+A;
+  document.getElementById('pbConf').style.width  = (C/T*100)+'%';
+  document.getElementById('pbNconf').style.width = (N/T*100)+'%';
+  document.getElementById('progLbl').textContent = D+'/'+T;
+  updateScoreRing();
+  renderChips();
+  renderDots();
+}
+
+function renderChips() {
+  const cur = FIELDS[idx]?.sec;
+  document.getElementById('secChips').innerHTML = SECS.map(s=>{
+    const sf   = FIELDS.filter(f=>f.sec===s.id);
+    const done = sf.filter(f=>conformity[f.key]).length;
+    const pct  = sf.length ? Math.round(done/sf.length*100) : 0;
+    const cls  = pct===100 ? 'done' : s.id===cur ? 'active' : '';
+    const lbl  = pct===100 ? '✓ '+s.lbl : s.lbl+(done?' · '+pct+'%':'');
+    return `<button class="sec-chip ${cls}" onclick="jumpSec('${s.id}')">${lbl}</button>`;
+  }).join('');
+}
+
+function renderDots() {
+  document.getElementById('cardDots').innerHTML = FIELDS.map((f,i)=>{
+    const c = conformity[f.key];
+    const cls = i===idx ? 'active' : c==='conforme' ? 'done-ok' : c==='nao_conforme' ? 'done-err' : c==='na' ? 'done-na' : '';
+    return `<div class="card-dot ${cls}"></div>`;
+  }).join('');
+}
+
+// ── CARD RENDER ──
+function renderCard(dir) {
+  if (idx >= FIELDS.length) { renderDone(); return; }
+  const f   = FIELDS[idx];
+  const c   = conformity[f.key];
+  const sec = SECS.find(s=>s.id===f.sec);
+  const card = document.getElementById('mainCard');
+
+  // Reset swipe visuals
+  card.style.cssText = '';
+  document.getElementById('stampC').style.opacity = '0';
+  document.getElementById('stampN').style.opacity = '0';
+  document.getElementById('indLeft').style.opacity  = '0';
+  document.getElementById('indRight').style.opacity = '0';
+
+  // Header bg based on conformity
+  const hdrBg = c==='conforme' ? 'var(--sa-ok-bg)' : c==='nao_conforme' ? 'var(--sa-err-bg)' : 'var(--sa-panel-strong,#f8fafc)';
+  const stCls = c==='conforme' ? 'conf' : c==='nao_conforme' ? 'nconf' : 'pend';
+  const stTxt = c==='conforme' ? 'Conforme' : c==='nao_conforme' ? 'Não conforme' : 'Pendente';
+
+  // ── ANSWER SECTION ──
+  let ansHtml = '';
+  if (f.type === 'boolean') {
+    const simA = answers[f.key]==='true'  ? ' active' : '';
+    const naoA = answers[f.key]==='false' ? ' active' : '';
+    const naA  = answers[f.key]==='na'    ? ' active' : '';
+    ansHtml = `
+      <div class="bool-grid">
+        <button class="bool-btn sim${simA}" onclick="doAns('${f.key}','true')">
+          <div class="b-icon">✓</div><div class="b-lbl">Sim</div>
+        </button>
+        <button class="bool-btn nao${naoA}" onclick="doAns('${f.key}','false')">
+          <div class="b-icon">✕</div><div class="b-lbl">Não</div>
+        </button>
+      </div>
+      ${f.na ? `<button class="na-btn${naA}" onclick="doAns('${f.key}','na')">N/A — Não aplicável</button>` : ''}
+    `;
+  } else if (f.type==='select') {
+    const val = answers[f.key]||'';
+    const opts = (f.opts||[]).map(o=>`<option value="${o}"${val===o?' selected':''}>${o}</option>`).join('');
+    ansHtml = `<select class="field-input" onchange="doAns('${f.key}',this.value)"><option value="">— Selecione —</option>${opts}</select>`;
+  } else if (f.type==='number') {
+    ansHtml = `<input class="field-input" type="number" step="any" placeholder="Digite em metros…" value="${answers[f.key]||''}" oninput="doAns('${f.key}',this.value)">`;
+  } else {
+    ansHtml = `<input class="field-input" type="text" placeholder="Digite aqui…" value="${answers[f.key]||''}" oninput="doAns('${f.key}',this.value)">`;
+  }
+
+  // ── CONFORMITY SECTION (always separate) ──
+  const confA = conformity[f.key]==='conforme'     ? ' active' : '';
+  const nconfA = conformity[f.key]==='nao_conforme' ? ' active' : '';
+  const confHtml = `
+    <div class="conf-grid">
+      <button class="conf-btn ok${confA}"  onclick="setConf('${f.key}','conforme')">✓ Conforme</button>
+      <button class="conf-btn err${nconfA}" onclick="openJust('${f.key}')">✕ Não conforme</button>
+    </div>
+    ${f.type==='boolean' ? `<div class="swipe-hint">← Deslize para avaliar conformidade →</div>` : ''}
+  `;
+
+  // ── EVIDENCE SECTION (per field) ──
+  const evArr = evidences[f.key] || [];
+  const evCnt = evArr.length;
+  const thumbsHtml = evArr.slice(0,3).map(e=>`<div class="evid-thumb">${e.emoji}</div>`).join('');
+  const evidHtml = `
+    <div class="evid-row">
+      <button class="evid-btn" onclick="openEvid('${f.key}')">
+        <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+        <span class="evid-badge">${evCnt}</span>
+        ${evCnt===0 ? 'Adicionar evidência' : evCnt===1 ? '1 evidência' : evCnt+' evidências'}
+      </button>
+      ${thumbsHtml ? `<div class="evid-thumbs">${thumbsHtml}</div>` : ''}
+    </div>
+  `;
+
+  document.getElementById('cardContent').innerHTML = `
+    <div class="card-hdr" style="background:${hdrBg}">
+      <span class="card-sec">${sec?.lbl||''}</span>
+      <div class="card-meta">
+        ${f.w&&f.w>1 ? `<span class="card-weight">Peso ${f.w}×</span>` : ''}
+        <span class="card-counter">${idx+1} / ${FIELDS.length}</span>
+        <span class="card-status ${stCls}">${stTxt}</span>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="card-type-lbl">${TNAME[f.type]||f.type}</div>
+      <div class="card-label">${f.lbl}</div>
+      ${f.req ? '<div class="card-req">Obrigatório</div>' : ''}
+      ${f.instr ? `<div class="card-instr">${f.instr}</div>` : ''}
+
+      <div class="card-sep"><span class="card-sep-lbl">Resposta</span></div>
+      ${ansHtml}
+
+      <div class="card-sep"><span class="card-sep-lbl">Conformidade</span></div>
+      ${confHtml}
+
+      <div class="card-sep"><span class="card-sep-lbl">Evidências deste campo</span></div>
+      ${evidHtml}
+    </div>
+  `;
+
+  // Entrance animation
+  if (dir) { card.classList.add(dir==='right'?'anim-r':'anim-l'); setTimeout(()=>card.classList.remove('anim-r','anim-l'),300); }
+
+  document.getElementById('btnPrev').disabled = idx===0;
+  document.getElementById('btnNext').textContent = idx===FIELDS.length-1 ? 'Ver resumo' : 'Próximo →';
+  renderDots(); renderChips();
+}
+
+// ── ANSWER (factual observation — does NOT set conformity) ──
+function doAns(key, val) {
+  answers[key] = val;
+  // Re-render the card to update button active states (without animation)
+  const simEl  = document.querySelector('.bool-btn.sim');
+  const naoEl  = document.querySelector('.bool-btn.nao');
+  const naEl   = document.querySelector('.na-btn');
+  if (simEl) simEl.classList.toggle('active', val==='true');
+  if (naoEl) naoEl.classList.toggle('active', val==='false');
+  if (naEl)  naEl.classList.toggle('active',  val==='na');
+}
+
+// ── CONFORMITY (separate evaluation — does NOT set answer) ──
+function setConf(key, val) {
+  conformity[key] = val;
+  updateProgress();
+  // Auto-advance if conforme
+  if (val === 'conforme') {
+    flashCard('ok');
+    setTimeout(()=>advance('right'), 320);
+  } else {
+    renderCard();
+  }
+}
+
+function openJust(key) {
+  justKey = key;
+  const f = FIELDS.find(f=>f.key===key);
+  document.getElementById('justCtx').textContent = f?.lbl || key;
+  document.getElementById('justTxt').value = justifications[key]||'';
+  document.getElementById('justSheet').classList.add('open');
+  setTimeout(()=>document.getElementById('justTxt').focus(), 350);
+}
+function closeJust() { document.getElementById('justSheet').classList.remove('open'); justKey=null; }
+function confirmJust() {
+  if (!justKey) return;
+  const txt = document.getElementById('justTxt').value.trim();
+  justifications[justKey] = txt;
+  conformity[justKey] = 'nao_conforme';
+  closeJust();
+  updateProgress();
+  flashCard('err');
+  setTimeout(()=>advance('right'), 320);
+}
+
+function flashCard(type) {
+  const card = document.getElementById('mainCard');
+  card.style.background = type==='ok' ? 'var(--sa-ok-bg)' : 'var(--sa-err-bg)';
+  card.style.transition = 'background .3s';
+}
+
+// ── EVIDENCE (per field) ──
+function openEvid(key) {
+  evidKey = key;
+  const f = FIELDS.find(f=>f.key===key);
+  document.getElementById('evidCtx').textContent = f?.lbl.length>40 ? f.lbl.slice(0,40)+'…' : f?.lbl||key;
+  renderEvidList();
+  document.getElementById('evidSheet').classList.add('open');
+}
+function closeEvid() { document.getElementById('evidSheet').classList.remove('open'); evidKey=null; renderCard(); }
+function renderEvidList() {
+  const items = evidences[evidKey]||[];
+  document.getElementById('evidList').innerHTML = items.length
+    ? items.map((e,i)=>`<div class="evid-sheet-item"><div class="evid-sheet-thumb">${e.emoji}</div><div class="evid-sheet-name">${e.name}</div><button class="evid-sheet-del" onclick="delEvid(${i})">×</button></div>`).join('')
+    : `<p style="font-size:13px;color:var(--sa-muted);text-align:center;padding:20px 0">Nenhuma evidência registrada para este campo</p>`;
+}
+function addEvid() {
+  if (!evidKey) return;
+  if (!evidences[evidKey]) evidences[evidKey]=[];
+  const samples = [
+    {name:'IMG_1234.jpg', emoji:'🖼️'},
+    {name:'foto_capacete.jpg', emoji:'🖼️'},
+    {name:'evidencia.pdf', emoji:'📄'},
+    {name:'video_01.mp4', emoji:'🎥'},
+  ];
+  evidences[evidKey].push(samples[evidences[evidKey].length % samples.length]);
+  renderEvidList();
+}
+function delEvid(i) {
+  if (evidKey && evidences[evidKey]) { evidences[evidKey].splice(i,1); renderEvidList(); }
+}
+
+// ── NAVIGATION ──
+function advance(dir) {
+  if (idx < FIELDS.length-1) { idx++; renderCard(dir||'right'); }
+  else { renderDone(); }
+}
+function doPrev() { if (idx>0) { idx--; renderCard('left'); } }
+function doNext() { idx < FIELDS.length-1 ? advance('right') : renderDone(); }
+function doSkip() { advance('right'); }
+function jumpSec(s) { const fi=FIELDS.findIndex(f=>f.sec===s); if(fi!==-1){idx=fi;renderCard();} }
+
+// ── SWIPE (controls conformity only) ──
+function ts(e) { if(swLocked)return; swStartX=e.touches[0].clientX; swDrag=true; swDx=0; document.getElementById('mainCard').style.transition='none'; }
+function tm(e) { if(!swDrag)return; swDx=e.touches[0].clientX-swStartX; applySwipe(swDx); }
+function te() {
+  if(!swDrag)return; swDrag=false;
+  const card = document.getElementById('mainCard');
+  card.style.transition='transform .22s ease,opacity .22s ease,background .22s ease';
+  if (swDx>100)       { animOut('right',()=>setConf(FIELDS[idx].key,'conforme')); }
+  else if (swDx<-100) { animOut('left', ()=>{ openJust(FIELDS[idx].key); resetSwipe(); }); }
+  else                 { resetSwipe(); }
+  swDx=0;
+}
+function ms(e) { if(swLocked)return; mouseDown=true; swStartX=e.clientX; swDx=0; document.getElementById('mainCard').style.transition='none'; document.addEventListener('mousemove',mm); document.addEventListener('mouseup',mu); }
+function mm(e) { if(!mouseDown)return; swDx=e.clientX-swStartX; applySwipe(swDx); }
+function mu()  { mouseDown=false; document.removeEventListener('mousemove',mm); document.removeEventListener('mouseup',mu); swDrag=true; te(); swDrag=false; }
+
+function applySwipe(dx) {
+  const card=document.getElementById('mainCard');
+  const rot=dx/500*14, prog=Math.min(1,Math.abs(dx)/120);
+  card.style.transform=`translateX(${dx}px) rotate(${rot}deg)`;
+  if (dx>0) {
+    card.style.background=`linear-gradient(135deg,#fff,rgba(22,163,74,${prog*.15}))`;
+    document.getElementById('indRight').style.opacity=prog; document.getElementById('indLeft').style.opacity=0;
+    document.getElementById('stampC').style.opacity=prog; document.getElementById('stampN').style.opacity=0;
+  } else {
+    card.style.background=`linear-gradient(225deg,#fff,rgba(220,38,38,${prog*.15}))`;
+    document.getElementById('indLeft').style.opacity=prog; document.getElementById('indRight').style.opacity=0;
+    document.getElementById('stampN').style.opacity=prog; document.getElementById('stampC').style.opacity=0;
+  }
+}
+function animOut(dir, cb) {
+  swLocked=true;
+  const card=document.getElementById('mainCard');
+  card.style.transition='transform .22s ease,opacity .22s ease';
+  card.style.transform=dir==='right'?'translateX(120%) rotate(14deg)':'translateX(-120%) rotate(-14deg)';
+  card.style.opacity='0';
+  setTimeout(()=>{ swLocked=false; cb(); },240);
+}
+function resetSwipe() {
+  const card=document.getElementById('mainCard');
+  card.style.transform='none'; card.style.opacity='1'; card.style.background='#fff';
+  document.getElementById('indLeft').style.opacity=document.getElementById('indRight').style.opacity=
+  document.getElementById('stampC').style.opacity=document.getElementById('stampN').style.opacity='0';
+}
+
+// ── DONE ──
+function renderDone() {
+  const score=calcScore(), C=Object.values(conformity).filter(v=>v==='conforme').length, N=Object.values(conformity).filter(v=>v==='nao_conforme').length;
+  const sc=score===null?'var(--sa-muted)':score>=80?'var(--sa-ok)':score>=60?'var(--sa-warn)':'var(--sa-danger)';
+  document.getElementById('swipeZone').innerHTML=`
+    <div class="done-state">
+      <div class="done-ring">${score!==null&&score>=80?'🏆':score!==null&&score>=60?'⚠':'✓'}</div>
+      <div class="done-score" style="color:${sc}">${score!==null?score+'%':'—'}</div>
+      <div class="done-sub">Score ponderado da inspeção</div>
+      <div class="done-grid">
+        <div class="dbd ok"><div class="dbd-n" style="color:var(--sa-ok)">${C}</div><div class="dbd-lbl">Conformes</div></div>
+        <div class="dbd err"><div class="dbd-n" style="color:var(--sa-danger)">${N}</div><div class="dbd-lbl">Não conformes</div></div>
+      </div>
+      <button class="done-btn" onclick="alert('Finalizar e gerar relatório')">Finalizar inspeção →</button>
+    </div>`;
+  document.getElementById('cardDots').innerHTML='';
+  updateScoreRing();
+}
+
+// ── INIT ──
+renderCard();
+updateProgress();
+</script>
+</body>
+</html>

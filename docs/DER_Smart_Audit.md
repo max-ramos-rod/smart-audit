@@ -65,6 +65,7 @@ Relacionamentos:
 
 - `submissions`
 - `submission_values`
+- `submission_conformities`
 - `attachments`
 
 Relacionamentos:
@@ -75,6 +76,8 @@ Relacionamentos:
 - `submissions 1:N submission_values`
 - `form_fields 1:N submission_values`
 - `submission_values 1:N attachments`
+- `submissions 1:N submission_conformities`
+- `form_fields 1:N submission_conformities`
 
 ### Equipes
 
@@ -100,8 +103,9 @@ users
       reads             |-< submissions >- users
                         |      |
                         |      |- form_versions
-                        |      `-< submission_values >- form_fields
-                        |             `-< attachments
+                        |      |-< submission_values >- form_fields
+                        |      |      `-< attachments
+                        |      `-< submission_conformities >- form_fields
                         |
                         `-< teams
                                `-< team_members >- users
@@ -124,6 +128,8 @@ erDiagram
     SUBMISSIONS ||--o{ SUBMISSION_VALUES : contains
     FORM_FIELDS ||--o{ SUBMISSION_VALUES : answers
     SUBMISSION_VALUES ||--o{ ATTACHMENTS : has
+    SUBMISSIONS ||--o{ SUBMISSION_CONFORMITIES : has
+    FORM_FIELDS ||--o{ SUBMISSION_CONFORMITIES : evaluated_by
     COMPANIES ||--o{ TEAMS : owns
     TEAMS ||--o{ TEAM_MEMBERS : has
     USERS ||--o{ TEAM_MEMBERS : belongs_to
@@ -245,6 +251,7 @@ Restricoes:
 - `required BOOLEAN`
 - `position INTEGER`
 - `config_json JSONB`
+- `instruction TEXT NULL` — texto explicativo exibido na tela de inspecao
 - `created_at TIMESTAMPTZ`
 - `updated_at TIMESTAMPTZ`
 
@@ -252,7 +259,7 @@ Restricoes:
 
 - `UNIQUE(form_version_id, key)`
 - `UNIQUE(form_version_id, position)`
-- `CHECK field_type IN ('boolean', 'text', 'number', 'select', 'date', 'photo', 'evidence', 'section')`
+- `CHECK field_type IN ('boolean', 'text', 'number', 'select', 'date', 'section')`
 
 Tipos de campo e mapeamento de armazenamento:
 
@@ -263,9 +270,9 @@ Tipos de campo e mapeamento de armazenamento:
 | `number` | `value_number` | NUMERIC(14,4) |
 | `date` | `value_date` | DATE |
 | `select` | `value_json` | `{ "option": "valor" }` |
-| `photo` | `value_text` | URL do arquivo |
-| `evidence` | `value_json` | Metadados de multiplos arquivos |
 | `section` | — | Nao gera `submission_value` |
+
+**Tipos removidos**: `photo` (migration `a1b2c3d4e5f7`) e `evidence` (migration `b3c4d5e6f7a8`). Evidencia passou a ser capacidade de qualquer campo via `attachments`.
 
 Estrutura de `config_json` por tipo:
 
@@ -337,6 +344,29 @@ Observacao sobre N/A:
 - quando um campo booleano e respondido com N/A, `value_text = 'na'` e `value_boolean = NULL`
 - isso distingue N/A (linha existe com `value_text = 'na'`) de sem resposta (linha inexistente)
 - campos do tipo `section` nunca geram linha nesta tabela
+
+### `submission_conformities`
+
+- `id UUID PK`
+- `submission_id UUID FK -> submissions.id ON DELETE CASCADE`
+- `form_field_id UUID FK -> form_fields.id ON DELETE CASCADE`
+- `status VARCHAR(20)`
+- `justification TEXT NULL`
+- `created_at TIMESTAMPTZ`
+- `updated_at TIMESTAMPTZ`
+
+Restricoes:
+
+- `UNIQUE(submission_id, form_field_id)` — uma avaliacao por campo por inspecao
+- `CHECK status IN ('conforme', 'nao_conforme')`
+- `INDEX ix_submission_conformities_submission_id`
+
+Observacoes:
+
+- registra a avaliacao de conformidade do inspetor para cada campo booleano
+- e a fonte primaria do calculo de score ponderado (substitui a leitura de `submission_values`)
+- `justification` armazena o motivo de nao conformidade (opcional)
+- N/A e representado pela ausencia de linha (sem registro em `submission_conformities`)
 
 ### `attachments`
 
@@ -437,7 +467,12 @@ O estado de leitura por usuario e persistido em `notification_reads` com chave d
 | `d4e5f6a7b8c9` | add campos de contato em companies (cnpj, timezone, contact_email, phone) |
 | `e5f6a7b8c9d0` | add password_reset_tokens |
 | `a1b2c3d4e5f6` | add notification_reads |
-| `b2c3d4e5f6a7` | add 'section' ao CHECK de field_type em form_fields |
+| `b2c3d4e5f6a7` | add field_type 'evidence' ao CHECK de form_fields |
+| `c3d4e5f6a7b8` | add field_type 'section' ao CHECK de form_fields |
+| `a1b2c3d4e5f7` | remove field_type 'photo' — strip de dados e atualizacao do CHECK |
+| `b3c4d5e6f7a8` | remove field_type 'evidence' — evidencia vira capacidade de qualquer campo via attachments |
+| `c5d6e7f8a9b0` | add submission_conformities |
+| `d6e7f8a9b0c1` | add instruction TEXT NULL em form_fields |
 
 ## Evolucao futura prevista
 

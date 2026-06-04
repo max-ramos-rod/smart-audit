@@ -185,7 +185,7 @@ Evidence is **not** a field type — it is a capability attached to any field du
 
 **Serialize shape** (`AttachmentResponse`): `id`, `submission_id`, `field_key` (resolved from `submission_value.form_field.key`), `file_url`, `thumbnail_url`, `mime_type`, `file_size`, `created_at`.
 
-**Allowed MIME types for uploads:** `image/jpeg`, `image/png`, `image/webp` (enforced in uploads router). Max 10 MB.
+**Allowed MIME types for uploads:** `image/jpeg`, `image/png`, `image/webp`, `video/mp4`, `video/quicktime`, `video/x-msvideo`, `audio/mpeg`, `audio/wav`, `audio/ogg`, `audio/mp4`, `application/pdf` (enforced in uploads router). Size limits: images 10 MB, PDF 20 MB, audio 50 MB, video 200 MB.
 
 ### Teams module
 
@@ -193,7 +193,7 @@ Evidence is **not** a field type — it is a capability attached to any field du
 
 ### Uploads
 
-Uploads are handled directly in [backend/app/api/v1/routers/uploads.py](backend/app/api/v1/routers/uploads.py) — no separate module. Files are written to `settings.upload_dir/<company_id>/<uuid>.<ext>` and served via FastAPI `StaticFiles` mounted at `/uploads`. The returned URL uses `settings.upload_base_url` as prefix. Allowed MIME types: `image/jpeg`, `image/png`, `image/webp`. Max size: 10 MB.
+Uploads are handled directly in [backend/app/api/v1/routers/uploads.py](backend/app/api/v1/routers/uploads.py) — no separate module. Files are written to `settings.upload_dir/<company_id>/<uuid>.<ext>` and served via FastAPI `StaticFiles` mounted at `/uploads`. The returned URL uses `settings.upload_base_url` as prefix. Allowed MIME types: images (JPEG/PNG/WebP), video (MP4/MOV/AVI), audio (MP3/WAV/OGG/M4A), PDF. Size limits: images 10 MB, PDF 20 MB, audio 50 MB, video 200 MB.
 
 ### Frontend
 
@@ -203,6 +203,35 @@ SPA structured by domain (`stores/<domain>`, `services/<domain>.service.ts`, `vi
 - HTTP client is centralized in [frontend/src/services/api/http.ts](frontend/src/services/api/http.ts); never call `axios` directly from views/stores.
 - Token + active company id are persisted in `localStorage` under `smart-audit.token` / `smart-audit.company-id` via [frontend/src/services/api/storage.ts](frontend/src/services/api/storage.ts).
 - Frontend tests live in `frontend/src/__tests__/` and run with Vitest (`npm test`). Use `setActivePinia(createPinia())` + `localStorage.clear()` in `beforeEach`. Mock service modules with `vi.mock`.
+
+#### Score utility (`frontend/src/utils/score.ts`)
+
+Central module for score display logic. Import from here — never inline score threshold comparisons in views.
+
+```typescript
+SCORE_THRESHOLD_OK   = 85  // green / "Aprovado"
+SCORE_THRESHOLD_WARN = 65  // yellow / "Atenção"
+                           // below 65 → red / "Reprovado"
+
+scoreClass(score)     // → 'ok' | 'warn' | 'err'   (CSS modifier)
+scoreColorVar(score)  // → 'var(--sa-ok)' | 'var(--sa-warn)' | 'var(--sa-danger)'
+scoreChipClass(score) // → '' | 'status-chip--warn' | 'status-chip--inactive'
+scoreText(score)      // → 'Aprovado' | 'Atenção' | 'Reprovado'
+```
+
+#### `FieldType` (`frontend/src/types/forms.ts`)
+
+```typescript
+export type FieldType = 'boolean' | 'text' | 'number' | 'date' | 'select' | 'section'
+```
+
+`FormField.field_type` and `FormFieldCreatePayload.field_type` are typed as `FieldType`. When writing test mocks with string literals, use `as const` to satisfy the union: `field_type: 'boolean' as const`.
+
+#### Shared components
+
+**`frontend/src/components/forms/FormFieldEditor.vue`** — reusable field editor used in the version composer (FormDetailView). Accepts a `FormFieldCreatePayload` via `v-model`, `index`, `otherFields` (other answerable fields, for `visible_if` config), and `showRemove`. Emits `remove`.
+
+**`frontend/src/components/submissions/InspectionFieldRow.vue`** — renders a single field row inside the inspection list and normal list modes of `SubmissionDetailView`. Props: `field`, `answer`, `conformityStatus`, `conformityJustification`, `isCompleted`, `isPendingRequired`, `evidenceAttachments`, `evidenceUploading`, `evidenceError`, `compact?`. The `compact` prop controls visual density: `true` → inspection list (inline evidence chips, no justification text); `false` (default) → normal list (full card evidence with file sizes, justification on completion). Card view (swipe mode) is rendered inline in `SubmissionDetailView` and does not use this component.
 
 #### Submission inspection UI (`SubmissionDetailView`)
 

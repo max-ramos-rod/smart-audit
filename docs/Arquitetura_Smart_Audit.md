@@ -40,7 +40,7 @@ O Smart Audit ja nao esta mais em fase apenas de fundacao. O estado atual do cod
 - formularios versionados com suporte a secoes, evidencias e configuracao avancada por campo
 - campos de formulario configurados via `config_json`: peso, allow_na, opcoes de select, visible_if
 - regras condicionais `visible_if`: campos visiveis/obrigatorios apenas quando condicao e satisfeita
-- tipos de campo: `boolean`, `text`, `number`, `select`, `date`, `photo`, `evidence`, `section`
+- tipos de campo: `boolean`, `text`, `number`, `select`, `date`, `section`
 - detalhe de formulario e historico de versoes
 - inspecoes com respostas tipadas e score ponderado por peso de campo
 - suporte a resposta N/A em campos booleanos com `allow_na: true`
@@ -104,6 +104,7 @@ Capacidades ativas:
 - publicacao de nova versao (imutavel pos-publicacao)
 - leitura de versao especifica
 - historico de versoes
+- importacao via CSV ou Excel (`POST /api/v1/forms/import`) — cria formulario com todos os campos a partir de arquivo
 
 Configuracao de campo via `config_json`:
 
@@ -113,6 +114,12 @@ Configuracao de campo via `config_json`:
 | `allow_na` | `bool` | `boolean` | Habilita resposta N/A |
 | `options` | `string[]` | `select` | Opcoes do dropdown |
 | `visible_if` | `object` | qualquer | Regra de visibilidade condicional |
+
+Campo `instruction` em `form_fields`:
+
+- coluna `instruction TEXT NULL` — texto livre explicando como executar a tarefa do campo
+- editavel no formulario builder e preenchivel via importacao (coluna `instrucao` no arquivo)
+- exibido na tela de inspecao abaixo do label do campo (card view e list view)
 
 Estrutura de `visible_if`:
 
@@ -136,9 +143,9 @@ Tipos de campo suportados:
 | `number` | `value_number` | Float |
 | `date` | `value_date` | ISO 8601 |
 | `select` | `value_json` | `{ "option": "valor" }` |
-| `photo` | `value_text` | URL do arquivo |
-| `evidence` | `value_json` | Metadados de multiplos arquivos |
 | `section` | — | Divisor visual; nao gera `submission_value` |
+
+**Tipos removidos**: `photo` (migration `a1b2c3d4e5f7`) e `evidence` (migration `b3c4d5e6f7a8`). Evidencia e agora uma capacidade de qualquer campo via modulo `attachments`.
 
 ### Inspecoes
 
@@ -148,6 +155,7 @@ Entidades principais:
 
 - `submissions`
 - `submission_values`
+- `submission_conformities`
 
 Capacidades ativas:
 
@@ -156,8 +164,9 @@ Capacidades ativas:
 - detalhe
 - salvamento de respostas tipadas (todos os tipos de campo)
 - resposta N/A em booleanos com `allow_na: true` (armazenada como `value_text = "na"`)
+- avaliacao de conformidade por campo: `PUT /submissions/{id}/conformity` registra `conforme` ou `nao_conforme` em `submission_conformities`
 - finalizacao com validacao de campos obrigatorios visiveis (visible_if avaliado contra `answers_json`)
-- calculo de score ponderado por peso de campo (campos N/A e sem resposta sao excluidos)
+- calculo de score ponderado baseado em `submission_conformities` (campos N/A e sem conformidade sao excluidos)
 - score_breakdown: `conformes`, `nao_conformes`, `sem_resposta`, `na_count`, `total_boolean`
 - exportacao PDF individual com score profissional
 - exportacao CSV da lista (com filtro de status)
@@ -165,10 +174,10 @@ Capacidades ativas:
 Calculo de score:
 
 ```
-score = sum(weight_i for boolean_i == true) / sum(weight_i for boolean_i answered and not na) * 100
+score = sum(weight_i para conformes) / sum(weight_i para avaliados e nao N/A) * 100
 ```
 
-Campos sem resposta e N/A nao entram no denominador.
+A fonte do score e `submission_conformities`, nao `submission_values`. Campos sem avaliacao de conformidade e N/A nao entram no denominador.
 
 ### Evidencias
 
@@ -236,7 +245,7 @@ Capacidades ativas:
 
 - `GET /api/v1/submissions/{id}/export` — download do PDF
 - `GET /api/v1/submissions/{id}/export?inline=true` — abertura inline no browser
-- conteudo do PDF: bloco de score colorido (verde/amarelo/vermelho), chips de breakdown, tabela de respostas, divisores de secao, rodape com contagem de campos
+- conteudo do PDF: bloco de score colorido (verde/amarelo/vermelho), chips de breakdown, tabela de respostas com resultado de conformidade, divisores de secao, rodape com contagem de campos
 
 Restricoes:
 
@@ -344,10 +353,13 @@ Referencias:
 
 ### Modo de inspecao
 
-A view `SubmissionDetailView.vue` opera em dois modos:
+A view `SubmissionDetailView.vue` opera em tres modos mutuamente exclusivos:
 
-- **Modo lista**: exibe todos os campos em scroll, com carga progressiva (`load more`, lote de 50)
-- **Modo inspecao**: exibe um campo por vez (card), com navegacao Anterior/Proximo
+- **Modo lista normal** (padrao, tambem para inspecoes concluidas): todos os campos em scroll; concluidas sao somente leitura
+- **Modo inspecao — card** (`inspectionMode = true`, `viewMode = 'card'`): um campo por vez com gestos de swipe (esquerda = Nao conforme, direita = Conforme); disponivel apenas para inspecoes em andamento
+- **Modo inspecao — lista** (`inspectionMode = true`, `viewMode = 'list'`): lista compacta dentro do fluxo de inspecao
+
+Os dois modos lista usam o componente `InspectionFieldRow.vue` (prop `compact` distingue inspecao de leitura normal). O modo card permanece inline na view.
 
 Computeds relevantes:
 
@@ -355,6 +367,7 @@ Computeds relevantes:
 - `answerableFields`: campos visiveis e respondiveis (exclui secoes)
 - `progressPct`: percentual respondido dos campos respondiveis
 - `formSections`: lista de secoes para atalhos rapidos de navegacao
+- `liveScore`: score calculado em tempo real durante a inspecao (baseado em respostas boolean confirmadas)
 
 ## 6. Design system e front-end visual
 
@@ -397,8 +410,8 @@ Rotas agregadas hoje:
 - `companies`
 - `me` (context, companies, stats com score_by_form/score_trend, notifications)
 - `users`
-- `forms`
-- `submissions` (CRUD, answers, finish, export CSV, export PDF com `?inline`)
+- `forms` (CRUD, versoes, importacao via CSV/Excel)
+- `submissions` (CRUD, answers, conformity, finish, export CSV, export PDF com `?inline`)
 - `search`
 - `teams`
 - `attachments`
@@ -415,7 +428,7 @@ Rotas de interface existentes hoje:
 - `/` — dashboard com metricas, barras de score por formulario, sparkline de tendencia
 - `/users`
 - `/forms`
-- `/forms/:formId` — editor com secoes, peso, allow_na, visible_if
+- `/forms/:formId` — editor com secoes, peso, allow_na, visible_if, instrucao por campo
 - `/forms/:formId/versions`
 - `/submissions`
 - `/submissions/:id` — execucao com modo inspecao e modo lista, progresso, atalhos de secao
@@ -490,9 +503,10 @@ Observacao: mensagens de erro do backend nao usam acentos para evitar problemas 
 
 ### Backend
 
-Estado validado em `2026-05-31`:
+Estado validado em `2026-06-03`:
 
-- `191 passed, 3 skipped`
+- `214 passed, 3 skipped` (backend)
+- `27 passed` (unit — test_form_importer.py adicionado)
 
 Cobertura atual:
 
@@ -512,7 +526,8 @@ Cobertura atual:
 | `test_uploads.py` | integracao | upload, validacao de tipo e tamanho |
 | `test_attachments.py` | integracao | evidencias |
 | `test_form_service.py` | unidade | validate_fields (todos os tipos) |
-| `test_submission_service.py` | unidade | normalize_value, calculate_score (ponderado), score_breakdown (N/A), extract_value, parse_period_start, PDF |
+| `test_submission_service.py` | unidade | normalize_value, calculate_score (ponderado via conformities), score_breakdown (N/A), extract_value, parse_period_start, PDF |
+| `test_form_importer.py` | unidade | parse_csv, parse_excel, parse_import_file (27 casos) |
 
 Casos cobertos em `test_submissions_advanced.py`:
 
@@ -520,7 +535,7 @@ Casos cobertos em `test_submissions_advanced.py`:
 - stats: `score_by_form` e `score_trend` presentes, filtro por periodo
 - N/A boolean: aceitacao, score_breakdown.na_count, exclusao do denominador do score
 - visible_if: campo oculto nao bloqueia finalizacao; campo visivel obrigatorio bloqueia
-- score ponderado: peso 3:1 gera score 75%, pesos iguais geram 50%
+- score ponderado via conformities: peso 3:1 gera score 75%, pesos iguais geram 50%
 - isolamento multiempresa: inspector em empresa diferente ve stats zeradas
 
 ### Frontend — Vitest (unitario e de servico)
@@ -585,15 +600,17 @@ Campos do tipo `section` sao divisores visuais. Eles nao geram `submission_value
 
 O valor N/A e armazenado como `value_text = "na"` com `value_boolean = NULL`. Isso distingue N/A de "sem resposta" (linha inexistente em `submission_values`). N/A nao entra no denominador do score ponderado — so e contado em `na_count` no breakdown.
 
-### Score ponderado
+### Score ponderado via conformities
 
-O score nao e uma media simples. Cada campo booleano tem `config_json.weight` (default 1.0). O score e:
+O score nao e uma media simples. Cada campo booleano tem `config_json.weight` (default 1.0). O score e calculado a partir de `submission_conformities`:
 
 ```
-score = weighted_conformes / weighted_total * 100
+score = sum(weight_i para status='conforme') / sum(weight_i para avaliados) * 100
 ```
 
-onde `weighted_total` inclui apenas campos com resposta `true` ou `false` (exclui N/A e sem resposta).
+onde `avaliados` inclui apenas campos com registro em `submission_conformities` cujo status seja `conforme` ou `nao_conforme`. Campos sem avaliacao e N/A nao entram no denominador.
+
+A separacao entre resposta (booleana, em `submission_values`) e avaliacao de conformidade (em `submission_conformities`) permite que o inspetor responda campos e decida a conformidade em etapas distintas durante a inspecao.
 
 ### Regras condicionais visible_if
 
@@ -641,7 +658,11 @@ Implementada com token de uso unico (TTL 1h) em `password_reset_tokens`. Entrega
 - shell autenticado consistente em todas as telas
 - usuarios
 - formularios com versionamento, secoes, tipos completos e config_json
+- campo `instruction` por campo de formulario (builder UI + importacao)
+- importacao de formulario via CSV ou Excel (`POST /api/v1/forms/import`)
 - inspecoes com score ponderado, N/A, visible_if, modo inspecao, carga progressiva
+- avaliacao de conformidade por campo (`submission_conformities`) — base do score e da barra de progresso
+- comportamento de avanco automatico apenas no botao "Conforme" (card view)
 - finalizacao com validacao de campos visiveis
 - relatorio e exportacao PDF profissional (score colorido, breakdown, secoes)
 - evidencias e uploads (imagem, video, audio, PDF)
@@ -652,7 +673,7 @@ Implementada com token de uso unico (TTL 1h) em `password_reset_tokens`. Entrega
 - configuracoes da empresa (GET + PATCH com guard de role)
 - perfil (nome, senha, empresas vinculadas)
 - notificacoes derivadas (sem persistencia)
-- testes automatizados: backend 191 passed (integracao + unidade), frontend 119 passed (Vitest)
+- testes automatizados: backend 214 passed (integracao + unidade), frontend 119 passed (Vitest)
 
 ### Parcial ou com limitacao conhecida
 
