@@ -4,6 +4,8 @@ import { computed, onMounted, ref } from 'vue'
 import AppShell from '@/components/layout/AppShell.vue'
 import SvgIcon from '@/components/ui/SvgIcon.vue'
 import {
+  dismissAllNotifications,
+  dismissNotification,
   fetchNotifications,
   markAllNotificationsRead,
   markNotificationRead,
@@ -25,19 +27,15 @@ onMounted(async () => {
 })
 
 const filter = ref<'all' | 'unread'>('all')
-const dismissIds = ref<Set<string>>(new Set())
 
-function isDismissed(n: NotificationItem) { return dismissIds.value.has(n.id) }
-function isRead(n: NotificationItem)      { return n.read }
+function isRead(n: NotificationItem) { return n.read }
 
 const visible = computed(() =>
-  notifications.value
-    .filter(n => !isDismissed(n))
-    .filter(n => filter.value === 'unread' ? !isRead(n) : true),
+  notifications.value.filter(n => filter.value === 'unread' ? !isRead(n) : true),
 )
 
 const unreadCount = computed(() =>
-  notifications.value.filter(n => !isDismissed(n) && !isRead(n)).length,
+  notifications.value.filter(n => !isRead(n)).length,
 )
 
 async function markRead(n: NotificationItem) {
@@ -49,18 +47,32 @@ async function markRead(n: NotificationItem) {
   }
 }
 
-function dismiss(id: string) {
-  dismissIds.value = new Set([...dismissIds.value, id])
+async function dismiss(id: string) {
+  // Optimistic: remove from local list immediately
+  notifications.value = notifications.value.filter(n => n.id !== id)
+  try {
+    await dismissNotification(id)
+  } catch {
+    // silently ignore — dismissal is best-effort
+  }
 }
 
 async function markAllRead() {
-  const unreadKeys = notifications.value
-    .filter(n => !isDismissed(n) && !isRead(n))
-    .map(n => n.id)
+  const unreadKeys = notifications.value.filter(n => !isRead(n)).map(n => n.id)
   if (!unreadKeys.length) return
   try {
     await markAllNotificationsRead(unreadKeys)
     notifications.value.forEach(n => { n.read = true })
+  } catch {
+    // silently ignore
+  }
+}
+
+async function dismissAll() {
+  const keys = notifications.value.map(n => n.id)
+  notifications.value = []
+  try {
+    await dismissAllNotifications(keys)
   } catch {
     // silently ignore
   }
@@ -95,14 +107,24 @@ const typeSymbol: Record<NotifType, string> = {
           <h1 class="page-h1">Notificações</h1>
           <p class="page-desc">{{ unreadCount > 0 ? `${unreadCount} não lidas` : 'Tudo em dia' }}</p>
         </div>
-        <button
-          v-if="unreadCount > 0"
-          type="button"
-          class="btn-secondary btn-sm"
-          @click="markAllRead"
-        >
-          Marcar todas como lidas
-        </button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button
+            v-if="unreadCount > 0"
+            type="button"
+            class="btn-secondary btn-sm"
+            @click="markAllRead"
+          >
+            Marcar todas como lidas
+          </button>
+          <button
+            v-if="notifications.length > 0"
+            type="button"
+            class="btn-secondary btn-sm"
+            @click="dismissAll"
+          >
+            Dispensar todas
+          </button>
+        </div>
       </div>
 
       <p v-if="loadError" style="font-size:13px;font-weight:600;color:var(--sa-danger);margin-bottom:12px;">

@@ -8,7 +8,7 @@ from app.modules.auth.dependencies import get_current_user
 from app.modules.memberships.dependencies import get_current_membership
 from app.modules.memberships.schemas import MeUpdateRequest
 from app.modules.memberships.service import MembershipService
-from app.modules.notifications.schemas import MarkAllReadRequest, MarkReadRequest
+from app.modules.notifications.schemas import DismissAllRequest, DismissRequest, MarkAllReadRequest, MarkReadRequest
 from app.modules.notifications.service import NotificationService
 from app.modules.submissions.service import SubmissionService
 
@@ -101,3 +101,25 @@ async def mark_all_notifications_read(
 ) -> dict[str, object]:
     marked = await notification_service.mark_many_read(db, str(current_user.id), payload.keys)
     return success_response({"marked": marked})
+
+
+@router.post("/notifications/dismiss")
+async def dismiss_notification(
+    payload: DismissRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    notification_service: NotificationService = Depends(get_notification_service),
+) -> dict[str, object]:
+    await notification_service.dismiss(db, str(current_user.id), payload.key)
+    return success_response({"key": payload.key, "dismissed": True})
+
+
+@router.post("/notifications/dismiss-all")
+async def dismiss_all_notifications(
+    payload: DismissAllRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    notification_service: NotificationService = Depends(get_notification_service),
+) -> dict[str, object]:
+    dismissed = await notification_service.dismiss_many(db, str(current_user.id), payload.keys)
+    return success_response({"dismissed": dismissed})

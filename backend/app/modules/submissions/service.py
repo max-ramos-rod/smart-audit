@@ -66,7 +66,11 @@ class SubmissionService:
         return b"\xef\xbb\xbf" + buf.getvalue().encode("utf-8")
 
     async def get_notifications(
-        self, db: AsyncSession, membership: Membership, read_keys: set[str] | None = None
+        self,
+        db: AsyncSession,
+        membership: Membership,
+        read_keys: set[str] | None = None,
+        dismissed_keys: set[str] | None = None,
     ) -> list[NotificationItem]:
         now = datetime.now(UTC)
         pending_threshold = now - timedelta(hours=24)
@@ -77,6 +81,7 @@ class SubmissionService:
         )
 
         read_set = read_keys or set()
+        dismissed_set = dismissed_keys or set()
         items: list[NotificationItem] = []
         for s in submissions:
             form_name = (
@@ -129,7 +134,7 @@ class SubmissionService:
                         )
                     )
 
-        return items[:20]
+        return [item for item in items if item.id not in dismissed_set][:20]
 
     async def get_company_stats(
         self, db: AsyncSession, membership: Membership, period: str | None = None
