@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch, useTemplateRef } from 'vue'
 import { useRouter } from 'vue-router'
 
 import AppShell from '@/components/layout/AppShell.vue'
 import SvgIcon from '@/components/ui/SvgIcon.vue'
 import { extractProblemMessage } from '@/services/api/problem'
-import { fetchForm } from '@/services/forms.service'
+import { fetchForm, importForm } from '@/services/forms.service'
 import { useFormsStore } from '@/stores/forms/forms.store'
 import type { FormFieldCreatePayload } from '@/types/forms'
 
@@ -370,6 +370,28 @@ async function submitVersion() {
 const FIELD_TYPE_SHORT: Record<string, string> = {
   boolean: 'S/N', text: 'TXT', number: 'NUM', date: 'DAT', select: 'SEL',
 }
+
+// ── Import CSV / Excel ──
+const importFileInput = useTemplateRef<HTMLInputElement>('importFileInput')
+const importLoading = ref(false)
+const importError = ref<string | null>(null)
+
+async function handleImportFile(event: Event) {
+  const file = (event.target as HTMLInputElement).files?.[0]
+  if (!file) return
+  importError.value = null
+  importLoading.value = true
+  try {
+    const created = await importForm(file)
+    await formsStore.load(1)
+    router.push({ name: 'form-detail', params: { formId: created.id } })
+  } catch (err: any) {
+    importError.value = extractProblemMessage(err, 'Não foi possível importar o formulário.')
+  } finally {
+    importLoading.value = false
+    if (importFileInput.value) importFileInput.value.value = ''
+  }
+}
 </script>
 
 <template>
@@ -383,10 +405,28 @@ const FIELD_TYPE_SHORT: Record<string, string> = {
           <h2 class="page-h1">Formulários versionados</h2>
           <p class="page-desc">Checklists e auditorias da empresa ativa.</p>
         </div>
-        <button type="button" class="btn-primary btn-sm" @click="openCreateComposer">
-          + Novo formulário
-        </button>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <button
+            type="button"
+            class="btn-secondary btn-sm"
+            :disabled="importLoading"
+            @click="importFileInput?.click()"
+          >
+            {{ importLoading ? 'Importando…' : '↑ Importar CSV/Excel' }}
+          </button>
+          <button type="button" class="btn-primary btn-sm" @click="openCreateComposer">
+            + Novo formulário
+          </button>
+        </div>
+        <input
+          ref="importFileInput"
+          type="file"
+          accept=".csv,.xlsx"
+          style="display:none;"
+          @change="handleImportFile"
+        />
       </div>
+      <p v-if="importError" style="font-size:13px;font-weight:600;color:var(--sa-danger);margin-bottom:12px;">{{ importError }}</p>
 
       <!-- Stats -->
       <div class="stats-grid" style="margin-bottom:20px;">
