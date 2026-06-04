@@ -445,6 +445,11 @@ onMounted(async () => {
     formVersion.value = await fetchFormVersion(submission.value.form_id, submission.value.form_version_id)
     populateDraft()
     await loadEvidenceAttachments()
+    // Inspeções em andamento entram direto no modo lista
+    if (submission.value.status === 'in_progress') {
+      inspectionMode.value = true
+      viewMode.value = 'list'
+    }
   }
 })
 
@@ -791,20 +796,10 @@ const currentFieldEvidenceCount = computed(() =>
               {{ progressStats.evaluated }}/{{ progressStats.total }} avaliados
             </div>
             <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
-              <!-- Score ring (A9) -->
-              <div v-if="inspectionMode" class="score-ring" :style="scoreRingStyle">
-                <div class="score-ring-inner">
-                  {{ liveScore !== null ? liveScore + '%' : '—' }}
-                </div>
+              <!-- Score ring (completed inspection only) -->
+              <div v-if="isCompleted && liveScore !== null" class="score-ring" :style="scoreRingStyle">
+                <div class="score-ring-inner">{{ liveScore }}%</div>
               </div>
-              <button
-                v-if="!isCompleted"
-                type="button"
-                class="btn-secondary btn-sm"
-                @click="inspectionMode ? (inspectionMode = false) : enterInspectionMode()"
-              >
-                {{ inspectionMode ? 'Ver lista' : 'Modo inspeção' }}
-              </button>
             </div>
           </div>
 
@@ -1053,12 +1048,16 @@ const currentFieldEvidenceCount = computed(() =>
       >
         <!-- ── 1. HEADER ── -->
         <div class="insp-fhdr">
-          <button type="button" class="insp-fback" @click="inspectionMode = false">
+          <button type="button" class="insp-fback" @click="viewMode = 'list'">
             <SvgIcon name="back" :size="16" />
           </button>
           <div class="insp-fhdr-info">
             <div class="insp-fhdr-name">{{ submission.form_name }}</div>
             <div class="insp-fhdr-sub">Em andamento</div>
+          </div>
+          <div class="insp-fhdr-vt">
+            <button class="insp-fhdr-vt-btn" @click="viewMode = 'list'">Lista</button>
+            <button class="insp-fhdr-vt-btn insp-fhdr-vt-btn--active">Cartão</button>
           </div>
           <div class="score-ring" :style="scoreRingStyle">
             <div class="score-ring-inner">{{ liveScore !== null ? liveScore + '%' : '—' }}</div>
@@ -1112,8 +1111,8 @@ const currentFieldEvidenceCount = computed(() =>
               {{ liveScore }}%
             </div>
             <div class="done-sub">Todos os campos respondidos</div>
-            <button type="button" class="done-btn" @click="inspectionMode = false">
-              Ver resumo completo
+            <button type="button" class="done-btn" @click="viewMode = 'list'">
+              Ver lista completa
             </button>
           </div>
 
@@ -1751,6 +1750,31 @@ const currentFieldEvidenceCount = computed(() =>
   flex-shrink: 0;
 }
 .insp-fhdr-info { flex: 1; min-width: 0; }
+.insp-fhdr-vt {
+  display: flex;
+  background: var(--sa-bg);
+  border-radius: 8px;
+  padding: 3px;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.insp-fhdr-vt-btn {
+  padding: 4px 10px;
+  border-radius: 5px;
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--sa-muted);
+  cursor: pointer;
+}
+.insp-fhdr-vt-btn--active {
+  background: #fff;
+  color: var(--sa-brand);
+  box-shadow: 0 1px 3px rgba(0,0,0,.1);
+  pointer-events: none;
+}
 .insp-fhdr-name {
   font-size: 13px;
   font-weight: 700;
