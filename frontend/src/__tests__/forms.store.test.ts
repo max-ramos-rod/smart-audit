@@ -42,6 +42,7 @@ const mockFormDetail: FormDetail = {
         required: true,
         position: 1,
         config_json: {},
+        instruction: null,
       },
     ],
   },
@@ -110,7 +111,7 @@ describe('forms.store', () => {
       const payload = {
         name: 'Checklist Segurança',
         fields: [
-          { key: 'extintor_ok', label: 'Extintor OK?', field_type: 'boolean', required: true, position: 1, config_json: {} },
+          { key: 'extintor_ok', label: 'Extintor OK?', field_type: 'boolean' as const, required: true, position: 1, config_json: {} },
         ],
       }
       const result = await store.create(payload)
@@ -143,7 +144,7 @@ describe('forms.store', () => {
       vi.mocked(fetchForms).mockResolvedValue(mockPaginatedResponse)
       const store = useFormsStore()
 
-      const payload = { fields: [{ key: 'item_novo', label: 'Item novo', field_type: 'text', required: false, position: 1, config_json: {} }] }
+      const payload = { fields: [{ key: 'item_novo', label: 'Item novo', field_type: 'text' as const, required: false, position: 1, config_json: {} }] }
       const result = await store.publishVersion('f1', payload)
 
       expect(publishNewVersion).toHaveBeenCalledWith('f1', payload)

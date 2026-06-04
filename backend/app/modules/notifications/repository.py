@@ -24,7 +24,6 @@ class NotificationReadRepository(SQLAlchemyRepository[NotificationRead]):
             .on_conflict_do_nothing(constraint="uq_notification_reads_user_key")
         )
         await db.execute(stmt)
-        await db.flush()
 
     async def mark_many_read(self, db: AsyncSession, user_id: str, keys: list[str]) -> None:
         if not keys:
@@ -35,4 +34,3 @@ class NotificationReadRepository(SQLAlchemyRepository[NotificationRead]):
             .on_conflict_do_nothing(constraint="uq_notification_reads_user_key")
         )
         await db.execute(stmt)
-        await db.flush()

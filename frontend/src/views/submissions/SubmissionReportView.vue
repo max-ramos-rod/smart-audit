@@ -11,6 +11,7 @@ import { useSubmissionsStore } from '@/stores/submissions/submissions.store'
 import type { AttachmentItem } from '@/types/attachments'
 import type { FormField, FormVersion } from '@/types/forms'
 import type { SubmissionAnswer } from '@/types/submissions'
+import { scoreChipClass, scoreColorVar, scoreText } from '@/utils/score'
 
 const route = useRoute()
 const router = useRouter()
@@ -82,15 +83,15 @@ const semResposta  = computed(() => boolAnswers.value.filter(a => a.value === nu
 const score = computed(() => submission.value?.score ?? null)
 const scoreColor = computed(() => {
   if (score.value === null) return 'var(--sa-muted)'
-  return score.value >= 85 ? 'var(--sa-ok)' : score.value >= 65 ? 'var(--sa-warn)' : 'var(--sa-danger)'
+  return scoreColorVar(score.value)
 })
 const scoreBadgeClass = computed(() => {
   if (score.value === null) return 'status-chip--neu'
-  return score.value >= 85 ? '' : score.value >= 65 ? 'status-chip--warn' : 'status-chip--inactive'
+  return scoreChipClass(score.value)
 })
 const scoreLabel = computed(() => {
   if (score.value === null) return '—'
-  return score.value >= 85 ? 'Aprovado' : score.value >= 65 ? 'Atenção' : 'Reprovado'
+  return scoreText(score.value)
 })
 
 function boolResult(val: unknown): 'ok' | 'err' | 'na' | 'none' {

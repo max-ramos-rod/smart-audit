@@ -1,4 +1,4 @@
-﻿from sqlalchemy import CheckConstraint, ForeignKey, Index, Integer, String, UniqueConstraint
+﻿from sqlalchemy import CheckConstraint, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -25,6 +25,7 @@ class FormField(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     required: Mapped[bool] = mapped_column(nullable=False, default=False, server_default="false")
     position: Mapped[int] = mapped_column(Integer, nullable=False)
     config_json: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default="{}")
+    instruction: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     form_version = relationship("FormVersion", back_populates="fields")
     submission_values = relationship("SubmissionValue", back_populates="form_field")

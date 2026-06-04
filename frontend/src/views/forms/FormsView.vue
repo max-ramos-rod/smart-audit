@@ -3,9 +3,10 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import AppShell from '@/components/layout/AppShell.vue'
+import FormFieldEditor from '@/components/forms/FormFieldEditor.vue'
 import SvgIcon from '@/components/ui/SvgIcon.vue'
 import { extractProblemMessage } from '@/services/api/problem'
-import { fetchForm } from '@/services/forms.service'
+import { fetchForm, importForm } from '@/services/forms.service'
 import { useFormsStore } from '@/stores/forms/forms.store'
 import type { FormFieldCreatePayload } from '@/types/forms'
 
@@ -57,25 +58,11 @@ onMounted(() => {
 })
 
 function createEmptyField(position: number): FormFieldCreatePayload {
-  return { key: '', label: '', field_type: 'boolean', required: false, position, config_json: {} }
+  return { key: '', label: '', field_type: 'boolean', required: false, position, config_json: {}, instruction: null }
 }
 
-function onFieldTypeChange(field: FormFieldCreatePayload) {
-  if (field.field_type !== 'select') field.config_json = {}
-}
-
-function getOptionsString(field: FormFieldCreatePayload): string {
-  return Array.isArray(field.config_json.options)
-    ? (field.config_json.options as string[]).join(', ')
-    : ''
-}
-
-function setOptionsFromString(field: FormFieldCreatePayload, event: Event) {
-  const opts = (event.target as HTMLInputElement).value
-    .split(',')
-    .map((o) => o.trim())
-    .filter(Boolean)
-  field.config_json = opts.length ? { options: opts } : {}
+function otherAnswerableFields(fields: FormFieldCreatePayload[], index: number): FormFieldCreatePayload[] {
+  return fields.filter((f, i) => i !== index && f.field_type !== 'section')
 }
 
 function openCreateComposer() {
@@ -107,7 +94,13 @@ async function submitCreate() {
     await formsStore.create({
       name: createState.name,
       description: createState.description || null,
-      fields: createState.fields.map((f, i) => ({ ...f, position: i + 1 })),
+      fields: createState.fields.map((f, i) => ({
+        ...f,
+        position: i + 1,
+        key: f.field_type === 'section' ? `__section_${i + 1}__` : f.key,
+        required: f.field_type === 'section' ? false : f.required,
+        instruction: f.instruction || null,
+      })),
     })
     closeCreateComposer()
   } catch (err: any) {
@@ -128,6 +121,7 @@ async function openVersionComposer(formId: string, formName: string) {
       required: f.required,
       position: f.position,
       config_json: f.config_json,
+      instruction: f.instruction ?? null,
     }))
   } catch {
     versionFields.value = [createEmptyField(1)]
@@ -159,11 +153,39 @@ async function submitVersion() {
   versionError.value = null
   try {
     await formsStore.publishVersion(versionFormId.value, {
-      fields: versionFields.value.map((f, i) => ({ ...f, position: i + 1 })),
+      fields: versionFields.value.map((f, i) => ({
+        ...f,
+        position: i + 1,
+        key: f.field_type === 'section' ? `__section_${i + 1}__` : f.key,
+        required: f.field_type === 'section' ? false : f.required,
+        instruction: f.instruction || null,
+      })),
     })
     closeVersionComposer()
   } catch (err: any) {
     versionError.value = extractProblemMessage(err, 'Não foi possível publicar a nova versão.')
+  }
+}
+
+// ── Import ────────────────────────────────────────────────────────────────────
+
+const importError   = ref<string | null>(null)
+const importLoading = ref(false)
+
+async function handleImportFile(event: Event) {
+  const file = (event.target as HTMLInputElement).files?.[0]
+  if (!file) return
+  importError.value   = null
+  importLoading.value = true
+  try {
+    await importForm(file)
+    await formsStore.load(1)
+    currentPage.value = 1
+  } catch (err: any) {
+    importError.value = extractProblemMessage(err, 'Não foi possível importar o formulário.')
+  } finally {
+    importLoading.value = false
+    ;(event.target as HTMLInputElement).value = ''
   }
 }
 </script>
@@ -179,10 +201,25 @@ async function submitVersion() {
           <h2 class="page-h1">Formulários versionados</h2>
           <p class="page-desc">Checklists e auditorias da empresa ativa.</p>
         </div>
-        <button type="button" class="btn-primary btn-sm" @click="openCreateComposer">
-          + Novo formulário
-        </button>
+        <div style="display:flex;gap:8px;align-items:center;flex-shrink:0;">
+          <label style="cursor:pointer;">
+            <span class="btn-secondary btn-sm" style="display:inline-flex;align-items:center;gap:5px;">
+              {{ importLoading ? 'Importando…' : '↑ Importar' }}
+            </span>
+            <input
+              type="file"
+              accept=".csv,.xlsx,.xls"
+              style="display:none;"
+              :disabled="importLoading"
+              @change="handleImportFile"
+            />
+          </label>
+          <button type="button" class="btn-primary btn-sm" @click="openCreateComposer">
+            + Novo formulário
+          </button>
+        </div>
       </div>
+      <p v-if="importError" style="font-size:13px;font-weight:600;color:var(--sa-danger);margin-bottom:10px;">{{ importError }}</p>
 
       <!-- Stats -->
       <div class="stats-grid" style="margin-bottom:20px;">
@@ -230,60 +267,15 @@ async function submitVersion() {
           <div class="slabel">Campos</div>
 
           <div style="display:grid;gap:10px;">
-            <div
-              v-for="(field, index) in createState.fields"
+            <FormFieldEditor
+              v-for="(_, index) in createState.fields"
               :key="`c-${index}`"
-              class="card card-p"
-            >
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-                <span style="font-size:11px;font-weight:700;color:var(--sa-muted);text-transform:uppercase;letter-spacing:.08em;">Campo {{ index + 1 }}</span>
-                <button
-                  v-if="createState.fields.length > 1"
-                  type="button"
-                  class="btn-secondary btn-sm"
-                  @click="removeCreateField(index)"
-                >
-                  Remover
-                </button>
-              </div>
-              <div style="display:grid;gap:10px;grid-template-columns:1fr 1fr;">
-                <label style="display:grid;gap:6px;">
-                  <span>Chave</span>
-                  <input v-model="field.key" type="text" required />
-                </label>
-                <label style="display:grid;gap:6px;">
-                  <span>Label</span>
-                  <input v-model="field.label" type="text" required />
-                </label>
-                <label style="display:grid;gap:6px;">
-                  <span>Tipo</span>
-                  <select v-model="field.field_type" @change="onFieldTypeChange(field)">
-                    <option value="boolean">Sim / Não</option>
-                    <option value="text">Texto</option>
-                    <option value="number">Número</option>
-                    <option value="select">Seleção</option>
-                    <option value="date">Data</option>
-
-                  </select>
-                </label>
-                <label style="display:grid;gap:6px;">
-                  <span>Obrigatório</span>
-                  <select v-model="field.required">
-                    <option :value="true">Sim</option>
-                    <option :value="false">Não</option>
-                  </select>
-                </label>
-                <label v-if="field.field_type === 'select'" style="display:grid;gap:6px;grid-column:1/-1;">
-                  <span>Opções (separadas por vírgula)</span>
-                  <input
-                    :value="getOptionsString(field)"
-                    type="text"
-                    placeholder="Ex: Conforme, Não conforme, Parcial"
-                    @input="setOptionsFromString(field, $event)"
-                  />
-                </label>
-              </div>
-            </div>
+              v-model="createState.fields[index]"
+              :index="index"
+              :other-fields="otherAnswerableFields(createState.fields, index)"
+              :show-remove="createState.fields.length > 1"
+              @remove="removeCreateField(index)"
+            />
           </div>
 
           <p v-if="createError" style="font-size:13px;font-weight:600;color:var(--sa-danger);">{{ createError }}</p>
@@ -314,60 +306,15 @@ async function submitVersion() {
           <div class="slabel">Campos</div>
 
           <div style="display:grid;gap:10px;">
-            <div
-              v-for="(field, index) in versionFields"
+            <FormFieldEditor
+              v-for="(_, index) in versionFields"
               :key="`v-${index}`"
-              class="card card-p"
-            >
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-                <span style="font-size:11px;font-weight:700;color:var(--sa-muted);text-transform:uppercase;letter-spacing:.08em;">Campo {{ index + 1 }}</span>
-                <button
-                  v-if="versionFields.length > 1"
-                  type="button"
-                  class="btn-secondary btn-sm"
-                  @click="removeVersionField(index)"
-                >
-                  Remover
-                </button>
-              </div>
-              <div style="display:grid;gap:10px;grid-template-columns:1fr 1fr;">
-                <label style="display:grid;gap:6px;">
-                  <span>Chave</span>
-                  <input v-model="field.key" type="text" required />
-                </label>
-                <label style="display:grid;gap:6px;">
-                  <span>Label</span>
-                  <input v-model="field.label" type="text" required />
-                </label>
-                <label style="display:grid;gap:6px;">
-                  <span>Tipo</span>
-                  <select v-model="field.field_type" @change="onFieldTypeChange(field)">
-                    <option value="boolean">Sim / Não</option>
-                    <option value="text">Texto</option>
-                    <option value="number">Número</option>
-                    <option value="select">Seleção</option>
-                    <option value="date">Data</option>
-
-                  </select>
-                </label>
-                <label style="display:grid;gap:6px;">
-                  <span>Obrigatório</span>
-                  <select v-model="field.required">
-                    <option :value="true">Sim</option>
-                    <option :value="false">Não</option>
-                  </select>
-                </label>
-                <label v-if="field.field_type === 'select'" style="display:grid;gap:6px;grid-column:1/-1;">
-                  <span>Opções (separadas por vírgula)</span>
-                  <input
-                    :value="getOptionsString(field)"
-                    type="text"
-                    placeholder="Ex: Conforme, Não conforme, Parcial"
-                    @input="setOptionsFromString(field, $event)"
-                  />
-                </label>
-              </div>
-            </div>
+              v-model="versionFields[index]"
+              :index="index"
+              :other-fields="otherAnswerableFields(versionFields, index)"
+              :show-remove="versionFields.length > 1"
+              @remove="removeVersionField(index)"
+            />
           </div>
 
           <p v-if="versionError" style="font-size:13px;font-weight:600;color:var(--sa-danger);">{{ versionError }}</p>

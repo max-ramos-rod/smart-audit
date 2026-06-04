@@ -1,6 +1,8 @@
+import type { FieldType } from '@/types/forms'
+
 export interface SubmissionAnswer {
   field_key: string
-  field_type: string
+  field_type: FieldType
   value: boolean | number | string | Record<string, unknown> | null
 }
 

@@ -7,6 +7,7 @@ import SvgIcon from '@/components/ui/SvgIcon.vue'
 import { fetchSearch, type SearchResult } from '@/services/search.service'
 import { useFormsStore } from '@/stores/forms/forms.store'
 import { useSubmissionsStore } from '@/stores/submissions/submissions.store'
+import { scoreClass } from '@/utils/score'
 
 const router = useRouter()
 const formsStore = useFormsStore()
@@ -228,7 +229,7 @@ function recentHoverOut(event: MouseEvent) {
                 <span
                   v-if="sub.score !== null"
                   class="score-val"
-                  :class="sub.score >= 85 ? 'ok' : sub.score >= 65 ? 'warn' : 'err'"
+                  :class="scoreClass(sub.score ?? 0)"
                   style="margin-right:6px;"
                 >
                   {{ sub.score }}%

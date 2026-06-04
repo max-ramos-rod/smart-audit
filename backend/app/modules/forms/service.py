@@ -120,6 +120,7 @@ class FormService:
                 required=item.required,
                 position=item.position,
                 config_json=item.config_json,
+                instruction=item.instruction,
             )
             for item in payload.fields
         ]
@@ -165,6 +166,7 @@ class FormService:
                 required=item.required,
                 position=item.position,
                 config_json=item.config_json,
+                instruction=item.instruction,
             )
             for item in payload.fields
         ]
@@ -239,6 +241,7 @@ class FormService:
                     required=field.required,
                     position=field.position,
                     config_json=field.config_json,
+                    instruction=field.instruction,
                 )
                 for field in ordered_fields
             ],

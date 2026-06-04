@@ -3,7 +3,9 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import AppShell from '@/components/layout/AppShell.vue'
+import InspectionFieldRow from '@/components/submissions/InspectionFieldRow.vue'
 import SvgIcon from '@/components/ui/SvgIcon.vue'
+import { scoreColorVar } from '@/utils/score'
 import { createAttachment, deleteAttachment, listAttachments } from '@/services/attachments.service'
 import { extractProblemMessage } from '@/services/api/problem'
 import { fetchFormVersion } from '@/services/forms.service'
@@ -337,12 +339,6 @@ function fieldWeight(configJson: Record<string, unknown>): number {
   return Number(configJson?.weight) || 0
 }
 
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
-
 function statusLabel(status: string) {
   const map: Record<string, string> = {
     in_progress: 'Em andamento', completed: 'Concluída',
@@ -569,7 +565,7 @@ function loadMoreFields() { listViewLimit.value += LIST_PAGE }
           <div class="eyebrow" style="margin-bottom:4px;">Score final</div>
           <div :style="{
             fontSize:'36px', fontWeight:800, fontVariantNumeric:'tabular-nums',
-            color: submission.score >= 85 ? 'var(--sa-ok)' : submission.score >= 65 ? 'var(--sa-warn)' : 'var(--sa-danger)',
+            color: scoreColorVar(submission.score ?? 0),
           }">{{ submission.score }}%</div>
 
           <div v-if="submission.score_breakdown" class="score-breakdown-grid">
@@ -604,7 +600,7 @@ function loadMoreFields() { listViewLimit.value += LIST_PAGE }
               <!-- Live score badge -->
               <span v-if="liveScore !== null" :style="{
                 fontSize:'11px', fontWeight:700, fontVariantNumeric:'tabular-nums',
-                color: liveScore >= 85 ? 'var(--sa-ok)' : liveScore >= 65 ? 'var(--sa-warn)' : 'var(--sa-danger)',
+                color: scoreColorVar(liveScore ?? 0),
               }">
                 Score {{ liveScore }}%
               </span>
@@ -693,7 +689,7 @@ function loadMoreFields() { listViewLimit.value += LIST_PAGE }
                 <div v-if="liveScore !== null" style="margin-bottom:16px;">
                   <span :style="{
                     display:'inline-block', fontSize:'28px', fontWeight:800, fontVariantNumeric:'tabular-nums',
-                    color: liveScore >= 85 ? 'var(--sa-ok)' : liveScore >= 65 ? 'var(--sa-warn)' : 'var(--sa-danger)',
+                    color: scoreColorVar(liveScore ?? 0),
                   }">{{ liveScore }}%</span>
                   <div style="font-size:12px;color:var(--sa-muted);margin-top:2px;">Score parcial</div>
                 </div>
@@ -780,9 +776,14 @@ function loadMoreFields() { listViewLimit.value += LIST_PAGE }
                   <div style="font-size:17px;font-weight:700;color:var(--sa-text);line-height:1.35;margin-bottom:6px;">
                     {{ inspectionField.label }}
                   </div>
-                  <span v-if="inspectionField.required" style="display:inline-block;font-size:9px;font-weight:700;color:var(--sa-danger);text-transform:uppercase;letter-spacing:.06em;margin-bottom:14px;">
+                  <span v-if="inspectionField.required" style="display:inline-block;font-size:9px;font-weight:700;color:var(--sa-danger);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">
                     Obrigatório
                   </span>
+                  <!-- Instrução -->
+                  <div v-if="inspectionField.instruction"
+                    style="font-size:12px;color:var(--sa-muted);background:var(--sa-bg);border-left:3px solid var(--sa-brand);padding:7px 10px;border-radius:0 6px 6px 0;margin-bottom:12px;line-height:1.5;">
+                    {{ inspectionField.instruction }}
+                  </div>
 
                   <div v-if="pendingRequiredFields.includes(inspectionField.key)" class="frow-error-label" style="margin-bottom:8px;">
                     Campo obrigatório não preenchido
@@ -916,86 +917,25 @@ function loadMoreFields() { listViewLimit.value += LIST_PAGE }
                   <div v-if="field.field_type === 'section'" :key="`sec-${field.id}`" :id="`sec-${field.key}`" class="section-divider">
                     <span>{{ field.label }}</span>
                   </div>
-                  <div v-else :key="field.id" class="frow" :class="{ 'frow-error': pendingRequiredFields.includes(field.key) }">
-                    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px;">
-                      <div>
-                        <div class="frow-type">{{ TYPE_LABEL[field.field_type] ?? field.field_type }}</div>
-                        <div class="frow-name">{{ field.label }}</div>
-                      </div>
-                      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
-                        <span v-if="fieldWeight(field.config_json) > 1" style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;background:var(--sa-brand-soft);color:var(--sa-brand);">Peso {{ field.config_json.weight }}x</span>
-                        <span v-if="field.required" class="status-chip status-chip--neu" style="font-size:9px;">Obrigatório</span>
-                      </div>
-                    </div>
-                    <div v-if="pendingRequiredFields.includes(field.key)" class="frow-error-label">Campo obrigatório não preenchido</div>
-
-                    <!-- Boolean: buttons in list mode -->
-                    <div v-if="field.field_type === 'boolean'" style="display:flex;gap:6px;flex-wrap:wrap;">
-                      <button type="button" class="bool-btn-sm bool-sim"
-                        :class="{ 'bool-btn--active': draftAnswers[field.key] === 'true' }"
-                        :disabled="isCompleted" @click="draftAnswers[field.key] = 'true'; triggerAutoSave()">✓ Sim</button>
-                      <button type="button" class="bool-btn-sm bool-nao"
-                        :class="{ 'bool-btn--active': draftAnswers[field.key] === 'false' }"
-                        :disabled="isCompleted" @click="draftAnswers[field.key] = 'false'; triggerAutoSave()">✕ Não</button>
-                      <button v-if="field.config_json?.allow_na"
-                        type="button" class="bool-btn-sm bool-na"
-                        :class="{ 'bool-btn--active': draftAnswers[field.key] === 'na' }"
-                        :disabled="isCompleted" @click="draftAnswers[field.key] = 'na'; triggerAutoSave()">N/A</button>
-                    </div>
-                    <input v-else-if="field.field_type === 'number'" v-model="draftAnswers[field.key]" type="number" step="any" :disabled="isCompleted" @change="triggerAutoSave()" />
-                    <input v-else-if="field.field_type === 'date'" v-model="draftAnswers[field.key]" type="date" :disabled="isCompleted" @change="triggerAutoSave()" />
-                    <template v-else-if="field.field_type === 'select'">
-                      <select v-if="selectOptions(field.config_json ?? {}).length" v-model="draftAnswers[field.key]" :disabled="isCompleted" @change="triggerAutoSave()">
-                        <option value="">— Selecione —</option>
-                        <option v-for="opt in selectOptions(field.config_json ?? {})" :key="opt" :value="opt">{{ opt }}</option>
-                      </select>
-                      <input v-else v-model="draftAnswers[field.key]" type="text" :disabled="isCompleted" @change="triggerAutoSave()" />
-                    </template>
-                    <input v-else-if="field.field_type === 'text'" v-model="draftAnswers[field.key]" type="text" :disabled="isCompleted" @change="triggerAutoSave()" />
-                    <input v-else v-model="draftAnswers[field.key]" type="text" :disabled="isCompleted" @change="triggerAutoSave()" />
-
-                    <!-- Conformidade (inspection list) -->
-                    <div style="margin-top:8px;padding-top:6px;border-top:1px solid var(--sa-line);">
-                      <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;">
-                        <span style="font-size:10px;font-weight:700;color:var(--sa-muted);text-transform:uppercase;letter-spacing:.04em;margin-right:2px;">Conformidade:</span>
-                        <button type="button" class="bool-btn-sm bool-sim"
-                          :class="{ 'bool-btn--active': conformityStatus[field.key] === 'conforme' }"
-                          :disabled="isCompleted"
-                          @click="setConformity(field.key, 'conforme')">✓ Conforme</button>
-                        <button type="button" class="bool-btn-sm bool-nao"
-                          :class="{ 'bool-btn--active': conformityStatus[field.key] === 'nao_conforme' }"
-                          :disabled="isCompleted"
-                          @click="setConformity(field.key, 'nao_conforme')">✕ Não conforme</button>
-                      </div>
-                      <textarea v-if="conformityStatus[field.key] === 'nao_conforme'"
-                        v-model="conformityJustification[field.key]"
-                        placeholder="Justificativa obrigatória"
-                        rows="2"
-                        :disabled="isCompleted"
-                        style="width:100%;margin-top:6px;font-size:12px;padding:5px 7px;border-radius:6px;border:1px solid var(--sa-danger);resize:vertical;box-sizing:border-box;"
-                        @input="triggerConformitySave()"
-                      ></textarea>
-                    </div>
-
-                    <!-- Evidências (todos os tipos) -->
-                    <div v-if="!isCompleted || (evidenceAttachments[field.key]?.length ?? 0) > 0" style="margin-top:8px;display:flex;flex-wrap:wrap;align-items:center;gap:4px;">
-                      <div v-for="att in evidenceAttachments[field.key]" :key="att.id"
-                        style="display:inline-flex;align-items:center;gap:4px;padding:3px 7px;background:var(--sa-bg);border:1px solid var(--sa-line);border-radius:6px;font-size:11px;max-width:150px;">
-                        <a :href="att.file_url" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:4px;text-decoration:none;min-width:0;">
-                          <img v-if="mimeCategory(att.mime_type) === 'image'" :src="att.file_url" style="width:16px;height:16px;object-fit:cover;border-radius:2px;flex-shrink:0;" />
-                          <span v-else style="font-size:11px;flex-shrink:0;">📄</span>
-                          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--sa-text);">{{ att.file_url.split('/').pop() }}</span>
-                        </a>
-                        <button v-if="!isCompleted" type="button" @click="handleEvidenceDelete(field.key, att.id)"
-                          style="border:none;background:none;cursor:pointer;color:var(--sa-danger);font-size:13px;padding:0;line-height:1;flex-shrink:0;">×</button>
-                      </div>
-                      <label v-if="!isCompleted" style="display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:600;color:var(--sa-brand);cursor:pointer;padding:3px 7px;border:1px dashed var(--sa-brand);border-radius:6px;">
-                        {{ evidenceUploading[field.key] ? '…' : '📎' }}
-                        <input type="file" :accept="ALLOWED_MIMES" style="display:none;" :disabled="evidenceUploading[field.key]" @change="handleEvidenceUpload(field.key, {}, $event)" />
-                      </label>
-                      <span v-if="evidenceErrors[field.key]" style="font-size:11px;color:var(--sa-danger);">{{ evidenceErrors[field.key] }}</span>
-                    </div>
-                  </div>
+                  <InspectionFieldRow
+                    v-else
+                    :key="field.id"
+                    :field="field"
+                    :answer="draftAnswers[field.key] ?? ''"
+                    :conformity-status="conformityStatus[field.key]"
+                    :conformity-justification="conformityJustification[field.key] ?? ''"
+                    :is-completed="isCompleted"
+                    :is-pending-required="pendingRequiredFields.includes(field.key)"
+                    :evidence-attachments="evidenceAttachments[field.key] ?? []"
+                    :evidence-uploading="evidenceUploading[field.key] ?? false"
+                    :evidence-error="evidenceErrors[field.key]"
+                    :compact="true"
+                    @update-answer="v => { draftAnswers[field.key] = v; triggerAutoSave() }"
+                    @set-conformity="s => setConformity(field.key, s)"
+                    @update-justification="v => { conformityJustification[field.key] = v; triggerConformitySave() }"
+                    @upload-evidence="e => handleEvidenceUpload(field.key, {}, e)"
+                    @delete-evidence="id => handleEvidenceDelete(field.key, id)"
+                  />
                 </template>
               </div>
               <div v-if="hasMoreFields" style="display:flex;justify-content:center;margin-bottom:12px;">
@@ -1030,100 +970,24 @@ function loadMoreFields() { listViewLimit.value += LIST_PAGE }
                 <div v-if="field.field_type === 'section'" :key="`sec-${field.id}`" :id="`sec-${field.key}`" class="section-divider">
                   <span>{{ field.label }}</span>
                 </div>
-                <div v-else :key="field.id" class="frow" :class="{ 'frow-error': pendingRequiredFields.includes(field.key) }">
-                  <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px;">
-                    <div>
-                      <div class="frow-type">{{ TYPE_LABEL[field.field_type] ?? field.field_type }}</div>
-                      <div class="frow-name">{{ field.label }}</div>
-                    </div>
-                    <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
-                      <span v-if="fieldWeight(field.config_json) > 1" style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;background:var(--sa-brand-soft);color:var(--sa-brand);">Peso {{ field.config_json.weight }}x</span>
-                      <span v-if="field.required" class="status-chip status-chip--neu" style="font-size:9px;">Obrigatório</span>
-                    </div>
-                  </div>
-                  <div v-if="pendingRequiredFields.includes(field.key)" class="frow-error-label">Campo obrigatório não preenchido</div>
-
-                  <!-- Boolean: buttons -->
-                  <div v-if="field.field_type === 'boolean'" style="display:flex;gap:6px;flex-wrap:wrap;">
-                    <button type="button" class="bool-btn-sm bool-sim"
-                      :class="{ 'bool-btn--active': draftAnswers[field.key] === 'true' }"
-                      :disabled="isCompleted" @click="draftAnswers[field.key] = 'true'; triggerAutoSave()">✓ Sim</button>
-                    <button type="button" class="bool-btn-sm bool-nao"
-                      :class="{ 'bool-btn--active': draftAnswers[field.key] === 'false' }"
-                      :disabled="isCompleted" @click="draftAnswers[field.key] = 'false'; triggerAutoSave()">✕ Não</button>
-                    <button v-if="field.config_json?.allow_na"
-                      type="button" class="bool-btn-sm bool-na"
-                      :class="{ 'bool-btn--active': draftAnswers[field.key] === 'na' }"
-                      :disabled="isCompleted" @click="draftAnswers[field.key] = 'na'; triggerAutoSave()">N/A</button>
-                  </div>
-
-                  <!-- Other field types (same as list view inside inspection) -->
-                  <input v-else-if="field.field_type === 'number'" v-model="draftAnswers[field.key]" type="number" step="any" placeholder="Informe um número" :disabled="isCompleted" @change="triggerAutoSave()" />
-                  <input v-else-if="field.field_type === 'date'" v-model="draftAnswers[field.key]" type="date" :disabled="isCompleted" @change="triggerAutoSave()" />
-                  <template v-else-if="field.field_type === 'select'">
-                    <select v-if="selectOptions(field.config_json ?? {}).length" v-model="draftAnswers[field.key]" :disabled="isCompleted" @change="triggerAutoSave()">
-                      <option value="">— Selecione uma opção —</option>
-                      <option v-for="opt in selectOptions(field.config_json ?? {})" :key="opt" :value="opt">{{ opt }}</option>
-                    </select>
-                    <input v-else v-model="draftAnswers[field.key]" type="text" placeholder="Informe a opção" :disabled="isCompleted" @change="triggerAutoSave()" />
-                  </template>
-                  <input v-else-if="field.field_type === 'text'" v-model="draftAnswers[field.key]" type="text" placeholder="Informe o valor" :disabled="isCompleted" @change="triggerAutoSave()" />
-                  <input v-else v-model="draftAnswers[field.key]" type="text" placeholder="Informe o valor" :disabled="isCompleted" @change="triggerAutoSave()" />
-
-                  <!-- Conformidade (normal list) -->
-                  <div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--sa-line);">
-                    <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;">
-                      <span style="font-size:10px;font-weight:700;color:var(--sa-muted);text-transform:uppercase;letter-spacing:.04em;margin-right:2px;">Conformidade:</span>
-                      <button type="button" class="bool-btn-sm bool-sim"
-                        :class="{ 'bool-btn--active': conformityStatus[field.key] === 'conforme' }"
-                        :disabled="isCompleted"
-                        @click="setConformity(field.key, 'conforme')">✓ Conforme</button>
-                      <button type="button" class="bool-btn-sm bool-nao"
-                        :class="{ 'bool-btn--active': conformityStatus[field.key] === 'nao_conforme' }"
-                        :disabled="isCompleted"
-                        @click="setConformity(field.key, 'nao_conforme')">✕ Não conforme</button>
-                    </div>
-                    <textarea v-if="conformityStatus[field.key] === 'nao_conforme'"
-                      v-model="conformityJustification[field.key]"
-                      placeholder="Justificativa obrigatória"
-                      rows="2"
-                      :disabled="isCompleted"
-                      style="width:100%;margin-top:8px;font-size:12px;padding:6px 8px;border-radius:6px;border:1px solid var(--sa-danger);resize:vertical;box-sizing:border-box;"
-                      @input="triggerConformitySave()"
-                    ></textarea>
-                    <div v-if="isCompleted && conformityStatus[field.key] === 'nao_conforme' && conformityJustification[field.key]"
-                      style="margin-top:8px;font-size:12px;color:var(--sa-muted);background:var(--sa-err-bg);border-radius:6px;padding:6px 10px;">
-                      {{ conformityJustification[field.key] }}
-                    </div>
-                  </div>
-
-                  <!-- Evidências (todos os tipos de campo) -->
-                  <div v-if="!isCompleted || (evidenceAttachments[field.key]?.length ?? 0) > 0" style="margin-top:10px;">
-                    <div v-if="evidenceAttachments[field.key]?.length" style="display:grid;gap:6px;margin-bottom:8px;">
-                      <div v-for="att in evidenceAttachments[field.key]" :key="att.id"
-                        style="display:flex;align-items:center;gap:8px;background:var(--sa-bg);border:1px solid var(--sa-line);border-radius:8px;padding:8px 10px;overflow:hidden;">
-                        <a :href="att.file_url" target="_blank" rel="noopener"
-                          style="flex:1;min-width:0;display:flex;align-items:center;gap:8px;text-decoration:none;">
-                          <img v-if="mimeCategory(att.mime_type) === 'image'" :src="att.file_url" alt="" style="width:40px;height:40px;object-fit:cover;border-radius:4px;flex-shrink:0;" />
-                          <div v-else style="width:40px;height:40px;border-radius:4px;flex-shrink:0;background:var(--sa-brand-soft);display:flex;align-items:center;justify-content:center;font-size:18px;">📄</div>
-                          <div style="flex:1;min-width:0;">
-                            <div style="font-size:12px;font-weight:600;color:var(--sa-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ att.file_url.split('/').pop() }}</div>
-                            <div style="font-size:11px;color:var(--sa-muted);margin-top:2px;">{{ formatFileSize(att.file_size) }}</div>
-                          </div>
-                        </a>
-                        <button v-if="!isCompleted" type="button" title="Remover" @click="handleEvidenceDelete(field.key, att.id)"
-                          style="border:none;background:none;cursor:pointer;color:var(--sa-danger);font-size:18px;line-height:1;padding:0 4px;flex-shrink:0;">×</button>
-                      </div>
-                    </div>
-                    <template v-if="!isCompleted">
-                      <label style="cursor:pointer;display:inline-block;">
-                        <span class="inline-action">{{ evidenceUploading[field.key] ? 'Enviando…' : '📎 Adicionar evidência' }}</span>
-                        <input type="file" :accept="ALLOWED_MIMES" style="display:none;" :disabled="evidenceUploading[field.key]" @change="handleEvidenceUpload(field.key, {}, $event)" />
-                      </label>
-                    </template>
-                    <p v-if="evidenceErrors[field.key]" style="font-size:12px;font-weight:600;color:var(--sa-danger);margin-top:6px;">{{ evidenceErrors[field.key] }}</p>
-                  </div>
-                </div>
+                <InspectionFieldRow
+                  v-else
+                  :key="field.id"
+                  :field="field"
+                  :answer="draftAnswers[field.key] ?? ''"
+                  :conformity-status="conformityStatus[field.key]"
+                  :conformity-justification="conformityJustification[field.key] ?? ''"
+                  :is-completed="isCompleted"
+                  :is-pending-required="pendingRequiredFields.includes(field.key)"
+                  :evidence-attachments="evidenceAttachments[field.key] ?? []"
+                  :evidence-uploading="evidenceUploading[field.key] ?? false"
+                  :evidence-error="evidenceErrors[field.key]"
+                  @update-answer="v => { draftAnswers[field.key] = v; triggerAutoSave() }"
+                  @set-conformity="s => setConformity(field.key, s)"
+                  @update-justification="v => { conformityJustification[field.key] = v; triggerConformitySave() }"
+                  @upload-evidence="e => handleEvidenceUpload(field.key, {}, e)"
+                  @delete-evidence="id => handleEvidenceDelete(field.key, id)"
+                />
               </template>
             </div>
 

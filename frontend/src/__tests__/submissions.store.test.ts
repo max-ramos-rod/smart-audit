@@ -136,7 +136,7 @@ describe('submissions.store', () => {
 
   describe('updateAnswers', () => {
     it('calls saveAnswers and updates current', async () => {
-      const updatedDetail = { ...mockDetail, answers: [{ field_key: 'extintor_ok', field_type: 'boolean', value: false }] }
+      const updatedDetail = { ...mockDetail, answers: [{ field_key: 'extintor_ok', field_type: 'boolean' as const, value: false }] }
       vi.mocked(saveAnswers).mockResolvedValue(updatedDetail)
       const store = useSubmissionsStore()
       store.current = mockDetail
