@@ -3,17 +3,11 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import AppShell from '@/components/layout/AppShell.vue'
-import { fetchMyCompany, updateMyCompany } from '@/services/companies.service'
+import { fetchMyCompany, fetchUsage, updateMyCompany, type UsageData } from '@/services/companies.service'
 import { useContextStore } from '@/stores/context/context.store'
-import { useFormsStore } from '@/stores/forms/forms.store'
-import { useSubmissionsStore } from '@/stores/submissions/submissions.store'
-import { useUsersStore } from '@/stores/users/users.store'
 
 const router = useRouter()
 const contextStore = useContextStore()
-const formsStore = useFormsStore()
-const submissionsStore = useSubmissionsStore()
-const usersStore = useUsersStore()
 
 const tab = ref<'general' | 'plan' | 'usage'>('general')
 const company = computed(() => contextStore.activeCompany)
@@ -35,6 +29,9 @@ const isSaving = ref(false)
 const savedOnce = ref(false)
 const saveError = ref<string | null>(null)
 
+const usage = ref<UsageData | null>(null)
+const usageLoading = ref(false)
+
 onMounted(async () => {
   try {
     const data = await fetchMyCompany()
@@ -45,6 +42,14 @@ onMounted(async () => {
     form.phone = data.phone ?? ''
   } catch {
     form.name = company.value?.name ?? ''
+  }
+  usageLoading.value = true
+  try {
+    usage.value = await fetchUsage()
+  } catch {
+    // silently ignore — usage tab shows dashes on error
+  } finally {
+    usageLoading.value = false
   }
 })
 
@@ -83,30 +88,20 @@ const planFeatures = [
 interface UsageItem {
   label: string
   used: number
-  total: number
-  unit?: string
+  limit: number
 }
 
-const usageItems = computed<UsageItem[]>(() => [
-  {
-    label: 'Usuários ativos',
-    used: usersStore.meta?.total ?? usersStore.items.length,
-    total: 50,
-  },
-  {
-    label: 'Inspeções neste mês',
-    used: stats.value?.total_submissions ?? submissionsStore.items.length,
-    total: 500,
-  },
-  {
-    label: 'Formulários',
-    used: formsStore.meta?.total ?? formsStore.items.length,
-    total: 100,
-  },
-])
+const usageItems = computed<UsageItem[]>(() => {
+  if (!usage.value) return []
+  return [
+    { label: 'Usuários ativos',     used: usage.value.users.used,                 limit: usage.value.users.limit },
+    { label: 'Inspeções neste mês', used: usage.value.submissions_this_month.used, limit: usage.value.submissions_this_month.limit },
+    { label: 'Formulários',         used: usage.value.forms.used,                 limit: usage.value.forms.limit },
+  ]
+})
 
 function usagePct(item: UsageItem) {
-  return Math.min(100, Math.round((item.used / item.total) * 100))
+  return Math.min(100, Math.round((item.used / item.limit) * 100))
 }
 
 function usageColor(pct: number) {
@@ -263,33 +258,41 @@ function usageColor(pct: number) {
       <div v-else-if="tab === 'usage'" class="card card-p">
         <div class="slabel" style="margin-bottom: 16px;">Utilização do plano</div>
 
-        <div v-for="item in usageItems" :key="item.label" style="margin-bottom: 16px;">
-          <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 6px;">
-            <span style="font-weight: 600; color: var(--sa-text);">{{ item.label }}</span>
-            <span style="color: var(--sa-muted); font-variant-numeric: tabular-nums;">
-              {{ item.used }}{{ item.unit ?? '' }}
-              <span style="opacity: .6;">/ {{ item.total }}{{ item.unit ?? '' }}</span>
-            </span>
-          </div>
-          <div style="height: 4px; background: var(--sa-line); border-radius: 99px; overflow: hidden;">
-            <div
-              :style="{
-                height: '100%',
-                borderRadius: '99px',
-                width: usagePct(item) + '%',
-                background: usageColor(usagePct(item)),
-                transition: 'width .4s',
-              }"
-            ></div>
-          </div>
-          <div style="font-size: 11px; color: var(--sa-muted); margin-top: 4px;">
-            {{ usagePct(item) }}% utilizado
-          </div>
-        </div>
+        <p v-if="usageLoading" style="font-size:13px;color:var(--sa-muted);">Carregando...</p>
 
-        <div style="font-size: 12px; color: var(--sa-muted); margin-top: 8px;">
-          Dados exibidos a partir da sessão atual e atualizados conforme os módulos carregados.
-        </div>
+        <template v-else-if="usage">
+          <div v-for="item in usageItems" :key="item.label" style="margin-bottom: 16px;">
+            <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 6px;">
+              <span style="font-weight: 600; color: var(--sa-text);">{{ item.label }}</span>
+              <span style="color: var(--sa-muted); font-variant-numeric: tabular-nums;">
+                {{ item.used }}
+                <span style="opacity: .6;">/ {{ item.limit }}</span>
+              </span>
+            </div>
+            <div style="height: 4px; background: var(--sa-line); border-radius: 99px; overflow: hidden;">
+              <div
+                :style="{
+                  height: '100%',
+                  borderRadius: '99px',
+                  width: usagePct(item) + '%',
+                  background: usageColor(usagePct(item)),
+                  transition: 'width .4s',
+                }"
+              ></div>
+            </div>
+            <div style="font-size: 11px; color: var(--sa-muted); margin-top: 4px;">
+              {{ usagePct(item) }}% utilizado
+            </div>
+          </div>
+          <div style="font-size: 12px; color: var(--sa-muted); margin-top: 8px;">
+            Limites definidos pelo plano <strong>{{ company?.plan ?? 'starter' }}</strong>.
+            Contagens atualizadas em tempo real pelo servidor.
+          </div>
+        </template>
+
+        <p v-else style="font-size:13px;color:var(--sa-muted);">
+          Não foi possível carregar os dados de utilização.
+        </p>
       </div>
     </div>
   </AppShell>

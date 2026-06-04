@@ -7,6 +7,7 @@ from app.db.session import get_db
 from app.modules.auth.dependencies import get_current_user
 from app.modules.memberships.dependencies import get_current_membership
 from app.modules.memberships.schemas import MeUpdateRequest
+from app.modules.companies.service import CompanyService
 from app.modules.memberships.service import MembershipService
 from app.modules.notifications.schemas import DismissAllRequest, DismissRequest, MarkAllReadRequest, MarkReadRequest
 from app.modules.notifications.service import NotificationService
@@ -25,6 +26,10 @@ def get_submission_service() -> SubmissionService:
 
 def get_notification_service() -> NotificationService:
     return NotificationService()
+
+
+def get_company_service() -> CompanyService:
+    return CompanyService()
 
 
 @router.get("/companies")
@@ -56,6 +61,16 @@ async def update_me(
     membership_service: MembershipService = Depends(get_membership_service),
 ) -> dict[str, object]:
     data = await membership_service.update_me(db, current_user, payload)
+    return success_response(data.model_dump(mode="json"))
+
+
+@router.get("/usage")
+async def get_my_usage(
+    membership=Depends(get_current_membership),
+    db: AsyncSession = Depends(get_db),
+    company_service: CompanyService = Depends(get_company_service),
+) -> dict[str, object]:
+    data = await company_service.get_usage(db, membership)
     return success_response(data.model_dump(mode="json"))
 
 

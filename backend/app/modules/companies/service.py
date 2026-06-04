@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.memberships import Membership
 from app.modules.companies.repository import CompanyRepository
-from app.modules.companies.schemas import CompanyResponse, CompanyUpdateRequest
+from app.modules.companies.schemas import CompanyResponse, CompanyUpdateRequest, UsageResponse, UsageStat
 
 
 class CompanyService:
@@ -33,6 +33,31 @@ class CompanyService:
 
         company = await self.repository.get_by_id(db, str(membership.company_id))
         return self._serialize(company)
+
+    # Limits per plan. Unknown plans fall back to "starter".
+    _PLAN_LIMITS: dict[str, dict[str, int]] = {
+        "starter":    {"users": 10,  "forms": 20,  "submissions": 100},
+        "pro":        {"users": 50,  "forms": 100, "submissions": 500},
+        "enterprise": {"users": 999, "forms": 999, "submissions": 9999},
+    }
+    _DEFAULT_LIMITS = {"users": 10, "forms": 20, "submissions": 100}
+
+    async def get_usage(self, db: AsyncSession, membership: Membership) -> UsageResponse:
+        cid = str(membership.company_id)
+        company = await self.repository.get_by_id(db, cid)
+        plan = (company.plan if company else "starter") or "starter"
+        limits = self._PLAN_LIMITS.get(plan, self._DEFAULT_LIMITS)
+
+        users_used, forms_used, subs_used = (
+            await self.repository.count_members(db, cid),
+            await self.repository.count_forms(db, cid),
+            await self.repository.count_submissions_this_month(db, cid),
+        )
+        return UsageResponse(
+            users=UsageStat(used=users_used, limit=limits["users"]),
+            forms=UsageStat(used=forms_used, limit=limits["forms"]),
+            submissions_this_month=UsageStat(used=subs_used, limit=limits["submissions"]),
+        )
 
     @staticmethod
     def _serialize(company) -> CompanyResponse:
