@@ -1708,11 +1708,11 @@ const currentFieldEvidenceCount = computed(() =>
    FULLSCREEN CARD INSPECTION OVERLAY
    ══════════════════════════════════════════════════════════════════════════════ */
 
-/* Outer container: overlays everything */
+/* Outer container: overlays everything including sidebar (z-index 100) */
 .insp-fullscreen {
   position: fixed;
   inset: 0;
-  z-index: 50;
+  z-index: 200;
   background: var(--sa-bg, #f1f5f9);
   display: flex;
   flex-direction: column;
