@@ -835,84 +835,9 @@ const currentFieldEvidenceCount = computed(() =>
               <!-- placeholder: overlay covers this area -->
             </template>
 
-            <!-- ── LIST VIEW (inside inspection mode) ── -->
+            <!-- ── LIST VIEW: handled by Teleport shell below ── -->
             <template v-else>
-
-              <!-- ViewToggle bar -->
-              <div class="insp-view-toggle-bar">
-                <div class="insp-vt-seg">
-                  <button class="insp-vt-btn" @click="viewMode='card'">Cartão</button>
-                  <button class="insp-vt-btn active" @click="viewMode='list'">Lista</button>
-                </div>
-                <button
-                  class="insp-jump-pend"
-                  :disabled="filterCount('pend') === 0"
-                  @click="jumpFirstPending()"
-                >
-                  ⚡ Ir para pendentes
-                  <span class="insp-jump-pend-cnt">{{ filterCount('pend') }}</span>
-                </button>
-              </div>
-
-              <!-- Filter bar -->
-              <div class="insp-filter-bar">
-                <button
-                  v-for="f in FILTERS"
-                  :key="f.id"
-                  class="insp-fchip"
-                  :class="[f.cls, { active: listFilter === f.id }]"
-                  @click="listFilter = f.id"
-                >
-                  {{ f.label }}
-                  <span class="insp-fchip-n">{{ filterCount(f.id) }}</span>
-                </button>
-              </div>
-
-              <!-- Scrollable list container -->
-              <div id="list-scroll-container" class="insp-list-container">
-                <template v-for="field in filteredListFields">
-
-                  <!-- Section header sticky -->
-                  <div
-                    v-if="field.field_type === 'section'"
-                    :key="`sec-${field.key}`"
-                    v-show="visibleSectionKeys.has(field.key)"
-                    :id="`sec-${field.key}`"
-                    class="insp-list-sec-hdr"
-                  >
-                    <div class="insp-list-sec-ring" :style="sectionRingStyle(field.key)">
-                      <div class="insp-list-sec-ring-inner">
-                        {{ sectionPct(field.key) === 100 ? '✓' : sectionPct(field.key) + '%' }}
-                      </div>
-                    </div>
-                    <span class="insp-list-sec-name">{{ field.label }}</span>
-                    <span class="insp-list-sec-cnt">{{ sectionProgress(field.key) }}</span>
-                  </div>
-
-                  <!-- Field row -->
-                  <div v-else :key="`row-${field.key}`" :id="`list-row-${field.key}`">
-                    <InspectionListRow
-                      :field="field"
-                      :position="fieldPosition(field)"
-                      :answer="draftAnswers[field.key] ?? ''"
-                      :conformity-status="conformityStatus[field.key]"
-                      :conformity-justification="conformityJustification[field.key] ?? ''"
-                      :is-completed="isCompleted"
-                      :is-pending-required="pendingRequiredFields.includes(field.key)"
-                      :evidence-count="evidenceAttachments[field.key]?.length ?? 0"
-                      :is-expanded="expandedListKey === field.key"
-                      @toggle="toggleListRow(field.key)"
-                      @update-answer="v => { draftAnswers[field.key] = v; triggerAutoSave() }"
-                      @set-conformity="s => setConformityList(field.key, s)"
-                      @update-justification="v => { conformityJustification[field.key] = v; triggerConformitySave() }"
-                      @request-evidence="openEvidenceSheet(field.key)"
-                      @request-justification="() => { setConformity(field.key, 'nao_conforme'); openJustificationSheet(field.key) }"
-                    />
-                  </div>
-
-                </template>
-              </div>
-
+              <!-- placeholder — insp-list-shell Teleport covers this -->
             </template>
           </template>
 
@@ -975,7 +900,7 @@ const currentFieldEvidenceCount = computed(() =>
         </div>
 
         <!-- ── Sticky actions (hidden in card inspection mode) ── -->
-        <div v-if="!(inspectionMode && viewMode === 'card' && !isCompleted)" class="sticky-act">
+        <div v-if="!(inspectionMode && !isCompleted)" class="sticky-act">
           <template v-if="!isCompleted">
             <button type="button" class="btn-secondary" :disabled="submissionsStore.isSaving" @click="handleSave">
               {{ submissionsStore.isSaving ? 'Salvando…' : savedOnce ? '✓ Salvo' : 'Salvar rascunho' }}
@@ -1295,6 +1220,140 @@ const currentFieldEvidenceCount = computed(() =>
         </div>
 
       </div><!-- /insp-fullscreen -->
+    </Teleport>
+
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <!--  FULLSCREEN LIST INSPECTION SHELL                                     -->
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <Teleport to="body">
+      <div
+        v-if="submission && inspectionMode && viewMode === 'list' && !isCompleted"
+        class="insp-listshell"
+      >
+        <!-- ── HEADER (branco, fixo) ── -->
+        <div class="insp-lshdr">
+          <div class="insp-lshdr-top">
+            <button type="button" class="insp-fback" @click="router.push({ name: 'submissions' })">
+              <SvgIcon name="back" :size="16" />
+            </button>
+            <div class="insp-fhdr-info">
+              <div class="insp-fhdr-name">{{ submission.form_name }}</div>
+              <div class="insp-fhdr-sub">Em andamento</div>
+            </div>
+            <div class="score-ring" :style="scoreRingStyle">
+              <div class="score-ring-inner">{{ liveScore !== null ? liveScore + '%' : '—' }}</div>
+            </div>
+          </div>
+
+          <!-- Progress bar + counters -->
+          <div class="insp-lshdr-prog">
+            <div class="insp-fprog-bar" style="height:6px;">
+              <div :style="{
+                height: '100%', background: 'var(--sa-ok)',
+                width: progressStats.total ? (progressStats.conformes / progressStats.total * 100) + '%' : '0%',
+                transition: 'width .35s ease',
+              }" />
+              <div :style="{
+                height: '100%', background: 'var(--sa-danger)',
+                width: progressStats.total ? (progressStats.naoConformes / progressStats.total * 100) + '%' : '0%',
+                transition: 'width .35s ease',
+              }" />
+            </div>
+            <div class="insp-lshdr-legend">
+              <span><span class="dot dot-ok"></span>{{ progressStats.conformes }} conformes</span>
+              <span><span class="dot dot-err"></span>{{ progressStats.naoConformes }} não conf.</span>
+              <span><span class="dot dot-pend"></span>{{ progressStats.pending }} pendentes</span>
+            </div>
+          </div>
+
+          <!-- ViewToggle + jump pendentes -->
+          <div class="insp-view-toggle-bar">
+            <div class="insp-vt-seg">
+              <button class="insp-vt-btn" @click="viewMode='card'">Cartão</button>
+              <button class="insp-vt-btn active">Lista</button>
+            </div>
+            <button
+              class="insp-jump-pend"
+              :disabled="filterCount('pend') === 0"
+              @click="jumpFirstPending()"
+            >
+              ⚡ Ir para pendentes
+              <span class="insp-jump-pend-cnt">{{ filterCount('pend') }}</span>
+            </button>
+          </div>
+
+          <!-- Filter bar -->
+          <div class="insp-filter-bar">
+            <button
+              v-for="f in FILTERS"
+              :key="f.id"
+              class="insp-fchip"
+              :class="[f.cls, { active: listFilter === f.id }]"
+              @click="listFilter = f.id"
+            >
+              {{ f.label }}
+              <span class="insp-fchip-n">{{ filterCount(f.id) }}</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- ── LISTA scrollável (fundo cinza) ── -->
+        <div id="list-scroll-container" class="insp-list-container">
+          <template v-for="field in filteredListFields">
+
+            <!-- Section header sticky -->
+            <div
+              v-if="field.field_type === 'section'"
+              :key="`sec-${field.key}`"
+              v-show="visibleSectionKeys.has(field.key)"
+              :id="`sec-${field.key}`"
+              class="insp-list-sec-hdr"
+            >
+              <div class="insp-list-sec-ring" :style="sectionRingStyle(field.key)">
+                <div class="insp-list-sec-ring-inner">
+                  {{ sectionPct(field.key) === 100 ? '✓' : sectionPct(field.key) + '%' }}
+                </div>
+              </div>
+              <span class="insp-list-sec-name">{{ field.label }}</span>
+              <span class="insp-list-sec-cnt">{{ sectionProgress(field.key) }}</span>
+            </div>
+
+            <!-- Field row -->
+            <div v-else :key="`row-${field.key}`" :id="`list-row-${field.key}`">
+              <InspectionListRow
+                :field="field"
+                :position="fieldPosition(field)"
+                :answer="draftAnswers[field.key] ?? ''"
+                :conformity-status="conformityStatus[field.key]"
+                :conformity-justification="conformityJustification[field.key] ?? ''"
+                :is-completed="isCompleted"
+                :is-pending-required="pendingRequiredFields.includes(field.key)"
+                :evidence-count="evidenceAttachments[field.key]?.length ?? 0"
+                :is-expanded="expandedListKey === field.key"
+                @toggle="toggleListRow(field.key)"
+                @update-answer="v => { draftAnswers[field.key] = v; triggerAutoSave() }"
+                @set-conformity="s => setConformityList(field.key, s)"
+                @update-justification="v => { conformityJustification[field.key] = v; triggerConformitySave() }"
+                @request-evidence="openEvidenceSheet(field.key)"
+                @request-justification="() => { setConformity(field.key, 'nao_conforme'); openJustificationSheet(field.key) }"
+              />
+            </div>
+
+          </template>
+        </div>
+
+        <!-- ── FOOTER fixo (Salvar / Finalizar) ── -->
+        <div class="insp-lsfooter">
+          <button type="button" class="btn-secondary" :disabled="submissionsStore.isSaving" @click="handleSave">
+            {{ submissionsStore.isSaving ? 'Salvando…' : savedOnce ? '✓ Salvo' : 'Salvar rascunho' }}
+          </button>
+          <button type="button" class="btn-primary insp-lsfooter-finish" :disabled="submissionsStore.isSaving" @click="handleFinish">
+            {{ submissionsStore.isSaving ? 'Finalizando…' : 'Finalizar inspeção' }}
+          </button>
+        </div>
+
+        <p v-if="finishError" class="insp-lsfooter-err">{{ finishError }}</p>
+      </div><!-- /insp-listshell -->
     </Teleport>
 
     <!-- ── Justification bottom sheet ── -->
@@ -1683,6 +1742,101 @@ const currentFieldEvidenceCount = computed(() =>
     left: 248px; /* sidebar width — fica à direita do menu */
     z-index: 50; /* abaixo do sidebar (z-index: 100) no desktop */
   }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   FULLSCREEN LIST INSPECTION SHELL
+   ══════════════════════════════════════════════════════════════════════════════ */
+.insp-listshell {
+  position: fixed;
+  inset: 0;
+  z-index: 200; /* mobile: cobre tudo */
+  background: var(--sa-bg, #f1f5f9);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+@media (min-width: 768px) {
+  .insp-listshell {
+    left: 248px;
+    z-index: 50; /* abaixo do sidebar no desktop */
+  }
+}
+
+/* Header branco (fixo no topo) */
+.insp-lshdr {
+  background: #fff;
+  border-bottom: 1px solid var(--sa-line);
+  padding: 10px 14px 8px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.insp-lshdr-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.insp-lshdr-prog {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.insp-lshdr-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 11px;
+  color: var(--sa-muted);
+}
+.insp-lshdr-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.insp-lshdr-legend .dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+}
+.insp-lshdr-legend .dot-ok   { background: var(--sa-ok); }
+.insp-lshdr-legend .dot-err  { background: var(--sa-danger); }
+.insp-lshdr-legend .dot-pend { background: var(--sa-line); }
+
+/* Toggle + filtros dentro do header (sem margin-bottom extra) */
+.insp-listshell .insp-view-toggle-bar { margin-bottom: 0; padding: 0; }
+.insp-listshell .insp-filter-bar { margin-bottom: 0; padding-bottom: 0; }
+
+/* Lista scrollável (fundo cinza, separada do header branco) */
+.insp-listshell .insp-list-container {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 14px 14px;
+  background: var(--sa-bg);
+}
+
+/* Footer fixo */
+.insp-lsfooter {
+  display: flex;
+  gap: 10px;
+  padding: 10px 14px;
+  background: #fff;
+  border-top: 1px solid var(--sa-line);
+  flex-shrink: 0;
+}
+.insp-lsfooter .btn-secondary { flex: 1; }
+.insp-lsfooter-finish { flex: 2; }
+.insp-lsfooter-err {
+  position: absolute;
+  bottom: 60px;
+  left: 14px;
+  right: 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--sa-danger);
+  background: var(--sa-err-bg);
+  border: 1px solid var(--sa-err-bd);
+  border-radius: 8px;
+  padding: 8px 12px;
 }
 
 /* ── Header ── */
