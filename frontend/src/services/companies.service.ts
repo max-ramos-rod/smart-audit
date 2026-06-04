@@ -43,6 +43,10 @@ export interface UsageData {
   submissions_this_month: UsageStat
 }
 
+export async function deactivateCompany(): Promise<void> {
+  await http.delete('/companies/me')
+}
+
 export async function fetchUsage(): Promise<UsageData> {
   const res = await http.get<ApiEnvelope<UsageData>>('/me/usage')
   return res.data.data

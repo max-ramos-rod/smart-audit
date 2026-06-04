@@ -38,6 +38,32 @@ class UserRepository(SQLAlchemyRepository[User]):
         )
         return await self._get_one(db, statement)
 
+    async def list_revoked_users_by_company(
+        self, db: AsyncSession, company_id: str, params: PaginationParams
+    ) -> tuple[list[Membership], int]:
+        statement = (
+            select(Membership)
+            .where(Membership.company_id == company_id, Membership.revoked_at.is_not(None))
+            .options(selectinload(Membership.user), selectinload(Membership.company))
+            .order_by(Membership.revoked_at.desc())
+            .join(Membership.user)
+        )
+        return await self._paginate_select(db, statement, params)
+
+    async def get_revoked_company_user(
+        self, db: AsyncSession, company_id: str, user_id: str
+    ) -> Membership | None:
+        statement = (
+            select(Membership)
+            .where(
+                Membership.company_id == company_id,
+                Membership.user_id == user_id,
+                Membership.revoked_at.is_not(None),
+            )
+            .options(selectinload(Membership.user), selectinload(Membership.company))
+        )
+        return await self._get_one(db, statement)
+
     async def get_user_by_email(self, db: AsyncSession, email: str) -> User | None:
         statement = select(User).where(User.email == email)
         return await self._get_one(db, statement)

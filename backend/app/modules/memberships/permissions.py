@@ -3,6 +3,7 @@ from fastapi import Depends, HTTPException, status
 from app.db.models.memberships import Membership
 from app.modules.memberships.dependencies import get_current_membership
 
+ALLOWED_OWNER_ROLES = {"OWNER"}
 ALLOWED_ADMIN_ROLES = {"OWNER", "ADMIN"}
 ALLOWED_MANAGER_ROLES = {"OWNER", "ADMIN", "MANAGER"}
 ALLOWED_OPERATOR_ROLES = {"OWNER", "ADMIN", "MANAGER", "INSPECTOR"}
@@ -20,6 +21,12 @@ def require_membership_roles(*roles: str):
         return membership
 
     return dependency
+
+
+def get_owner_membership(
+    membership: Membership = Depends(require_membership_roles(*ALLOWED_OWNER_ROLES)),
+) -> Membership:
+    return membership
 
 
 def get_admin_membership(

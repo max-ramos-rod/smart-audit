@@ -9,6 +9,14 @@ class UserListItemResponse(BaseModel):
     role: str
 
 
+class UserRevokedItemResponse(BaseModel):
+    id: str
+    name: str
+    email: str
+    role: str
+    revoked_at: str
+
+
 class UserResponse(BaseModel):
     id: str
     name: str

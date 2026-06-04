@@ -32,3 +32,7 @@ class MembershipRepository(SQLAlchemyRepository[Membership]):
     async def revoke(self, db: AsyncSession, membership: Membership) -> None:
         membership.revoked_at = datetime.now(UTC)
         await self._save(db, membership)
+
+    async def reactivate(self, db: AsyncSession, membership: Membership) -> None:
+        membership.revoked_at = None
+        await self._save(db, membership)

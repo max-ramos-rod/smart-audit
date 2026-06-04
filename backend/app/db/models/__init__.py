@@ -1,4 +1,5 @@
 ﻿from app.db.models.attachments import Attachment
+from app.db.models.audit_logs import AuditLog
 from app.db.models.base import TimestampMixin, UUIDPrimaryKeyMixin
 from app.db.models.companies import Company
 from app.db.models.form_fields import FormField
@@ -13,6 +14,7 @@ from app.db.models.users import User
 
 __all__ = [
     "Attachment",
+    "AuditLog",
     "Company",
     "Form",
     "FormField",

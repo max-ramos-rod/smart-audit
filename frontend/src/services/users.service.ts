@@ -1,5 +1,11 @@
 import type { ApiEnvelope, PaginatedEnvelope } from '@/types/api'
-import type { UserCreatePayload, UserDetail, UserListItem, UserUpdatePayload } from '@/types/users'
+import type {
+  UserCreatePayload,
+  UserDetail,
+  UserListItem,
+  UserRevokedItem,
+  UserUpdatePayload,
+} from '@/types/users'
 
 import { http } from './api/http'
 
@@ -27,4 +33,15 @@ export async function updateUser(userId: string, payload: UserUpdatePayload) {
 
 export async function revokeUser(userId: string): Promise<void> {
   await http.delete(`/users/${userId}`)
+}
+
+export async function fetchRevokedUsers(page = 1, pageSize = 20) {
+  const response = await http.get<PaginatedEnvelope<UserRevokedItem>>('/users/revoked', {
+    params: { page, page_size: pageSize },
+  })
+  return response.data
+}
+
+export async function reactivateUser(userId: string): Promise<void> {
+  await http.post(`/users/${userId}/reactivate`)
 }

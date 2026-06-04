@@ -2,13 +2,19 @@ from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.memberships import Membership
+from app.modules.audit_logs.repository import AuditLogRepository
 from app.modules.companies.repository import CompanyRepository
 from app.modules.companies.schemas import CompanyResponse, CompanyUpdateRequest, UsageResponse, UsageStat
 
 
 class CompanyService:
-    def __init__(self, repository: CompanyRepository | None = None) -> None:
+    def __init__(
+        self,
+        repository: CompanyRepository | None = None,
+        audit_repository: AuditLogRepository | None = None,
+    ) -> None:
         self.repository = repository or CompanyRepository()
+        self.audit_repository = audit_repository or AuditLogRepository()
 
     async def get_company(self, db: AsyncSession, membership: Membership) -> CompanyResponse:
         company = await self.repository.get_by_id(db, str(membership.company_id))
@@ -58,6 +64,19 @@ class CompanyService:
             forms=UsageStat(used=forms_used, limit=limits["forms"]),
             submissions_this_month=UsageStat(used=subs_used, limit=limits["submissions"]),
         )
+
+    async def deactivate_company(self, db: AsyncSession, membership: Membership) -> None:
+        company = await self.repository.get_by_id(db, str(membership.company_id))
+        if company is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Empresa nao encontrada.")
+        await self.repository.deactivate_company(db, str(membership.company_id))
+        await self.audit_repository.log(
+            db,
+            company_id=str(membership.company_id),
+            actor_id=str(membership.user_id),
+            action="company.deactivated",
+        )
+        await db.commit()
 
     @staticmethod
     def _serialize(company) -> CompanyResponse:

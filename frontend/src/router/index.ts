@@ -15,6 +15,7 @@ import FormsView from '@/views/forms/FormsView.vue'
 import SubmissionDetailView from '@/views/submissions/SubmissionDetailView.vue'
 import SubmissionReportView from '@/views/submissions/SubmissionReportView.vue'
 import SubmissionsView from '@/views/submissions/SubmissionsView.vue'
+import AuditView from '@/views/settings/AuditView.vue'
 import CompanySettingsView from '@/views/settings/CompanySettingsView.vue'
 import NotificationsView from '@/views/notifications/NotificationsView.vue'
 import SearchView from '@/views/search/SearchView.vue'
@@ -106,6 +107,12 @@ const router = createRouter({
       path: '/company-settings',
       name: 'company-settings',
       component: CompanySettingsView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/audit',
+      name: 'audit',
+      component: AuditView,
       meta: { requiresAuth: true },
     },
     {

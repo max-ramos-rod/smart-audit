@@ -51,6 +51,7 @@ function logout() {
         <div class="sb-sec" style="margin-top: 8px">Ferramentas</div>
         <RouterLink to="/search" class="nav-btn" active-class="active"><SvgIcon name="search" />Buscar</RouterLink>
         <RouterLink to="/notifications" class="nav-btn" active-class="active"><SvgIcon name="bell" />Notificações</RouterLink>
+        <RouterLink to="/audit" class="nav-btn" active-class="active"><SvgIcon name="search" />Auditoria</RouterLink>
         <RouterLink to="/company-settings" class="nav-btn" active-class="active"><SvgIcon name="settings" />Config. empresa</RouterLink>
       </nav>
 

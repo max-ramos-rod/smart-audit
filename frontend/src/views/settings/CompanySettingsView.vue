@@ -3,10 +3,18 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import AppShell from '@/components/layout/AppShell.vue'
-import { fetchMyCompany, fetchUsage, updateMyCompany, type UsageData } from '@/services/companies.service'
+import {
+  deactivateCompany,
+  fetchMyCompany,
+  fetchUsage,
+  updateMyCompany,
+  type UsageData,
+} from '@/services/companies.service'
+import { useAuthStore } from '@/stores/auth/auth.store'
 import { useContextStore } from '@/stores/context/context.store'
 
 const router = useRouter()
+const authStore = useAuthStore()
 const contextStore = useContextStore()
 
 const tab = ref<'general' | 'plan' | 'usage'>('general')
@@ -107,6 +115,37 @@ function usagePct(item: UsageItem) {
 function usageColor(pct: number) {
   return pct >= 90 ? 'var(--sa-danger)' : pct >= 70 ? 'var(--sa-warn)' : 'var(--sa-ok)'
 }
+
+const isOwner = computed(() => contextStore.context?.membership?.role === 'OWNER')
+
+const showDeactivateModal = ref(false)
+const deactivateConfirmName = ref('')
+const isDeactivating = ref(false)
+const deactivateError = ref<string | null>(null)
+
+function openDeactivateModal() {
+  deactivateConfirmName.value = ''
+  deactivateError.value = null
+  showDeactivateModal.value = true
+}
+
+function closeDeactivateModal() {
+  showDeactivateModal.value = false
+}
+
+async function confirmDeactivate() {
+  if (deactivateConfirmName.value !== company.value?.name) return
+  isDeactivating.value = true
+  deactivateError.value = null
+  try {
+    await deactivateCompany()
+    authStore.logout()
+    router.replace('/login')
+  } catch (err: any) {
+    deactivateError.value = err.response?.data?.detail ?? 'Erro ao desativar empresa.'
+    isDeactivating.value = false
+  }
+}
 </script>
 
 <template>
@@ -203,12 +242,21 @@ function usageColor(pct: number) {
           style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; background: var(--sa-err-bg); border: 1px solid var(--sa-err-bd, #fecaca); border-radius: 8px;"
         >
           <div>
-            <div style="font-size: 13px; font-weight: 700; color: var(--sa-danger);">Excluir empresa</div>
+            <div style="font-size: 13px; font-weight: 700; color: var(--sa-danger);">Desativar empresa</div>
             <div style="font-size: 12px; color: var(--sa-danger); opacity: .7;">
-              Ação irreversível. Ainda não existe fluxo funcional exposto na interface.
+              Ação irreversível. Todos os membros e equipes serão desativados.
             </div>
           </div>
-          <button type="button" class="btn-secondary btn-sm" disabled>Indisponível</button>
+          <button
+            v-if="isOwner"
+            type="button"
+            class="btn-sm"
+            style="background: var(--sa-danger); color: #fff; border: none; border-radius: 6px; padding: 6px 14px; font-size: 12px; font-weight: 600; cursor: pointer;"
+            @click="openDeactivateModal"
+          >
+            Desativar
+          </button>
+          <span v-else style="font-size: 12px; color: var(--sa-muted);">Apenas o OWNER pode desativar.</span>
         </div>
       </div>
 
@@ -295,5 +343,49 @@ function usageColor(pct: number) {
         </p>
       </div>
     </div>
+
+    <!-- Modal de confirmação de desativação -->
+    <Teleport to="body">
+      <div
+        v-if="showDeactivateModal"
+        style="position: fixed; inset: 0; background: rgba(0,0,0,.5); display: flex; align-items: center; justify-content: center; z-index: 9999; padding: 16px;"
+        @click.self="closeDeactivateModal"
+      >
+        <div style="background: var(--sa-card-bg, #fff); border-radius: 12px; padding: 24px; width: 100%; max-width: 420px; box-shadow: 0 20px 60px rgba(0,0,0,.2);">
+          <div style="font-size: 16px; font-weight: 700; color: var(--sa-danger); margin-bottom: 8px;">
+            Desativar empresa
+          </div>
+          <p style="font-size: 13px; color: var(--sa-muted); margin: 0 0 16px;">
+            Esta ação é <strong>irreversível</strong>. Todos os membros perderão acesso e as equipes serão desativadas.
+            Para confirmar, digite o nome da empresa:
+          </p>
+          <div style="font-size: 13px; font-weight: 700; color: var(--sa-text); margin-bottom: 8px;">
+            {{ company?.name }}
+          </div>
+          <input
+            v-model="deactivateConfirmName"
+            placeholder="Digite o nome da empresa"
+            style="width: 100%; margin-bottom: 12px; box-sizing: border-box;"
+          />
+          <div v-if="deactivateError" style="font-size: 12px; color: var(--sa-danger); margin-bottom: 10px;">
+            {{ deactivateError }}
+          </div>
+          <div style="display: flex; gap: 10px; justify-content: flex-end;">
+            <button type="button" class="btn-secondary btn-sm" :disabled="isDeactivating" @click="closeDeactivateModal">
+              Cancelar
+            </button>
+            <button
+              type="button"
+              class="btn-sm"
+              style="background: var(--sa-danger); color: #fff; border: none; border-radius: 6px; padding: 6px 14px; font-size: 12px; font-weight: 600; cursor: pointer;"
+              :disabled="deactivateConfirmName !== company?.name || isDeactivating"
+              @click="confirmDeactivate"
+            >
+              {{ isDeactivating ? 'Desativando...' : 'Confirmar desativação' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </AppShell>
 </template>

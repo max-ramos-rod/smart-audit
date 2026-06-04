@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.pagination import PageMeta, PaginationMetaBuilder, PaginationParams
 from app.db.models.memberships import Membership
 from app.db.models.teams import Team, TeamMember
+from app.modules.audit_logs.repository import AuditLogRepository
 from app.modules.memberships.repository import MembershipRepository
 from app.modules.teams.repository import TeamRepository
 from app.modules.teams.schemas import (
@@ -21,9 +22,11 @@ class TeamService:
         self,
         repository: TeamRepository | None = None,
         membership_repository: MembershipRepository | None = None,
+        audit_repository: AuditLogRepository | None = None,
     ) -> None:
         self.repository = repository or TeamRepository()
         self.membership_repository = membership_repository or MembershipRepository()
+        self.audit_repository = audit_repository or AuditLogRepository()
 
     async def list_teams(
         self,
@@ -89,6 +92,13 @@ class TeamService:
                 status_code=status.HTTP_404_NOT_FOUND, detail="Equipe nao encontrada."
             )
         await self.repository.deactivate(db, team)
+        await self.audit_repository.log(
+            db,
+            company_id=str(membership.company_id),
+            actor_id=str(membership.user_id),
+            action="team.deactivated",
+            meta={"team_name": team.name},
+        )
         await db.commit()
 
     async def add_member(
