@@ -3,11 +3,14 @@ import { computed, onMounted, reactive, ref } from 'vue'
 
 import AppShell from '@/components/layout/AppShell.vue'
 import { extractProblemMessage } from '@/services/api/problem'
+import { useContextStore } from '@/stores/context/context.store'
 import { useUsersStore } from '@/stores/users/users.store'
 import type { UserCreatePayload, UserListItem, UserUpdatePayload } from '@/types/users'
 
 const usersStore = useUsersStore()
+const contextStore = useContextStore()
 const isEditing = ref(false)
+const revokeError = ref<string | null>(null)
 const formError = ref<string | null>(null)
 const savedOnce = ref(false)
 const form = reactive({
@@ -31,6 +34,8 @@ onMounted(() => {
   usersStore.load()
 })
 
+const currentUserId = computed(() => contextStore.context?.user?.id)
+
 function resetForm() {
   form.id = ''
   form.name = ''
@@ -40,7 +45,19 @@ function resetForm() {
   form.is_active = true
   isEditing.value = false
   formError.value = null
+  revokeError.value = null
   usersStore.clearSelectedUser()
+}
+
+async function confirmRevoke(user: UserListItem) {
+  if (!confirm(`Revogar o acesso de "${user.name}" a esta empresa? O usuário não conseguirá mais fazer login nesta empresa.`)) return
+  revokeError.value = null
+  try {
+    await usersStore.revoke(user.id)
+    if (isEditing.value && form.id === user.id) resetForm()
+  } catch (err: any) {
+    revokeError.value = extractProblemMessage(err, 'Não foi possível revogar o acesso.')
+  }
 }
 
 function fillFormFromUser(user: UserListItem & { company_id?: string }) {
@@ -110,6 +127,9 @@ async function submit() {
 
       <p v-if="usersStore.error" style="font-size:13px;font-weight:600;color:var(--sa-danger);margin-bottom:12px;">
         {{ usersStore.error }}
+      </p>
+      <p v-if="revokeError" style="font-size:13px;font-weight:600;color:var(--sa-danger);margin-bottom:12px;">
+        {{ revokeError }}
       </p>
 
       <div class="users-layout">
@@ -219,7 +239,17 @@ async function submit() {
                   </span>
                 </td>
                 <td>
-                  <button class="inline-action" type="button" @click="editUser(user)">Editar</button>
+                  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                    <button class="inline-action" type="button" @click="editUser(user)">Editar</button>
+                    <button
+                      v-if="user.id !== currentUserId"
+                      class="inline-action"
+                      type="button"
+                      style="color:var(--sa-danger);"
+                      :disabled="usersStore.isSaving"
+                      @click="confirmRevoke(user)"
+                    >Revogar</button>
+                  </div>
                 </td>
               </tr>
             </tbody>

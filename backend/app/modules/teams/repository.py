@@ -18,7 +18,7 @@ class TeamRepository(SQLAlchemyRepository[Team]):
     ) -> tuple[list[Team], int]:
         statement = (
             select(Team)
-            .where(Team.company_id == company_id)
+            .where(Team.company_id == company_id, Team.is_active.is_(True))
             .options(selectinload(Team.members).selectinload(TeamMember.user))
             .order_by(Team.name)
         )
@@ -29,7 +29,7 @@ class TeamRepository(SQLAlchemyRepository[Team]):
     ) -> Team | None:
         statement = (
             select(Team)
-            .where(Team.id == team_id, Team.company_id == company_id)
+            .where(Team.id == team_id, Team.company_id == company_id, Team.is_active.is_(True))
             .options(selectinload(Team.members).selectinload(TeamMember.user))
         )
         return await self._get_one(db, statement)
@@ -48,3 +48,7 @@ class TeamRepository(SQLAlchemyRepository[Team]):
 
     async def create_member(self, db: AsyncSession, member: TeamMember) -> TeamMember:
         return await self._save(db, member)
+
+    async def deactivate(self, db: AsyncSession, team: Team) -> None:
+        team.is_active = False
+        await self._save(db, team)

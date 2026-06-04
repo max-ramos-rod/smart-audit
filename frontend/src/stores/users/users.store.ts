@@ -2,7 +2,7 @@ import { ref } from 'vue'
 import { defineStore } from 'pinia'
 
 import { extractProblemMessage } from '@/services/api/problem'
-import { createUser, fetchUser, fetchUsers, updateUser } from '@/services/users.service'
+import { createUser, fetchUser, fetchUsers, revokeUser, updateUser } from '@/services/users.service'
 import type { PaginationMeta } from '@/types/api'
 import type { UserCreatePayload, UserDetail, UserListItem, UserUpdatePayload } from '@/types/users'
 
@@ -75,6 +75,23 @@ export const useUsersStore = defineStore('users', () => {
     }
   }
 
+  async function revoke(userId: string) {
+    isSaving.value = true
+    error.value = null
+    try {
+      await revokeUser(userId)
+      await load(meta.value?.page ?? 1, meta.value?.page_size ?? 20)
+      if (selectedUser.value?.id === userId) {
+        selectedUser.value = null
+      }
+    } catch (err: any) {
+      error.value = extractProblemMessage(err, 'Nao foi possivel revogar o acesso do usuario.')
+      throw err
+    } finally {
+      isSaving.value = false
+    }
+  }
+
   function clearSelectedUser() {
     selectedUser.value = null
   }
@@ -90,6 +107,7 @@ export const useUsersStore = defineStore('users', () => {
     loadUser,
     create,
     update,
+    revoke,
     clearSelectedUser,
   }
 })

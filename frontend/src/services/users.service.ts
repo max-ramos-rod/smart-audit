@@ -24,3 +24,7 @@ export async function updateUser(userId: string, payload: UserUpdatePayload) {
   const response = await http.patch<ApiEnvelope<UserDetail>>(`/users/${userId}`, payload)
   return response.data.data
 }
+
+export async function revokeUser(userId: string): Promise<void> {
+  await http.delete(`/users/${userId}`)
+}

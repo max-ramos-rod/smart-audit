@@ -17,7 +17,7 @@ class UserRepository(SQLAlchemyRepository[User]):
     ) -> tuple[list[Membership], int]:
         statement = (
             select(Membership)
-            .where(Membership.company_id == company_id)
+            .where(Membership.company_id == company_id, Membership.revoked_at.is_(None))
             .options(selectinload(Membership.user), selectinload(Membership.company))
             .order_by(User.name.asc())
             .join(Membership.user)
@@ -29,7 +29,11 @@ class UserRepository(SQLAlchemyRepository[User]):
     ) -> Membership | None:
         statement = (
             select(Membership)
-            .where(Membership.company_id == company_id, Membership.user_id == user_id)
+            .where(
+                Membership.company_id == company_id,
+                Membership.user_id == user_id,
+                Membership.revoked_at.is_(None),
+            )
             .options(selectinload(Membership.user), selectinload(Membership.company))
         )
         return await self._get_one(db, statement)

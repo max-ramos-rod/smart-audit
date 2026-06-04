@@ -5,6 +5,7 @@ from app.core.pagination import PageMeta, PaginationMetaBuilder, PaginationParam
 from app.core.security import hash_password
 from app.db.models.memberships import Membership
 from app.db.models.users import User
+from app.modules.memberships.repository import MembershipRepository
 from app.modules.users.repository import UserRepository
 from app.modules.users.schemas import (
     UserCreateRequest,
@@ -17,8 +18,13 @@ ALLOWED_ROLES = {"OWNER", "ADMIN", "MANAGER", "INSPECTOR", "VIEWER"}
 
 
 class UserService:
-    def __init__(self, repository: UserRepository | None = None) -> None:
+    def __init__(
+        self,
+        repository: UserRepository | None = None,
+        membership_repository: MembershipRepository | None = None,
+    ) -> None:
         self.repository = repository or UserRepository()
+        self.membership_repository = membership_repository or MembershipRepository()
 
     async def list_users(
         self,
@@ -106,6 +112,22 @@ class UserService:
             db, str(membership.company_id), user_id
         )
         return self.serialize_user(updated_membership)
+
+    async def revoke_membership(
+        self, db: AsyncSession, membership: Membership, user_id: str
+    ) -> None:
+        target_membership = await self.repository.get_company_user(
+            db, str(membership.company_id), user_id
+        )
+        if target_membership is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario nao encontrado.")
+        if str(target_membership.user_id) == str(membership.user_id):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Voce nao pode revogar o proprio acesso.",
+            )
+        await self.membership_repository.revoke(db, target_membership)
+        await db.commit()
 
     @staticmethod
     def validate_role(role: str) -> None:

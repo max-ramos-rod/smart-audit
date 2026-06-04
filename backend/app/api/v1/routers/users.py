@@ -59,3 +59,14 @@ async def update_user(
 ) -> dict[str, object]:
     data = await user_service.update_user(db, membership, user_id, payload)
     return success_response(data.model_dump(mode="json"))
+
+
+@router.delete("/{user_id}")
+async def revoke_user_membership(
+    user_id: str,
+    membership: Membership = Depends(get_admin_membership),
+    db: AsyncSession = Depends(get_db),
+    user_service: UserService = Depends(get_user_service),
+) -> dict[str, object]:
+    await user_service.revoke_membership(db, membership, user_id)
+    return success_response(None)

@@ -22,7 +22,10 @@ class CompanyRepository(SQLAlchemyRepository[Company]):
 
     async def count_members(self, db: AsyncSession, company_id: str) -> int:
         result = await db.scalar(
-            select(func.count()).where(Membership.company_id == company_id)
+            select(func.count()).where(
+                Membership.company_id == company_id,
+                Membership.revoked_at.is_(None),
+            )
         )
         return result or 0
 
