@@ -1,0 +1,1305 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Smart Audit — Auditorias e Inspeções Operacionais</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ── RESET & TOKENS ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html {
+  font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  scroll-behavior: smooth;
+}
+:root {
+  --blue:        #2563eb;
+  --blue-strong: #1d4ed8;
+  --blue-soft:   #eff6ff;
+  --blue-mid:    #3b82f6;
+  --dark:        #1e293b;
+  --darker:      #0f172a;
+  --text:        #0f172a;
+  --muted:       #64748b;
+  --line:        #e2e8f0;
+  --bg:          #f1f5f9;
+  --panel:       #ffffff;
+  --green:       #16a34a;
+  --green-bg:    #f0fdf4;
+  --amber:       #d97706;
+  --red:         #dc2626;
+  --radius-sm:   8px;
+  --radius-md:   12px;
+  --radius-lg:   16px;
+  --shadow:      0 4px 6px -1px rgb(0 0 0/.08), 0 2px 4px -2px rgb(0 0 0/.06);
+  --shadow-lg:   0 10px 40px -8px rgb(0 0 0/.18);
+}
+
+body { background: #fff; color: var(--text); }
+
+/* ── NAV ── */
+nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  background: rgba(15,23,42,.96);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(255,255,255,.06);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 40px; height: 60px;
+}
+.nav-logo { display: flex; align-items: center; gap: 10px; }
+.nav-logo svg { width: 32px; height: 32px; }
+.nav-logo-name { color: #fff; font-weight: 700; font-size: 17px; letter-spacing: -.01em; }
+.nav-links { display: flex; align-items: center; gap: 32px; }
+.nav-links a {
+  color: rgba(255,255,255,.65); font-size: 14px; font-weight: 500;
+  text-decoration: none; transition: color .15s;
+}
+.nav-links a:hover { color: #fff; }
+.nav-cta {
+  background: var(--blue); color: #fff;
+  border: none; border-radius: var(--radius-sm);
+  padding: 8px 18px; font-size: 14px; font-weight: 600;
+  cursor: pointer; transition: background .15s; text-decoration: none;
+}
+.nav-cta:hover { background: var(--blue-strong); }
+
+/* ── HERO ── */
+.hero {
+  min-height: 100vh;
+  background: linear-gradient(160deg, #0f172a 0%, #1e3a5f 55%, #0f2746 100%);
+  display: block;
+  padding: 140px 40px 80px;
+  position: relative; overflow: hidden;
+  text-align: center;
+}
+.hero-content {
+  position: relative; z-index: 1;
+  text-align: center;
+}
+.hero-grid-bg {
+  position: absolute; inset: 0;
+  background-image:
+    linear-gradient(rgba(37,99,235,.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(37,99,235,.07) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 40%, black 40%, transparent 100%);
+}
+.hero-glow {
+  position: absolute; top: 15%; left: 50%; transform: translateX(-50%);
+  width: 600px; height: 400px;
+  background: radial-gradient(ellipse, rgba(37,99,235,.25) 0%, transparent 70%);
+  pointer-events: none;
+}
+.hero-badge {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: rgba(37,99,235,.15); border: 1px solid rgba(37,99,235,.35);
+  border-radius: 100px; padding: 5px 14px;
+  color: #93c5fd; font-size: 13px; font-weight: 500;
+  margin-bottom: 28px;
+}
+.hero-badge-dot { width: 6px; height: 6px; border-radius: 50%; background: #60a5fa; }
+.hero-title {
+  font-size: 48px; font-weight: 800;
+  color: #fff; line-height: 1.15; letter-spacing: -.03em;
+  text-align: center; max-width: 780px;
+  display: block; margin: 0 auto; padding-bottom: 60px;
+}
+.hero-title em { font-style: normal; color: #60a5fa; }
+.hero-sub {
+  font-size: 18px;
+  color: rgba(255,255,255,.6); text-align: center; max-width: 520px;
+  line-height: 1.65; display: block; margin: 0 auto; padding-bottom: 40px;
+}
+.hero-actions {
+  display: flex; align-items: center; justify-content: center; gap: 14px;
+}
+.btn-primary {
+  background: var(--blue); color: #fff;
+  border: none; border-radius: var(--radius-sm);
+  padding: 14px 28px; font-size: 16px; font-weight: 700;
+  cursor: pointer; transition: all .15s; text-decoration: none; display: inline-block;
+  box-shadow: 0 4px 24px rgba(37,99,235,.4);
+}
+.btn-primary:hover { background: var(--blue-strong); transform: translateY(-1px); }
+.btn-ghost {
+  background: rgba(255,255,255,.07); color: rgba(255,255,255,.8);
+  border: 1px solid rgba(255,255,255,.14); border-radius: var(--radius-sm);
+  padding: 14px 24px; font-size: 16px; font-weight: 600;
+  cursor: pointer; transition: all .15s; text-decoration: none; display: inline-block;
+}
+.btn-ghost:hover { background: rgba(255,255,255,.12); color: #fff; }
+
+/* ── HERO MOCKUP ── */
+.hero-mockup {
+  position: relative; margin-top: 64px; width: 100%; max-width: 1000px;
+  z-index: 1; margin-left: auto; margin-right: auto;
+}
+.mockup-shell {
+  background: #1e293b; border-radius: var(--radius-lg);
+  border: 1px solid rgba(255,255,255,.1);
+  box-shadow: 0 40px 80px -20px rgba(0,0,0,.6);
+  overflow: hidden;
+}
+.mockup-bar {
+  background: #0f172a; padding: 12px 16px;
+  display: flex; align-items: center; gap: 8px;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+}
+.mockup-dot { width: 10px; height: 10px; border-radius: 50%; }
+.mockup-dot.red   { background: #ef4444; }
+.mockup-dot.amber { background: #f59e0b; }
+.mockup-dot.green { background: #22c55e; }
+.mockup-url {
+  flex: 1; background: rgba(255,255,255,.06);
+  border-radius: 6px; padding: 4px 12px;
+  color: rgba(255,255,255,.4); font-family: 'DM Mono', monospace; font-size: 12px;
+}
+.mockup-content {
+  display: grid; grid-template-columns: 220px 1fr;
+  min-height: 480px;
+}
+.mock-sidebar {
+  background: #1e293b; border-right: 1px solid rgba(255,255,255,.06);
+  padding: 20px 0;
+}
+.mock-nav-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 20px; font-size: 13px; font-weight: 500;
+  color: rgba(255,255,255,.45); cursor: pointer;
+  transition: all .15s;
+}
+.mock-nav-item.active {
+  background: rgba(37,99,235,.15); color: #60a5fa;
+  border-right: 2px solid var(--blue);
+}
+.mock-nav-item svg { width: 16px; height: 16px; flex-shrink: 0; }
+.mock-main { background: #f1f5f9; padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+.mock-header { display: flex; align-items: center; justify-content: space-between; }
+.mock-title { font-size: 20px; font-weight: 700; color: #0f172a; }
+.mock-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.mock-stat {
+  background: #fff; border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  padding: 14px 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.05);
+}
+.mock-stat-label { font-size: 11px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
+.mock-stat-val { font-size: 26px; font-weight: 800; color: #0f172a; margin-top: 4px; }
+.mock-stat-val.blue { color: #2563eb; }
+.mock-stat-val.green { color: #16a34a; }
+.mock-stat-val.amber { color: #d97706; }
+.mock-chart { background: #fff; border-radius: 10px; border: 1px solid #e2e8f0; padding: 16px; }
+.mock-chart-title { font-size: 12px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 12px; }
+.mock-bars { display: flex; gap: 6px; align-items: flex-end; height: 80px; }
+.mock-bar { flex: 1; border-radius: 4px 4px 0 0; background: #dbeafe; position: relative; }
+.mock-bar.high { background: #2563eb; }
+.mock-bar.med  { background: #93c5fd; }
+.mock-bar-label { font-size: 10px; color: #94a3b8; text-align: center; margin-top: 4px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
+/* ── STATS STRIP ── */
+.stats-strip {
+  background: var(--darker); padding: 28px 40px;
+  display: flex; align-items: center; justify-content: center; gap: 64px;
+  flex-wrap: wrap;
+}
+.strip-stat { text-align: center; }
+.strip-val { font-size: 32px; font-weight: 800; color: #fff; letter-spacing: -.02em; }
+.strip-lbl { font-size: 13px; color: rgba(255,255,255,.45); margin-top: 2px; font-weight: 500; }
+
+/* ── SECTIONS ── */
+section { padding: 96px 40px; }
+.section-inner { max-width: 1100px; margin: 0 auto; }
+.section-label {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--blue); margin-bottom: 14px;
+}
+.section-label::before {
+  content: ''; display: block; width: 20px; height: 2px; background: var(--blue); border-radius: 2px;
+}
+.section-title {
+  font-size: clamp(28px, 4vw, 44px); font-weight: 800; letter-spacing: -.02em;
+  color: var(--darker); line-height: 1.15;
+}
+.section-title em { font-style: normal; color: var(--blue); }
+.section-sub {
+  font-size: 17px; color: var(--muted); max-width: 540px;
+  line-height: 1.7; margin-top: 14px;
+}
+
+/* ── FEATURES GRID ── */
+.features-bg { background: var(--bg); }
+.features-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 20px; margin-top: 52px;
+}
+.feat-card {
+  background: #fff; border: 1px solid var(--line);
+  border-radius: var(--radius-lg); padding: 28px;
+  box-shadow: var(--shadow); transition: all .2s;
+}
+.feat-card:hover { box-shadow: var(--shadow-lg); transform: translateY(-2px); }
+.feat-icon {
+  width: 44px; height: 44px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 16px;
+}
+.feat-icon svg { width: 22px; height: 22px; }
+.feat-icon.blue   { background: #eff6ff; color: var(--blue); }
+.feat-icon.green  { background: #f0fdf4; color: var(--green); }
+.feat-icon.amber  { background: #fffbeb; color: var(--amber); }
+.feat-icon.purple { background: #f5f3ff; color: #7c3aed; }
+.feat-icon.red    { background: #fef2f2; color: var(--red); }
+.feat-icon.teal   { background: #f0fdfa; color: #0d9488; }
+.feat-title { font-size: 16px; font-weight: 700; color: var(--darker); margin-bottom: 8px; }
+.feat-desc  { font-size: 14px; color: var(--muted); line-height: 1.65; }
+.feat-tags  { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+.feat-tag {
+  font-size: 11px; font-weight: 600; padding: 3px 8px;
+  border-radius: 100px; background: var(--bg); color: var(--muted);
+  border: 1px solid var(--line);
+}
+
+/* ── INSPECTION DEMO ── */
+.insp-section { background: #fff; }
+.insp-layout {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 64px; align-items: center; margin-top: 52px;
+}
+.insp-steps { display: flex; flex-direction: column; gap: 24px; }
+.insp-step { display: flex; gap: 16px; }
+.insp-step-num {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: var(--blue); color: #fff;
+  font-size: 14px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.insp-step-body { padding-top: 6px; }
+.insp-step-title { font-size: 16px; font-weight: 700; color: var(--darker); }
+.insp-step-desc  { font-size: 14px; color: var(--muted); line-height: 1.65; margin-top: 4px; }
+
+/* ── INSPECTION CARD DEMO ── */
+.insp-demo-card {
+  background: #fff; border-radius: var(--radius-lg);
+  border: 1px solid var(--line); box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+.insp-demo-header {
+  background: var(--dark); padding: 16px 20px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.insp-demo-title { color: #fff; font-size: 14px; font-weight: 600; }
+.score-ring-demo {
+  width: 48px; height: 48px; border-radius: 50%;
+  background: conic-gradient(#22c55e 0% 87%, #334155 87% 100%);
+  display: flex; align-items: center; justify-content: center;
+}
+.score-ring-inner {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: var(--dark); display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; color: #22c55e;
+}
+.insp-progress-bar { height: 6px; background: #e2e8f0; position: relative; overflow: hidden; }
+.insp-progress-fill { height: 100%; display: flex; }
+.insp-prog-conform  { background: #22c55e; width: 60%; }
+.insp-prog-nonconf  { background: #ef4444; width: 15%; }
+.insp-prog-pending  { background: #e2e8f0; width: 25%; }
+.insp-demo-body { padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+.insp-field-card {
+  background: #f8fafc; border-radius: 10px; border: 1px solid #e2e8f0; padding: 14px;
+}
+.insp-field-label { font-size: 13px; font-weight: 700; color: #0f172a; }
+.insp-field-inst   { font-size: 12px; color: #64748b; margin-top: 2px; }
+.insp-field-btns   { display: flex; gap: 8px; margin-top: 10px; }
+.btn-conf   { flex: 1; padding: 9px; border-radius: 8px; border: none; font-size: 13px; font-weight: 600; cursor: pointer; background: #dcfce7; color: #15803d; }
+.btn-nconf  { flex: 1; padding: 9px; border-radius: 8px; border: none; font-size: 13px; font-weight: 600; cursor: pointer; background: #fee2e2; color: #dc2626; }
+.btn-na     { padding: 9px 14px; border-radius: 8px; border: none; font-size: 13px; font-weight: 600; cursor: pointer; background: #f1f5f9; color: #64748b; }
+.insp-field-card.done { border-color: #bbf7d0; background: #f0fdf4; }
+.insp-field-done-row { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; }
+.badge-conform  { background: #dcfce7; color: #15803d; padding: 3px 10px; border-radius: 100px; font-size: 12px; font-weight: 700; }
+.badge-nconf    { background: #fee2e2; color: #dc2626; padding: 3px 10px; border-radius: 100px; font-size: 12px; font-weight: 700; }
+
+/* ── SCORE SECTION ── */
+.score-section { background: var(--bg); }
+.score-layout {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 64px; align-items: center; margin-top: 52px;
+}
+.score-visual {
+  background: #fff; border-radius: var(--radius-lg);
+  border: 1px solid var(--line); padding: 32px;
+  box-shadow: var(--shadow);
+}
+.score-big-ring {
+  width: 140px; height: 140px; border-radius: 50%;
+  background: conic-gradient(#16a34a 0% 87%, #e2e8f0 87% 100%);
+  display: flex; align-items: center; justify-content: center; margin: 0 auto 24px;
+}
+.score-big-inner {
+  width: 108px; height: 108px; border-radius: 50%;
+  background: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center;
+}
+.score-big-val  { font-size: 32px; font-weight: 800; color: #16a34a; }
+.score-big-lbl  { font-size: 11px; color: #64748b; font-weight: 600; }
+.breakdown-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.breakdown-item {
+  background: var(--bg); border-radius: 8px; padding: 12px 14px;
+  border: 1px solid var(--line);
+}
+.breakdown-count { font-size: 22px; font-weight: 800; color: var(--darker); }
+.breakdown-count.g { color: #16a34a; }
+.breakdown-count.r { color: #dc2626; }
+.breakdown-count.a { color: #d97706; }
+.breakdown-lbl   { font-size: 11px; color: #64748b; font-weight: 600; margin-top: 2px; }
+.score-info      { display: flex; flex-direction: column; gap: 20px; }
+.score-point     { display: flex; gap: 14px; align-items: flex-start; }
+.score-point-icon {
+  width: 36px; height: 36px; border-radius: 8px; flex-shrink: 0;
+  background: var(--blue-soft); color: var(--blue);
+  display: flex; align-items: center; justify-content: center;
+}
+.score-point-icon svg { width: 18px; height: 18px; }
+.score-point-title { font-size: 15px; font-weight: 700; color: var(--darker); }
+.score-point-desc  { font-size: 14px; color: var(--muted); line-height: 1.6; margin-top: 3px; }
+
+/* ── PLANS ── */
+.plans-section { background: #fff; }
+.plans-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 20px; margin-top: 52px;
+}
+.plan-card {
+  border-radius: var(--radius-lg); border: 2px solid var(--line);
+  padding: 32px; display: flex; flex-direction: column; gap: 24px;
+  transition: all .2s;
+}
+.plan-card.featured {
+  border-color: var(--blue); background: #f8fbff;
+  box-shadow: 0 0 0 4px rgba(37,99,235,.08), var(--shadow-lg);
+}
+.plan-badge {
+  display: inline-block; background: var(--blue); color: #fff;
+  font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+  padding: 3px 10px; border-radius: 100px; margin-bottom: -8px;
+}
+.plan-name { font-size: 22px; font-weight: 800; color: var(--darker); }
+.plan-desc { font-size: 14px; color: var(--muted); margin-top: 4px; }
+.plan-price { display: flex; align-items: baseline; gap: 4px; }
+.plan-price-val { font-size: 40px; font-weight: 800; color: var(--darker); letter-spacing: -.02em; }
+.plan-price-unit { font-size: 14px; color: var(--muted); }
+.plan-limits {
+  background: var(--bg); border-radius: 10px; padding: 16px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.plan-limit { display: flex; align-items: center; justify-content: space-between; font-size: 13px; }
+.plan-limit-lbl { color: var(--muted); font-weight: 500; }
+.plan-limit-val { font-weight: 700; color: var(--darker); }
+.plan-features { display: flex; flex-direction: column; gap: 10px; }
+.plan-feat { display: flex; align-items: flex-start; gap: 10px; font-size: 14px; color: var(--text); }
+.plan-feat-check { color: var(--green); flex-shrink: 0; margin-top: 1px; }
+.plan-feat-check svg { width: 16px; height: 16px; }
+.btn-plan {
+  padding: 13px; border-radius: 10px; font-size: 15px; font-weight: 700;
+  cursor: pointer; border: none; transition: all .15s; text-align: center;
+  text-decoration: none; display: block;
+}
+.btn-plan.primary { background: var(--blue); color: #fff; }
+.btn-plan.primary:hover { background: var(--blue-strong); }
+.btn-plan.outline { background: transparent; color: var(--blue); border: 2px solid var(--blue); }
+.btn-plan.outline:hover { background: var(--blue-soft); }
+
+/* ── TECH SECTION ── */
+.tech-section { background: var(--bg); }
+.tech-grid {
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-top: 48px;
+}
+.tech-card {
+  background: #fff; border: 1px solid var(--line); border-radius: var(--radius-md);
+  padding: 24px; display: flex; gap: 16px; align-items: flex-start;
+}
+.tech-icon {
+  width: 40px; height: 40px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  font-family: 'DM Mono', monospace; font-size: 13px; font-weight: 500;
+}
+.tech-icon.be { background: #1e3a5f; color: #60a5fa; }
+.tech-icon.fe { background: #f0fdf4; color: #16a34a; }
+.tech-icon.db { background: #fef3c7; color: #92400e; }
+.tech-icon.ci { background: #f5f3ff; color: #6d28d9; }
+.tech-name { font-size: 15px; font-weight: 700; color: var(--darker); margin-bottom: 6px; }
+.tech-pills { display: flex; flex-wrap: wrap; gap: 6px; }
+.tech-pill {
+  font-size: 11px; font-weight: 600; padding: 3px 8px;
+  border-radius: 100px; background: var(--bg); color: var(--muted);
+  border: 1px solid var(--line); font-family: 'DM Mono', monospace;
+}
+
+/* ── METRICS SECTION ── */
+.metrics-section { background: #fff; }
+.metrics-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 20px; margin-top: 48px; }
+.metric-card {
+  background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-md);
+  padding: 28px 24px; text-align: center;
+}
+.metric-val { font-size: 36px; font-weight: 800; color: var(--blue); letter-spacing: -.02em; }
+.metric-lbl { font-size: 14px; color: var(--muted); margin-top: 6px; font-weight: 500; }
+
+/* ── ROLES ── */
+.roles-section { background: var(--bg); }
+.roles-grid {
+  display: grid; grid-template-columns: repeat(5,1fr);
+  gap: 14px; margin-top: 48px;
+}
+.role-card {
+  background: #fff; border: 1px solid var(--line); border-radius: var(--radius-md);
+  padding: 20px 16px; text-align: center;
+}
+.role-name { font-size: 13px; font-weight: 800; color: var(--darker); letter-spacing: .02em; font-family: 'DM Mono', monospace; }
+.role-desc { font-size: 12px; color: var(--muted); margin-top: 6px; line-height: 1.5; }
+.role-icon { font-size: 24px; margin-bottom: 10px; }
+
+/* ── NOTIFICATIONS STRIP ── */
+.notif-section { background: #fff; }
+.notif-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; margin-top: 48px; }
+.notif-card {
+  border-radius: var(--radius-md); padding: 18px 20px;
+  display: flex; align-items: flex-start; gap: 12px; border: 1px solid;
+}
+.notif-card.pending { background: #fffbeb; border-color: #fde68a; }
+.notif-card.low     { background: #fef2f2; border-color: #fecaca; }
+.notif-card.excel   { background: #f0fdf4; border-color: #bbf7d0; }
+.notif-icon { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.notif-icon.pending { background: #fef3c7; }
+.notif-icon.low     { background: #fee2e2; }
+.notif-icon.excel   { background: #dcfce7; }
+.notif-icon svg { width: 18px; height: 18px; }
+.notif-type  { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+.notif-card.pending .notif-type { color: #92400e; }
+.notif-card.low     .notif-type { color: #dc2626; }
+.notif-card.excel   .notif-type { color: #15803d; }
+.notif-text  { font-size: 13px; color: var(--text); margin-top: 2px; line-height: 1.5; }
+
+/* ── CTA ── */
+.cta-section {
+  background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%);
+  padding: 96px 40px; text-align: center;
+}
+.cta-title { font-size: clamp(28px, 4vw, 46px); font-weight: 800; color: #fff; letter-spacing: -.02em; }
+.cta-sub   { font-size: 18px; color: rgba(255,255,255,.55); margin-top: 14px; }
+.cta-actions { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 36px; }
+
+/* ── FOOTER ── */
+footer {
+  background: var(--darker); padding: 32px 40px;
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 16px;
+}
+.footer-logo { display: flex; align-items: center; gap: 10px; }
+.footer-logo svg { width: 28px; height: 28px; }
+.footer-name { color: rgba(255,255,255,.7); font-weight: 700; font-size: 15px; }
+.footer-links { display: flex; gap: 28px; }
+.footer-links a { color: rgba(255,255,255,.35); font-size: 13px; text-decoration: none; transition: color .15s; }
+.footer-links a:hover { color: rgba(255,255,255,.7); }
+.footer-copy { color: rgba(255,255,255,.25); font-size: 13px; }
+
+/* ── RESPONSIVE ── */
+@media (max-width: 900px) {
+  nav { padding: 0 20px; }
+  .nav-links { display: none; }
+  section { padding: 64px 20px; }
+  .features-grid { grid-template-columns: 1fr 1fr; }
+  .insp-layout { grid-template-columns: 1fr; }
+  .score-layout { grid-template-columns: 1fr; }
+  .plans-grid { grid-template-columns: 1fr; }
+  .tech-grid { grid-template-columns: 1fr; }
+  .metrics-grid { grid-template-columns: 1fr 1fr; }
+  .roles-grid { grid-template-columns: 1fr 1fr; }
+  .notif-grid { grid-template-columns: 1fr; }
+  .mockup-content { grid-template-columns: 1fr; }
+  .mock-sidebar { display: none; }
+  .stats-strip { gap: 32px; }
+}
+@media (max-width: 580px) {
+  .features-grid { grid-template-columns: 1fr; }
+  .metrics-grid { grid-template-columns: 1fr 1fr; }
+  .roles-grid { grid-template-columns: 1fr 1fr; }
+  .hero-actions { flex-direction: column; }
+}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+      <rect width="64" height="64" rx="14" fill="#2563eb"/>
+      <path d="M20 18h16a4 4 0 0 1 4 4v2H20v-6z" fill="#fff" opacity="0.3"/>
+      <rect x="16" y="22" width="28" height="28" rx="3" fill="none" stroke="#fff" stroke-width="2.5"/>
+      <path d="M22 33l6 6 12-12" stroke="#fff" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      <circle cx="46" cy="46" r="10" fill="#16a34a"/>
+      <path d="M41 46l3 3 6-6" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    </svg>
+    <span class="nav-logo-name">Smart Audit</span>
+  </div>
+  <div class="nav-links">
+    <a href="#features">Funcionalidades</a>
+    <a href="#inspecao">Inspeção</a>
+    <a href="#score">Score</a>
+    <a href="#planos">Planos</a>
+    <a href="#tech">Tecnologia</a>
+  </div>
+  <a href="/app/login" class="nav-cta">Entrar</a>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-grid-bg"></div>
+  <div class="hero-glow"></div>
+  <div class="hero-content">
+    <div class="hero-badge">
+      <div class="hero-badge-dot"></div>
+      SaaS multi-empresa · FastAPI + Vue 3 · 218 testes passando
+    </div>
+    <h1 class="hero-title">
+      Auditorias e inspeções <em>rastreáveis, versionadas</em> e multiempresa
+    </h1>
+    <p class="hero-sub">
+      Substitua processos manuais por execução estruturada. Checklists, evidências, score ponderado e relatórios PDF — tudo em um só lugar.
+    </p>
+    <div class="hero-actions">
+      <a href="/app/login" class="btn-primary">Acessar o sistema →</a>
+      <a href="#features" class="btn-ghost">Explorar funcionalidades</a>
+    </div>
+
+  <!-- DASHBOARD MOCKUP -->
+  <div class="hero-mockup">
+    <div class="mockup-shell">
+      <div class="mockup-bar">
+        <div class="mockup-dot red"></div>
+        <div class="mockup-dot amber"></div>
+        <div class="mockup-dot green"></div>
+        <div class="mockup-url">app.smartaudit.io/dashboard</div>
+      </div>
+      <div class="mockup-content">
+        <div class="mock-sidebar">
+          <div class="mock-nav-item active">
+            <svg viewBox="0 0 20 20" fill="currentColor"><path d="M3 4a1 1 0 0 1 1-1h12a1 1 0 0 1 0 2H4a1 1 0 0 1-1-1Zm0 4a1 1 0 0 1 1-1h12a1 1 0 0 1 0 2H4a1 1 0 0 1-1-1Zm0 4a1 1 0 0 1 1-1h6a1 1 0 0 1 0 2H4a1 1 0 0 1-1-1Z"/></svg>
+            Dashboard
+          </div>
+          <div class="mock-nav-item">
+            <svg viewBox="0 0 20 20" fill="currentColor"><path d="M9 2a1 1 0 0 0 0 2h2a1 1 0 0 0 0-2H9Z"/><path fill-rule="evenodd" d="M4 5a2 2 0 0 1 2-2 3 3 0 0 0 3 3h2a3 3 0 0 0 3-3 2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5Zm3 4a1 1 0 0 0 0 2h.01a1 1 0 0 0 0-2H7Zm2 0a1 1 0 0 1 1-1h2a1 1 0 0 1 0 2h-2a1 1 0 0 1-1-1Zm-2 4a1 1 0 0 0 0 2h.01a1 1 0 0 0 0-2H7Zm2 0a1 1 0 0 1 1-1h2a1 1 0 0 1 0 2h-2a1 1 0 0 1-1-1Z" clip-rule="evenodd"/></svg>
+            Formulários
+          </div>
+          <div class="mock-nav-item">
+            <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 0 1 0 1.414l-8 8a1 1 0 0 1-1.414 0l-4-4a1 1 0 0 1 1.414-1.414L8 12.586l7.293-7.293a1 1 0 0 1 1.414 0Z" clip-rule="evenodd"/></svg>
+            Inspeções
+          </div>
+          <div class="mock-nav-item">
+            <svg viewBox="0 0 20 20" fill="currentColor"><path d="M13 6a3 3 0 1 1-6 0 3 3 0 0 1 6 0ZM18 8a2 2 0 1 1-4 0 2 2 0 0 1 4 0ZM6 8a2 2 0 1 1-4 0 2 2 0 0 1 4 0Zm8.93 5.588-1.54-.385A3 3 0 0 0 11 11H9a3 3 0 0 0-2.39 1.203l-1.54.385A3.001 3.001 0 0 0 3 15.5V16h14v-.5a3.001 3.001 0 0 0-2.07-2.912Z"/></svg>
+            Equipes
+          </div>
+          <div class="mock-nav-item">
+            <svg viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a6 6 0 0 0-6 6v3.586l-.707.707A1 1 0 0 0 4 14h12a1 1 0 0 0 .707-1.707L16 11.586V8a6 6 0 0 0-6-6Z"/><path d="M10 18a3 3 0 0 1-3-3h6a3 3 0 0 1-3 3Z"/></svg>
+            Notificações
+          </div>
+        </div>
+        <div class="mock-main">
+          <div class="mock-header">
+            <div class="mock-title">Dashboard</div>
+            <div style="background:#2563eb;color:#fff;border-radius:6px;padding:6px 14px;font-size:12px;font-weight:700;">Últimos 30 dias</div>
+          </div>
+          <div class="mock-stats">
+            <div class="mock-stat">
+              <div class="mock-stat-label">Total inspeções</div>
+              <div class="mock-stat-val blue">142</div>
+            </div>
+            <div class="mock-stat">
+              <div class="mock-stat-label">Concluídas</div>
+              <div class="mock-stat-val green">127</div>
+            </div>
+            <div class="mock-stat">
+              <div class="mock-stat-label">Em andamento</div>
+              <div class="mock-stat-val amber">15</div>
+            </div>
+            <div class="mock-stat">
+              <div class="mock-stat-label">Score médio</div>
+              <div class="mock-stat-val">87%</div>
+            </div>
+          </div>
+          <div class="mock-chart">
+            <div class="mock-chart-title">Score por formulário (piores primeiro)</div>
+            <div class="mock-bars">
+              <div style="display:flex;flex-direction:column;flex:1;">
+                <div class="mock-bar" style="height:55%;background:#93c5fd;"></div>
+                <div class="mock-bar-label">EPI</div>
+              </div>
+              <div style="display:flex;flex-direction:column;flex:1;">
+                <div class="mock-bar" style="height:62%;background:#93c5fd;"></div>
+                <div class="mock-bar-label">Veíc.</div>
+              </div>
+              <div style="display:flex;flex-direction:column;flex:1;">
+                <div class="mock-bar" style="height:74%;background:#60a5fa;"></div>
+                <div class="mock-bar-label">PPCI</div>
+              </div>
+              <div style="display:flex;flex-direction:column;flex:1;">
+                <div class="mock-bar" style="height:81%;background:#3b82f6;"></div>
+                <div class="mock-bar-label">Arma.</div>
+              </div>
+              <div style="display:flex;flex-direction:column;flex:1;">
+                <div class="mock-bar" style="height:89%;background:#2563eb;"></div>
+                <div class="mock-bar-label">Higiê.</div>
+              </div>
+              <div style="display:flex;flex-direction:column;flex:1;">
+                <div class="mock-bar" style="height:95%;background:#1d4ed8;"></div>
+                <div class="mock-bar-label">Qualid.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- STATS STRIP -->
+<div class="stats-strip">
+  <div class="strip-stat">
+    <div class="strip-val">218</div>
+    <div class="strip-lbl">testes backend passando</div>
+  </div>
+  <div class="strip-stat">
+    <div class="strip-val">119</div>
+    <div class="strip-lbl">testes frontend (Vitest)</div>
+  </div>
+  <div class="strip-stat">
+    <div class="strip-val">53</div>
+    <div class="strip-lbl">testes E2E (Playwright)</div>
+  </div>
+  <div class="strip-stat">
+    <div class="strip-val">5</div>
+    <div class="strip-lbl">perfis de acesso</div>
+  </div>
+  <div class="strip-stat">
+    <div class="strip-val">3</div>
+    <div class="strip-lbl">planos disponíveis</div>
+  </div>
+</div>
+
+<!-- FEATURES -->
+<section class="features-bg" id="features">
+  <div class="section-inner">
+    <div class="section-label">Funcionalidades</div>
+    <h2 class="section-title">Tudo que você precisa para<br><em>auditar com excelência</em></h2>
+    <p class="section-sub">Do formulário ao relatório, o Smart Audit cobre o ciclo completo de inspeções operacionais.</p>
+    <div class="features-grid">
+
+      <div class="feat-card">
+        <div class="feat-icon blue">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6M9 12h6M9 15h4"/>
+          </svg>
+        </div>
+        <div class="feat-title">Formulários Versionados</div>
+        <div class="feat-desc">Crie checklists com campos tipados, seções, pesos e instruções por campo. Cada publicação gera uma versão imutável — inspeções históricas nunca são afetadas.</div>
+        <div class="feat-tags">
+          <span class="feat-tag">boolean</span>
+          <span class="feat-tag">text</span>
+          <span class="feat-tag">number</span>
+          <span class="feat-tag">select</span>
+          <span class="feat-tag">date</span>
+          <span class="feat-tag">section</span>
+        </div>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-icon green">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m9 12 2 2 4-4"/><rect x="3" y="3" width="18" height="18" rx="2"/>
+          </svg>
+        </div>
+        <div class="feat-title">Modo de Inspeção</div>
+        <div class="feat-desc">Dois modos fullscreen: card a card com swipe gestual, ou lista compacta com filtros por status. Barra de progresso segmentada e anel de score em tempo real.</div>
+        <div class="feat-tags">
+          <span class="feat-tag">Card View</span>
+          <span class="feat-tag">List View</span>
+          <span class="feat-tag">Swipe</span>
+          <span class="feat-tag">Filtros</span>
+        </div>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-icon amber">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 3v18h18"/><path d="M7 16l4-8 4 6 2-4"/>
+          </svg>
+        </div>
+        <div class="feat-title">Dashboard Analítico</div>
+        <div class="feat-desc">Métricas por período (7d, 30d, 90d), gráfico de score por formulário ordenado pelos piores primeiro e sparkline de tendência dos últimos 30 dias.</div>
+        <div class="feat-tags">
+          <span class="feat-tag">Score por form</span>
+          <span class="feat-tag">Tendência</span>
+          <span class="feat-tag">Filtro período</span>
+        </div>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-icon purple">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/>
+          </svg>
+        </div>
+        <div class="feat-title">Exportação PDF Profissional</div>
+        <div class="feat-desc">Relatório com score colorido (verde/amarelo/vermelho), breakdown de conformidades, tabela de respostas e divisores de seção. Fonte DejaVu Sans com suporte Unicode completo.</div>
+        <div class="feat-tags">
+          <span class="feat-tag">fpdf2</span>
+          <span class="feat-tag">Unicode</span>
+          <span class="feat-tag">Inline / Download</span>
+        </div>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-icon teal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+          </svg>
+        </div>
+        <div class="feat-title">Evidências e Uploads</div>
+        <div class="feat-desc">Anexe fotos, vídeos, áudios e PDFs a qualquer campo de inspeção. Limites de tamanho por tipo: imagem 10 MB, áudio 50 MB, vídeo 200 MB.</div>
+        <div class="feat-tags">
+          <span class="feat-tag">JPEG/PNG/WebP</span>
+          <span class="feat-tag">MP4/MOV</span>
+          <span class="feat-tag">MP3/WAV</span>
+          <span class="feat-tag">PDF</span>
+        </div>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-icon red">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/>
+          </svg>
+        </div>
+        <div class="feat-title">Score Ponderado</div>
+        <div class="feat-desc">Cada campo booleano tem peso configurável. O score é calculado via <code style="font-family:'DM Mono';font-size:12px;background:#f1f5f9;padding:1px 4px;border-radius:4px;">submission_conformities</code>, com suporte a N/A sem afetar o denominador.</div>
+        <div class="feat-tags">
+          <span class="feat-tag">Peso por campo</span>
+          <span class="feat-tag">N/A</span>
+          <span class="feat-tag">Conformidades</span>
+        </div>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-icon blue">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+        </div>
+        <div class="feat-title">Multi-empresa e Equipes</div>
+        <div class="feat-desc">Modelo SaaS com isolamento por <code style="font-family:'DM Mono';font-size:12px;background:#eff6ff;padding:1px 4px;border-radius:4px;">company_id</code>. Crie equipes, gerencie membros, revogue acessos com soft delete preservando histórico.</div>
+        <div class="feat-tags">
+          <span class="feat-tag">Multi-tenant</span>
+          <span class="feat-tag">Equipes</span>
+          <span class="feat-tag">Soft delete</span>
+        </div>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-icon green">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          </svg>
+        </div>
+        <div class="feat-title">Notificações Inteligentes</div>
+        <div class="feat-desc">Alertas derivados em tempo real das inspeções: pendentes há +24h, score baixo (&lt;80%) e excelência (≥90%). Estado de leitura e dismiss persistido por usuário.</div>
+        <div class="feat-tags">
+          <span class="feat-tag">Pending</span>
+          <span class="feat-tag">Low Score</span>
+          <span class="feat-tag">Excellent</span>
+        </div>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-icon amber">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+          </svg>
+        </div>
+        <div class="feat-title">Busca e Importação</div>
+        <div class="feat-desc">Busca full-text em tempo real sobre formulários e inspeções. Importe checklists completos via CSV ou Excel com mapeamento automático de colunas.</div>
+        <div class="feat-tags">
+          <span class="feat-tag">Full-text</span>
+          <span class="feat-tag">CSV</span>
+          <span class="feat-tag">Excel</span>
+          <span class="feat-tag">Importação</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- INSPECTION FLOW -->
+<section class="insp-section" id="inspecao">
+  <div class="section-inner">
+    <div class="insp-layout">
+      <div>
+        <div class="section-label">Modo de Inspeção</div>
+        <h2 class="section-title">Execução<br><em>fluida e rastreável</em></h2>
+        <p class="section-sub">Dois modos complementares para cada tipo de inspetor e contexto operacional.</p>
+        <div class="insp-steps" style="margin-top:36px;">
+          <div class="insp-step">
+            <div class="insp-step-num">1</div>
+            <div class="insp-step-body">
+              <div class="insp-step-title">Inicie a inspeção</div>
+              <div class="insp-step-desc">Selecione o formulário publicado e abra direto no modo lista ou card — barra de progresso e score ao vivo desde o primeiro campo.</div>
+            </div>
+          </div>
+          <div class="insp-step">
+            <div class="insp-step-num">2</div>
+            <div class="insp-step-body">
+              <div class="insp-step-title">Responda e avalie conformidade</div>
+              <div class="insp-step-desc">No modo card: swipe direita = Conforme, esquerda = Não conforme. No modo lista: navegação rápida por seção e filtros de status.</div>
+            </div>
+          </div>
+          <div class="insp-step">
+            <div class="insp-step-num">3</div>
+            <div class="insp-step-body">
+              <div class="insp-step-title">Anexe evidências</div>
+              <div class="insp-step-desc">Fotos, vídeos ou áudios vinculados a campos específicos — carregados e associados direto durante a inspeção.</div>
+            </div>
+          </div>
+          <div class="insp-step">
+            <div class="insp-step-num">4</div>
+            <div class="insp-step-body">
+              <div class="insp-step-title">Finalize e exporte</div>
+              <div class="insp-step-desc">Score ponderado calculado automaticamente. Relatório PDF gerado com um clique — visualize inline ou faça download.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- INSPECTION CARD MOCKUP -->
+      <div class="insp-demo-card">
+        <div class="insp-demo-header">
+          <div>
+            <div class="insp-demo-title">Inspeção Veicular</div>
+            <div style="font-size:12px;color:rgba(255,255,255,.45);margin-top:2px;">Campo 3 de 8 · Seção: Motor</div>
+          </div>
+          <div class="score-ring-demo">
+            <div class="score-ring-inner">87%</div>
+          </div>
+        </div>
+        <div class="insp-progress-bar">
+          <div class="insp-progress-fill">
+            <div class="insp-prog-conform"></div>
+            <div class="insp-prog-nonconf"></div>
+            <div class="insp-prog-pending"></div>
+          </div>
+        </div>
+        <div style="background:#f8fafc;padding:8px 20px;display:flex;gap:16px;font-size:11px;font-weight:600;border-bottom:1px solid #e2e8f0;">
+          <span style="color:#16a34a;">● 5 Conformes</span>
+          <span style="color:#dc2626;">● 1 Não conf.</span>
+          <span style="color:#94a3b8;">● 2 Pendentes</span>
+        </div>
+        <div class="insp-demo-body">
+          <div class="insp-field-card done">
+            <div class="insp-field-label">Nível de óleo do motor</div>
+            <div class="insp-field-inst">Verifique com o veículo em superfície plana, motor frio.</div>
+            <div class="insp-field-done-row">
+              <span style="font-size:12px;color:#64748b;">Respondido: Sim</span>
+              <span class="badge-conform">Conforme</span>
+            </div>
+          </div>
+          <div class="insp-field-card done" style="border-color:#fecaca;background:#fef2f2;">
+            <div class="insp-field-label">Estado dos pneus</div>
+            <div class="insp-field-inst">Verifique desgaste, calibragem e danos visíveis.</div>
+            <div class="insp-field-done-row">
+              <span style="font-size:12px;color:#64748b;">Respondido: Não</span>
+              <span class="badge-nconf">Não conforme</span>
+            </div>
+          </div>
+          <div class="insp-field-card">
+            <div class="insp-field-label">Funcionamento dos faróis</div>
+            <div class="insp-field-inst">Teste faróis baixo, alto e neblina com o veículo ligado.</div>
+            <div class="insp-field-btns">
+              <button class="btn-conf">✓ Conforme</button>
+              <button class="btn-nconf">✕ Não conf.</button>
+              <button class="btn-na">N/A</button>
+            </div>
+          </div>
+        </div>
+        <div style="padding:16px 20px;background:#fff;border-top:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between;">
+          <button style="background:none;border:1px solid #e2e8f0;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;color:#64748b;cursor:pointer;">← Anterior</button>
+          <span style="font-size:12px;color:#94a3b8;font-family:'DM Mono',monospace;">3 / 8</span>
+          <button style="background:#2563eb;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;color:#fff;cursor:pointer;">Próximo →</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SCORE -->
+<section class="score-section" id="score">
+  <div class="section-inner">
+    <div class="score-layout">
+      <div class="score-visual">
+        <div style="font-size:13px;font-weight:700;color:#64748b;text-align:center;margin-bottom:20px;text-transform:uppercase;letter-spacing:.06em;">Score Final da Inspeção</div>
+        <div class="score-big-ring">
+          <div class="score-big-inner">
+            <div class="score-big-val">87%</div>
+            <div class="score-big-lbl">score</div>
+          </div>
+        </div>
+        <div class="breakdown-grid">
+          <div class="breakdown-item">
+            <div class="breakdown-count g">14</div>
+            <div class="breakdown-lbl">Conformes</div>
+          </div>
+          <div class="breakdown-item">
+            <div class="breakdown-count r">2</div>
+            <div class="breakdown-lbl">Não Conformes</div>
+          </div>
+          <div class="breakdown-item">
+            <div class="breakdown-count a">1</div>
+            <div class="breakdown-lbl">N/A</div>
+          </div>
+          <div class="breakdown-item">
+            <div class="breakdown-count">0</div>
+            <div class="breakdown-lbl">Sem resposta</div>
+          </div>
+        </div>
+        <div style="margin-top:16px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px 16px;font-size:13px;color:#15803d;font-weight:600;text-align:center;">
+          ✓ Score acima de 80% — dentro do limite aceitável
+        </div>
+      </div>
+
+      <div class="score-info">
+        <div class="section-label">Score Ponderado</div>
+        <h2 class="section-title" style="font-size:clamp(24px,3vw,36px);">Conformidade<br><em>com pesos reais</em></h2>
+        <div class="score-point">
+          <div class="score-point-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+          </div>
+          <div>
+            <div class="score-point-title">Peso por campo</div>
+            <div class="score-point-desc">Configure <code style="font-family:'DM Mono';font-size:12px;background:#eff6ff;padding:1px 4px;border-radius:4px;">weight</code> em cada campo booleano. Itens críticos valem mais — o score reflete prioridades reais do processo.</div>
+          </div>
+        </div>
+        <div class="score-point">
+          <div class="score-point-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>
+          </div>
+          <div>
+            <div class="score-point-title">Fonte: submission_conformities</div>
+            <div class="score-point-desc">Score = Σ(peso dos conformes) / Σ(peso dos avaliados) × 100. Campos N/A e sem avaliação não entram no denominador.</div>
+          </div>
+        </div>
+        <div class="score-point">
+          <div class="score-point-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+          </div>
+          <div>
+            <div class="score-point-title">Relatório PDF completo</div>
+            <div class="score-point-desc">Bloco de score colorido, chips de breakdown, tabela de respostas com conformidades, divisores de seção e suporte total a acentos portugueses.</div>
+          </div>
+        </div>
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:16px;font-family:'DM Mono',monospace;font-size:13px;color:#475569;line-height:1.8;">
+          <span style="color:#94a3b8;">// fórmula do score</span><br>
+          score = <span style="color:#2563eb;">Σ weight</span><span style="color:#16a34a;">[conforme]</span><br>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;/ <span style="color:#2563eb;">Σ weight</span><span style="color:#d97706;">[avaliado]</span><br>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;× <span style="color:#7c3aed;">100</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- NOTIFICATIONS -->
+<section class="notif-section" id="notificacoes">
+  <div class="section-inner">
+    <div style="text-align:center;margin-bottom:8px;"><div class="section-label" style="justify-content:center;">Notificações</div></div>
+    <h2 class="section-title" style="text-align:center;">Alertas <em>automáticos</em> em tempo real</h2>
+    <p class="section-sub" style="text-align:center;margin:14px auto 0;">Derivadas diretamente das inspeções — sem tabela de notificações no banco. Estado de leitura e dismiss persistido por usuário.</p>
+    <div class="notif-grid">
+      <div class="notif-card pending">
+        <div class="notif-icon pending">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        </div>
+        <div>
+          <div class="notif-type">Pendente</div>
+          <div class="notif-text">Inspeção "Checklist EPI" está em andamento há mais de 24h sem finalização.</div>
+        </div>
+      </div>
+      <div class="notif-card low">
+        <div class="notif-icon low">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2" stroke-linecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        </div>
+        <div>
+          <div class="notif-type">Score Baixo</div>
+          <div class="notif-text">Inspeção "Veicular #038" finalizada com score 64% — abaixo do limite de 80%.</div>
+        </div>
+      </div>
+      <div class="notif-card excel">
+        <div class="notif-icon excel">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round"><path d="m22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        </div>
+        <div>
+          <div class="notif-type">Excelência</div>
+          <div class="notif-text">Inspeção "PPCI Mensal" finalizada com score 96% — parabéns à equipe!</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ROLES -->
+<section class="roles-section" id="perfis">
+  <div class="section-inner">
+    <div style="text-align:center;"><div class="section-label" style="justify-content:center;">Controle de Acesso</div></div>
+    <h2 class="section-title" style="text-align:center;">5 perfis de acesso<br><em>com isolamento por empresa</em></h2>
+    <div class="roles-grid">
+      <div class="role-card">
+        <div class="role-icon">👑</div>
+        <div class="role-name">OWNER</div>
+        <div class="role-desc">Controle total da empresa, plano e memberships</div>
+      </div>
+      <div class="role-card">
+        <div class="role-icon">🛡️</div>
+        <div class="role-name">ADMIN</div>
+        <div class="role-desc">Gerencia usuários, formulários e configurações</div>
+      </div>
+      <div class="role-card">
+        <div class="role-icon">📋</div>
+        <div class="role-name">MANAGER</div>
+        <div class="role-desc">Cria e acompanha inspeções e equipes</div>
+      </div>
+      <div class="role-card">
+        <div class="role-icon">🔍</div>
+        <div class="role-name">INSPECTOR</div>
+        <div class="role-desc">Executa inspeções e registra evidências</div>
+      </div>
+      <div class="role-card">
+        <div class="role-icon">👁️</div>
+        <div class="role-name">VIEWER</div>
+        <div class="role-desc">Visualiza resultados e relatórios (somente leitura)</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PLANS -->
+<section class="plans-section" id="planos" style="background:#fff;">
+  <div class="section-inner">
+    <div style="text-align:center;"><div class="section-label" style="justify-content:center;">Planos</div></div>
+    <h2 class="section-title" style="text-align:center;">Comece pequeno,<br><em>escale sem limites</em></h2>
+    <div class="plans-grid">
+
+      <div class="plan-card">
+        <div>
+          <div class="plan-name">Starter</div>
+          <div class="plan-desc">Para equipes que estão começando</div>
+        </div>
+        <div class="plan-limits">
+          <div class="plan-limit"><span class="plan-limit-lbl">Usuários</span><span class="plan-limit-val">10</span></div>
+          <div class="plan-limit"><span class="plan-limit-lbl">Formulários</span><span class="plan-limit-val">20</span></div>
+          <div class="plan-limit"><span class="plan-limit-lbl">Inspeções/mês</span><span class="plan-limit-val">100</span></div>
+        </div>
+        <div class="plan-features">
+          <div class="plan-feat"><div class="plan-feat-check"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg></div>Formulários versionados</div>
+          <div class="plan-feat"><div class="plan-feat-check"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg></div>Modo de inspeção completo</div>
+          <div class="plan-feat"><div class="plan-feat-check"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg></div>Exportação PDF</div>
+          <div class="plan-feat"><div class="plan-feat-check"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg></div>Uploads de evidências</div>
+        </div>
+        <a href="https://wa.me/553199738039?text=Olá%2C%20tenho%20interesse%20no%20Smart%20Audit"
+          class="btn-plan outline"
+          target="_blank" rel="noopener">
+          Falar com o time
+        </a>
+      </div>
+
+      <div class="plan-card featured">
+        <div>
+          <div class="plan-badge">Mais popular</div>
+          <div class="plan-name" style="margin-top:10px;">Pro</div>
+          <div class="plan-desc">Para operações em crescimento</div>
+        </div>
+        <div class="plan-limits">
+          <div class="plan-limit"><span class="plan-limit-lbl">Usuários</span><span class="plan-limit-val">50</span></div>
+          <div class="plan-limit"><span class="plan-limit-lbl">Formulários</span><span class="plan-limit-val">100</span></div>
+          <div class="plan-limit"><span class="plan-limit-lbl">Inspeções/mês</span><span class="plan-limit-val">500</span></div>
+        </div>
+        <div class="plan-features">
+          <div class="plan-feat"><div class="plan-feat-check"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg></div>Tudo do Starter</div>
+          <div class="plan-feat"><div class="plan-feat-check"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg></div>Dashboard analítico avançado</div>
+          <div class="plan-feat"><div class="plan-feat-check"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg></div>Gestão de equipes</div>
+          <div class="plan-feat"><div class="plan-feat-check"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg></div>Audit logs</div>
+          <div class="plan-feat"><div class="plan-feat-check"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg></div>Importação CSV / Excel</div>
+        </div>
+        <a href="https://wa.me/553199738039?text=Olá%2C%20tenho%20interesse%20no%20Smart%20Audit"
+          class="btn-plan primary"
+          target="_blank" rel="noopener">
+          Falar com o time
+        </a>
+      </div>
+
+      <div class="plan-card">
+        <div>
+          <div class="plan-name">Enterprise</div>
+          <div class="plan-desc">Para grandes operações e múltiplas unidades</div>
+        </div>
+        <div class="plan-limits">
+          <div class="plan-limit"><span class="plan-limit-lbl">Usuários</span><span class="plan-limit-val">Ilimitado</span></div>
+          <div class="plan-limit"><span class="plan-limit-lbl">Formulários</span><span class="plan-limit-val">Ilimitado</span></div>
+          <div class="plan-limit"><span class="plan-limit-lbl">Inspeções/mês</span><span class="plan-limit-val">Ilimitado</span></div>
+        </div>
+        <div class="plan-features">
+          <div class="plan-feat"><div class="plan-feat-check"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg></div>Tudo do Pro</div>
+          <div class="plan-feat"><div class="plan-feat-check"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg></div>Multi-empresa ilimitada</div>
+          <div class="plan-feat"><div class="plan-feat-check"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg></div>SLA e suporte dedicado</div>
+          <div class="plan-feat"><div class="plan-feat-check"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg></div>Recuperação de senha (SMTP)</div>
+          <div class="plan-feat"><div class="plan-feat-check"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg></div>Storage externo (S3/GCS)</div>
+        </div>
+        <a href="https://wa.me/553199738039?text=Olá%2C%20tenho%20interesse%20no%20Smart%20Audit"
+          class="btn-plan outline"
+          target="_blank" rel="noopener">
+          Falar com o comercial
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- TECH -->
+<section class="tech-section" id="tech">
+  <div class="section-inner">
+    <div class="section-label">Tecnologia</div>
+    <h2 class="section-title">Stack moderna,<br><em>arquitetura sólida</em></h2>
+    <p class="section-sub">Construído com as melhores ferramentas — async do início ao fim, testes em todas as camadas.</p>
+    <div class="tech-grid">
+      <div class="tech-card">
+        <div class="tech-icon be">BE</div>
+        <div>
+          <div class="tech-name">Backend</div>
+          <div class="tech-pills">
+            <span class="tech-pill">FastAPI</span>
+            <span class="tech-pill">SQLAlchemy async</span>
+            <span class="tech-pill">Alembic</span>
+            <span class="tech-pill">PostgreSQL</span>
+            <span class="tech-pill">slowapi</span>
+            <span class="tech-pill">fpdf2</span>
+            <span class="tech-pill">JWT</span>
+          </div>
+        </div>
+      </div>
+      <div class="tech-card">
+        <div class="tech-icon fe">FE</div>
+        <div>
+          <div class="tech-name">Frontend</div>
+          <div class="tech-pills">
+            <span class="tech-pill">Vue 3</span>
+            <span class="tech-pill">Pinia</span>
+            <span class="tech-pill">Vue Router</span>
+            <span class="tech-pill">Tailwind v4</span>
+            <span class="tech-pill">Axios</span>
+            <span class="tech-pill">TypeScript</span>
+          </div>
+        </div>
+      </div>
+      <div class="tech-card">
+        <div class="tech-icon db">DB</div>
+        <div>
+          <div class="tech-name">Dados & Arquitetura</div>
+          <div class="tech-pills">
+            <span class="tech-pill">Multi-tenant</span>
+            <span class="tech-pill">Repository Pattern</span>
+            <span class="tech-pill">Service Layer</span>
+            <span class="tech-pill">RFC 7807 Errors</span>
+            <span class="tech-pill">Soft Delete</span>
+            <span class="tech-pill">JSONB config</span>
+          </div>
+        </div>
+      </div>
+      <div class="tech-card">
+        <div class="tech-icon ci">CI</div>
+        <div>
+          <div class="tech-name">Qualidade & CI/CD</div>
+          <div class="tech-pills">
+            <span class="tech-pill">GitHub Actions</span>
+            <span class="tech-pill">pytest (218 ✓)</span>
+            <span class="tech-pill">Vitest (119 ✓)</span>
+            <span class="tech-pill">Playwright (53 ✓)</span>
+            <span class="tech-pill">Ruff</span>
+            <span class="tech-pill">vue-tsc</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- METRICS -->
+<section class="metrics-section">
+  <div class="section-inner">
+    <div style="text-align:center;"><div class="section-label" style="justify-content:center;">Em números</div></div>
+    <h2 class="section-title" style="text-align:center;">Produto maduro,<br><em>pronto para produção</em></h2>
+    <div class="metrics-grid">
+      <div class="metric-card">
+        <div class="metric-val">15+</div>
+        <div class="metric-lbl">módulos de domínio</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-val">30+</div>
+        <div class="metric-lbl">rotas de API</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-val">16</div>
+        <div class="metric-lbl">migrações Alembic</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-val">6</div>
+        <div class="metric-lbl">tipos de campo</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section">
+  <div style="max-width:640px;margin:0 auto;">
+    <h2 class="cta-title">Pronto para auditar<br>com inteligência?</h2>
+    <p class="cta-sub">Substitua planilhas e processos manuais por rastreabilidade real.</p>
+    <div class="cta-actions">
+      <a href="/app/login" class="btn-primary" style="font-size:17px;padding:16px 32px;">Acessar o sistema →</a>
+      <a href="#features" class="btn-ghost" style="font-size:17px;padding:16px 24px;">Explorar funcionalidades</a>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-logo">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+      <rect width="64" height="64" rx="14" fill="#2563eb"/>
+      <path d="M20 18h16a4 4 0 0 1 4 4v2H20v-6z" fill="#fff" opacity="0.3"/>
+      <rect x="16" y="22" width="28" height="28" rx="3" fill="none" stroke="#fff" stroke-width="2.5"/>
+      <path d="M22 33l6 6 12-12" stroke="#fff" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      <circle cx="46" cy="46" r="10" fill="#16a34a"/>
+      <path d="M41 46l3 3 6-6" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    </svg>
+    <span class="footer-name">Smart Audit</span>
+  </div>
+  <div class="footer-links">
+    <a href="#features">Funcionalidades</a>
+    <a href="#inspecao">Inspeção</a>
+    <a href="#planos">Planos</a>
+    <a href="#tech">Tecnologia</a>
+  </div>
+  <div class="footer-copy">© 2026 Smart Audit · SaaS de auditorias operacionais</div>
+</footer>
+
+</body>
+</html>

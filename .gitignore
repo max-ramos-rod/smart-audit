@@ -32,3 +32,7 @@ Thumbs.db
 
 # Redesign handoff (material de referência local, não vai para o repo)
 redesign-handoff/
+
+# Claude Code — apenas overrides locais e worktrees temporários
+.claude/settings.local.json
+.claude/worktrees/
