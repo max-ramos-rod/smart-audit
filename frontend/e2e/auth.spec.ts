@@ -63,12 +63,12 @@ base.describe('Login', () => {
     await page.getByPlaceholder('seu@email.com').fill('alice@test.com')
     await page.getByPlaceholder('Digite sua senha').fill('secret123')
     await page.getByRole('button', { name: /entrar/i }).click()
-    await expect(page).toHaveURL('/')
+    await expect(page).toHaveURL('/app/')
   })
 
   base('has link to forgot password page', async ({ page }) => {
     await page.getByRole('link', { name: /esqueceu/i }).click()
-    await expect(page).toHaveURL('/forgot-password')
+    await expect(page).toHaveURL('/app/forgot-password')
   })
 })
 

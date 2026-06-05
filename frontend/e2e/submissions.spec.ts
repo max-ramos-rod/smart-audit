@@ -88,7 +88,7 @@ test.describe('Create submission', () => {
     await page.getByRole('button', { name: /nova inspeção/i }).click()
     await page.getByRole('combobox').selectOption('f1')
     await page.getByRole('button', { name: /iniciar inspeção/i }).click()
-    await expect(page).toHaveURL('/submissions/s1')
+    await expect(page).toHaveURL('/app/submissions/s1')
   })
 })
 

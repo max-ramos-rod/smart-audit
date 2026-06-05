@@ -46,6 +46,6 @@ test.describe('Search', () => {
     )
     await page.getByRole('textbox').fill('safety')
     await page.getByText('Safety Check').first().click()
-    await expect(page).toHaveURL('/forms/f1')
+    await expect(page).toHaveURL('/app/forms/f1')
   })
 })

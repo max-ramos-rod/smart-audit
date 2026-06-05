@@ -52,7 +52,7 @@ test.describe('Forms list', () => {
     await page.route(`${API}/submissions**`, (r) => r.fulfill({ json: paginated([]) }))
     await page.route(`${API}/forms/f1**`, (r) => r.fulfill({ json: envelope(MOCK_FORM_DETAIL) }))
     await page.getByText('Safety Check').click()
-    await expect(page).toHaveURL('/forms/f1')
+    await expect(page).toHaveURL('/app/forms/f1')
   })
 
   test('opens create form composer', async ({ authed: page }) => {
