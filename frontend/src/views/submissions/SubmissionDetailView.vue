@@ -1251,80 +1251,76 @@ const currentFieldEvidenceCount = computed(() =>
         v-if="submission && inspectionMode && viewMode === 'list' && !isCompleted"
         class="insp-listshell"
       >
-        <!-- ── HEADER (branco, fixo) ── -->
-        <div class="insp-lshdr">
-          <!-- Linha 1: voltar + nome + toggle + score ring -->
-          <div class="insp-lshdr-top">
-            <button type="button" class="insp-fback" @click="router.push({ name: 'submissions' })">
-              <SvgIcon name="back" :size="16" />
+        <!-- ── HEADER LINHA 1 (idêntica ao card mode) ── -->
+        <div class="insp-fhdr">
+          <button type="button" class="insp-fback" @click="router.push({ name: 'submissions' })">
+            <SvgIcon name="back" :size="16" />
+          </button>
+          <div class="insp-fhdr-info">
+            <div class="insp-fhdr-name">{{ submission.form_name }}</div>
+            <div class="insp-fhdr-sub">Em andamento</div>
+          </div>
+          <div class="insp-fhdr-vt">
+            <button class="insp-fhdr-vt-btn" :class="String(viewMode) === 'list' ? 'active' : ''" @click="viewMode = 'list'">
+              <span style="font-size:11px;">☰</span> Lista
             </button>
-            <div class="insp-fhdr-info">
-              <div class="insp-fhdr-name">{{ submission.form_name }}</div>
-              <div class="insp-fhdr-sub">Em andamento</div>
-            </div>
-            <!-- Toggle inline na primeira linha -->
-            <div class="insp-vt-seg insp-lshdr-toggle">
-              <button class="insp-vt-btn" :class="String(viewMode) === 'card' ? 'active' : ''" @click="viewMode='card'">
-                <span class="insp-vt-icon">▦</span> Cartão
-              </button>
-              <button class="insp-vt-btn" :class="String(viewMode) === 'list' ? 'active' : ''" @click="viewMode='list'">
-                <span class="insp-vt-icon">☰</span> Lista
-              </button>
-            </div>
-            <div class="score-ring" :style="scoreRingStyle">
-              <div class="score-ring-inner">{{ liveScore !== null ? liveScore + '%' : '—' }}</div>
-            </div>
-          </div>
-
-          <!-- Linha 2: barra de progresso + section chips (idêntica ao card mode) -->
-          <div class="insp-fprog">
-            <div class="insp-fprog-row">
-              <div class="insp-fprog-bar">
-                <div :style="{
-                  height: '100%',
-                  background: 'var(--sa-ok)',
-                  width: progressStats.total ? (progressStats.conformes / progressStats.total * 100) + '%' : '0%',
-                  transition: 'width .35s ease',
-                }" />
-                <div :style="{
-                  height: '100%',
-                  background: 'var(--sa-danger)',
-                  width: progressStats.total ? (progressStats.naoConformes / progressStats.total * 100) + '%' : '0%',
-                  transition: 'width .35s ease',
-                }" />
-              </div>
-              <div class="insp-fprog-lbl">{{ progressStats.evaluated }}/{{ progressStats.total }}</div>
-            </div>
-            <!-- Legenda de cores -->
-            <div style="display:flex;flex-wrap:wrap;gap:10px;font-size:11px;color:var(--sa-muted);padding-top:4px;">
-              <span style="display:flex;align-items:center;gap:4px;">
-                <span style="width:8px;height:8px;border-radius:50%;background:var(--sa-ok);flex-shrink:0;"></span>
-                {{ progressStats.conformes }} Conforme
-              </span>
-              <span style="display:flex;align-items:center;gap:4px;">
-                <span style="width:8px;height:8px;border-radius:50%;background:var(--sa-danger);flex-shrink:0;"></span>
-                {{ progressStats.naoConformes }} Não conforme
-              </span>
-              <span v-if="progressStats.pending > 0" style="display:flex;align-items:center;gap:4px;">
-                <span style="width:8px;height:8px;border-radius:50%;background:var(--sa-line);flex-shrink:0;"></span>
-                {{ progressStats.pending }} Pendente
-              </span>
-            </div>
-          </div>
-
-          <!-- Filter bar (com separador acima) -->
-          <div class="insp-filter-bar insp-filter-bar--with-sep">
-            <button
-              v-for="f in FILTERS"
-              :key="f.id"
-              class="insp-fchip"
-              :class="[f.cls, { active: listFilter === f.id }]"
-              @click="listFilter = f.id"
-            >
-              {{ f.label }}
-              <span class="insp-fchip-n">{{ filterCount(f.id) }}</span>
+            <button class="insp-fhdr-vt-btn" :class="String(viewMode) === 'card' ? 'active' : ''" @click="viewMode = 'card'">
+              <span style="font-size:11px;">▦</span> Cartão
             </button>
           </div>
+          <div class="score-ring" :style="scoreRingStyle">
+            <div class="score-ring-inner">{{ liveScore !== null ? liveScore + '%' : '—' }}</div>
+          </div>
+        </div>
+
+        <!-- ── HEADER LINHA 2 (idêntica ao card mode) ── -->
+        <div class="insp-fprog">
+          <div class="insp-fprog-row">
+            <div class="insp-fprog-bar">
+              <div :style="{
+                height: '100%',
+                background: 'var(--sa-ok)',
+                width: progressStats.total ? (progressStats.conformes / progressStats.total * 100) + '%' : '0%',
+                transition: 'width .35s ease',
+              }" />
+              <div :style="{
+                height: '100%',
+                background: 'var(--sa-danger)',
+                width: progressStats.total ? (progressStats.naoConformes / progressStats.total * 100) + '%' : '0%',
+                transition: 'width .35s ease',
+              }" />
+            </div>
+            <div class="insp-fprog-lbl">{{ progressStats.evaluated }}/{{ progressStats.total }}</div>
+          </div>
+          <!-- Legenda de cores -->
+          <div style="display:flex;flex-wrap:wrap;gap:10px;font-size:11px;color:var(--sa-muted);padding:8px 0;">
+            <span style="display:flex;align-items:center;gap:4px;">
+              <span style="width:8px;height:8px;border-radius:50%;background:var(--sa-ok);flex-shrink:0;"></span>
+              {{ progressStats.conformes }} Conforme
+            </span>
+            <span style="display:flex;align-items:center;gap:4px;">
+              <span style="width:8px;height:8px;border-radius:50%;background:var(--sa-danger);flex-shrink:0;"></span>
+              {{ progressStats.naoConformes }} Não conforme
+            </span>
+            <span v-if="progressStats.pending > 0" style="display:flex;align-items:center;gap:4px;">
+              <span style="width:8px;height:8px;border-radius:50%;background:var(--sa-line);flex-shrink:0;"></span>
+              {{ progressStats.pending }} Pendente
+            </span>
+          </div>
+        </div>
+
+        <!-- ── FILTROS (linha 3) ── -->
+        <div class="insp-filter-bar insp-filter-bar--with-sep">
+          <button
+            v-for="f in FILTERS"
+            :key="f.id"
+            class="insp-fchip"
+            :class="[f.cls, { active: listFilter === f.id }]"
+            @click="listFilter = f.id"
+          >
+            {{ f.label }}
+            <span class="insp-fchip-n">{{ filterCount(f.id) }}</span>
+          </button>
         </div>
 
         <!-- ── LISTA scrollável (fundo cinza) ── -->
@@ -1793,63 +1789,11 @@ const currentFieldEvidenceCount = computed(() =>
   }
 }
 
-/* Header branco (fixo no topo) */
-.insp-lshdr {
-  background: #fff;
-  border-bottom: 1px solid var(--sa-line);
-  padding: 10px 14px;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.insp-lshdr-top {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.insp-lshdr-toggle {
-  margin: 0 auto 0 0;
-  padding: 3px;
-}
-.insp-lshdr-prog {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.insp-lshdr-prog .insp-fprog-bar {
-  flex: none;
-  width: 100%;
-  height: 6px;
-}
-.insp-lshdr-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  font-size: 11px;
-  color: var(--sa-muted);
-}
-.insp-lshdr-legend span {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-.insp-lshdr-legend .dot {
-  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
-}
-.insp-lshdr-legend .dot-ok   { background: var(--sa-ok); }
-.insp-lshdr-legend .dot-err  { background: var(--sa-danger); }
-.insp-lshdr-legend .dot-pend { background: var(--sa-line); }
+/* Filter bar dentro do listshell: sem margin extra (já removido acima) */
 
-/* Toggle + filtros dentro do header (sem borders) */
-.insp-listshell .insp-view-toggle-bar {
-  margin-bottom: 0; margin-top: 0; padding: 0;
-  border-top: none; border-bottom: none;
-  flex-shrink: 0;
-}
+/* Filter bar dentro do listshell: sem margin extra */
 .insp-listshell .insp-filter-bar {
-  margin-bottom: 0; margin-top: 0; padding: 0;
-  border-top: none; border-bottom: none;
+  margin-bottom: 0;
   flex-shrink: 0;
 }
 
