@@ -1278,22 +1278,6 @@ const currentFieldEvidenceCount = computed(() =>
               </div>
               <div class="insp-fprog-lbl">{{ progressStats.evaluated }}/{{ progressStats.total }}</div>
             </div>
-            <div v-if="formSections.length" class="insp-sec-chips">
-              <button
-                v-for="sec in formSections"
-                :key="sec.key"
-                type="button"
-                class="insp-sec-chip"
-                :class="{
-                  'insp-sec-chip--done':   sec.pct === 100,
-                  'insp-sec-chip--active': sec.label === inspectionSectionLabel,
-                }"
-                @click="jumpToSection(sec.key)"
-              >
-                {{ sec.label.length > 18 ? sec.label.slice(0, 18) + '…' : sec.label }}
-                <span class="insp-sec-pct">{{ sec.pct }}%</span>
-              </button>
-            </div>
             <!-- Legenda de cores -->
             <div style="display:flex;flex-wrap:wrap;gap:10px;font-size:11px;color:var(--sa-muted);padding-top:4px;">
               <span style="display:flex;align-items:center;gap:4px;">
