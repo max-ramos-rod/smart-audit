@@ -29,3 +29,6 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+
+# Redesign handoff (material de referência local, não vai para o repo)
+redesign-handoff/
