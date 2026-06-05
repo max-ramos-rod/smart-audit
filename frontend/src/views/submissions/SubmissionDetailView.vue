@@ -1521,6 +1521,7 @@ const currentFieldEvidenceCount = computed(() =>
   gap: 6px;
   overflow-x: auto;
   padding-bottom: 4px;
+  padding-top: 12px;
   margin-bottom: 12px;
   scrollbar-width: none;
 }
