@@ -1522,7 +1522,6 @@ const currentFieldEvidenceCount = computed(() =>
   overflow-x: auto;
   padding-bottom: 4px;
   padding-top: 12px;
-  margin-bottom: 12px;
   scrollbar-width: none;
 }
 .insp-sec-chips::-webkit-scrollbar { display: none; }
