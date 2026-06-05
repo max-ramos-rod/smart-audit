@@ -1307,20 +1307,21 @@ const currentFieldEvidenceCount = computed(() =>
               {{ progressStats.pending }} Pendente
             </span>
           </div>
-        </div>
-
-        <!-- ── FILTROS (linha 3) ── -->
-        <div class="insp-filter-bar insp-filter-bar--with-sep">
-          <button
-            v-for="f in FILTERS"
-            :key="f.id"
-            class="insp-fchip"
-            :class="[f.cls, { active: listFilter === f.id }]"
-            @click="listFilter = f.id"
-          >
-            {{ f.label }}
-            <span class="insp-fchip-n">{{ filterCount(f.id) }}</span>
-          </button>
+          <!-- Separador (idêntico ao card) -->
+          <div style="height:1px;background:var(--sa-line);margin:0 -14px;"></div>
+          <!-- Filtros dentro do fprog (mesmo comportamento dos section chips no card) -->
+          <div class="insp-filter-bar">
+            <button
+              v-for="f in FILTERS"
+              :key="f.id"
+              class="insp-fchip"
+              :class="[f.cls, { active: listFilter === f.id }]"
+              @click="listFilter = f.id"
+            >
+              {{ f.label }}
+              <span class="insp-fchip-n">{{ filterCount(f.id) }}</span>
+            </button>
+          </div>
         </div>
 
         <!-- ── LISTA scrollável (fundo cinza) ── -->
@@ -1789,12 +1790,11 @@ const currentFieldEvidenceCount = computed(() =>
   }
 }
 
-/* Filter bar dentro do listshell: sem margin extra (já removido acima) */
-
-/* Filter bar dentro do listshell: sem margin extra */
-.insp-listshell .insp-filter-bar {
+/* Filter bar dentro do fprog (lista): mesmo espaçamento dos sec-chips no card */
+.insp-fprog .insp-filter-bar {
+  padding-top: 12px;
+  padding-bottom: 4px;
   margin-bottom: 0;
-  flex-shrink: 0;
 }
 
 /* Lista scrollável (fundo cinza, separada do header branco) */
