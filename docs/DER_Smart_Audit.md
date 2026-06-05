@@ -7,13 +7,13 @@ Este documento consolida o modelo de dados real do Smart Audit no estado atual d
 Ele sustenta:
 
 - multiempresa por `company_id`
-- autenticacao e memberships por empresa
+- autenticacao e memberships por empresa com soft delete via `revoked_at`
 - recuperacao de senha com token de uso unico
 - formularios versionados com tipos de campo extendidos e configuracao via JSONB
 - execucao de inspecoes com score ponderado e respostas N/A
 - respostas tipadas por campo com suporte a regras condicionais
 - anexos de evidencias
-- equipes e membros por empresa
+- equipes e membros por empresa com soft delete via `is_active`
 
 ## Decisoes de modelagem
 
@@ -27,10 +27,12 @@ Ele sustenta:
 - arquivos ficam fora do banco; `attachments` armazena apenas metadados
 - equipes foram promovidas ao modelo real do sistema
 - **nao existe tabela de notificacoes**: notificacoes sao derivadas em tempo real de `submissions` pelo servico
-- o estado de leitura e armazenado em `notification_reads` com chave deterministica por usuario
-- configuracao especifica de campo (peso, allow_na, opcoes, visible_if) fica em `form_fields.config_json`
+- o estado de leitura e dismiss e armazenado em `notification_reads` com chave deterministica por usuario
+- configuracao especifica de campo (peso, allow_na, opcoes) fica em `form_fields.config_json`
 - valor N/A em campos booleanos e armazenado como `value_text = "na"` com `value_boolean = NULL`
 - campos do tipo `section` nao geram `submission_value`
+- soft delete de membership via `revoked_at TIMESTAMPTZ NULL` — preserva historico de inspecoes
+- soft delete de team via `is_active BOOLEAN` — equipes desativadas nao aparecem na listagem
 
 ## Contextos e relacionamentos
 
@@ -65,6 +67,7 @@ Relacionamentos:
 
 - `submissions`
 - `submission_values`
+- `submission_conformities`
 - `attachments`
 
 Relacionamentos:
@@ -75,6 +78,8 @@ Relacionamentos:
 - `submissions 1:N submission_values`
 - `form_fields 1:N submission_values`
 - `submission_values 1:N attachments`
+- `submissions 1:N submission_conformities`
+- `form_fields 1:N submission_conformities`
 
 ### Equipes
 
@@ -100,8 +105,9 @@ users
       reads             |-< submissions >- users
                         |      |
                         |      |- form_versions
-                        |      `-< submission_values >- form_fields
-                        |             `-< attachments
+                        |      |-< submission_values >- form_fields
+                        |      |      `-< attachments
+                        |      `-< submission_conformities >- form_fields
                         |
                         `-< teams
                                `-< team_members >- users
@@ -124,6 +130,8 @@ erDiagram
     SUBMISSIONS ||--o{ SUBMISSION_VALUES : contains
     FORM_FIELDS ||--o{ SUBMISSION_VALUES : answers
     SUBMISSION_VALUES ||--o{ ATTACHMENTS : has
+    SUBMISSIONS ||--o{ SUBMISSION_CONFORMITIES : has
+    FORM_FIELDS ||--o{ SUBMISSION_CONFORMITIES : evaluated_by
     COMPANIES ||--o{ TEAMS : owns
     TEAMS ||--o{ TEAM_MEMBERS : has
     USERS ||--o{ TEAM_MEMBERS : belongs_to
@@ -137,7 +145,7 @@ erDiagram
 - `name VARCHAR(150)`
 - `email VARCHAR(255) UNIQUE`
 - `password_hash VARCHAR(255)`
-- `is_active BOOLEAN`
+- `is_active BOOLEAN` — desativa o login global do usuario (independente de empresa)
 - `created_at TIMESTAMPTZ`
 - `updated_at TIMESTAMPTZ`
 
@@ -145,6 +153,7 @@ Observacoes:
 
 - email e unico globalmente
 - `password_hash` usa formato PBKDF2-SHA256 customizado (`pbkdf2_sha256$iterations$salt$digest`)
+- desativar `is_active` impede o login do usuario em qualquer empresa
 
 ### `companies`
 
@@ -166,6 +175,7 @@ Observacoes:
 - `company_id UUID FK -> companies.id`
 - `user_id UUID FK -> users.id`
 - `role VARCHAR(30)`
+- `revoked_at TIMESTAMPTZ NULL` — NULL = ativo; preenchido = acesso revogado (soft delete)
 - `created_at TIMESTAMPTZ`
 - `updated_at TIMESTAMPTZ`
 
@@ -173,6 +183,12 @@ Restricoes:
 
 - `UNIQUE(company_id, user_id)`
 - `CHECK role IN ('OWNER', 'ADMIN', 'MANAGER', 'INSPECTOR', 'VIEWER')`
+
+Observacoes:
+
+- todas as queries de membership ativo filtram `WHERE revoked_at IS NULL`
+- isso inclui: autenticacao (dependencias `get_current_membership`), listagem de usuarios, contagem de membros em `/me/usage`, contexto de empresa
+- dados de inspecoes e registros de usuarios revogados sao preservados integralmente
 
 ### `password_reset_tokens`
 
@@ -196,17 +212,21 @@ Observacoes:
 - `id UUID PK`
 - `user_id UUID FK -> users.id ON DELETE CASCADE`
 - `notification_key VARCHAR(120)`
+- `read BOOLEAN DEFAULT FALSE`
+- `dismissed BOOLEAN DEFAULT FALSE`
 - `created_at TIMESTAMPTZ`
 - `updated_at TIMESTAMPTZ`
 
 Restricoes:
 
-- `UNIQUE(user_id, notification_key)` — upsert idempotente via `ON CONFLICT DO NOTHING`
+- `UNIQUE(user_id, notification_key)` — upsert idempotente via `ON CONFLICT DO UPDATE`
 
 Observacoes:
 
 - chave deterministica: `pending-{submission_id}`, `low-score-{submission_id}`, `excellent-{submission_id}`
-- a tabela armazena apenas o estado de leitura; as notificacoes em si sao derivadas em tempo real
+- a tabela armazena o estado de leitura (`read`) e de dismiss (`dismissed`)
+- notificacoes com `dismissed = TRUE` sao filtradas antes de retornar ao cliente
+- upsert via `ON CONFLICT DO UPDATE SET dismissed = TRUE` ao dispensar
 
 ### `forms`
 
@@ -245,6 +265,7 @@ Restricoes:
 - `required BOOLEAN`
 - `position INTEGER`
 - `config_json JSONB`
+- `instruction TEXT NULL` — texto explicativo exibido na tela de inspecao
 - `created_at TIMESTAMPTZ`
 - `updated_at TIMESTAMPTZ`
 
@@ -252,7 +273,7 @@ Restricoes:
 
 - `UNIQUE(form_version_id, key)`
 - `UNIQUE(form_version_id, position)`
-- `CHECK field_type IN ('boolean', 'text', 'number', 'select', 'date', 'photo', 'evidence', 'section')`
+- `CHECK field_type IN ('boolean', 'text', 'number', 'select', 'date', 'section')`
 
 Tipos de campo e mapeamento de armazenamento:
 
@@ -263,9 +284,9 @@ Tipos de campo e mapeamento de armazenamento:
 | `number` | `value_number` | NUMERIC(14,4) |
 | `date` | `value_date` | DATE |
 | `select` | `value_json` | `{ "option": "valor" }` |
-| `photo` | `value_text` | URL do arquivo |
-| `evidence` | `value_json` | Metadados de multiplos arquivos |
 | `section` | — | Nao gera `submission_value` |
+
+**Tipos removidos**: `photo` (migration `a1b2c3d4e5f7`) e `evidence` (migration `b3c4d5e6f7a8`). Evidencia passou a ser capacidade de qualquer campo via `attachments`.
 
 Estrutura de `config_json` por tipo:
 
@@ -273,22 +294,18 @@ Estrutura de `config_json` por tipo:
 // boolean
 {
   "weight": 3.0,
-  "allow_na": true,
-  "visible_if": { "field_key": "campo_gatilho", "operator": "eq", "value": true }
+  "allow_na": true
 }
 
 // select
 {
-  "options": ["Opcao A", "Opcao B", "Opcao C"],
-  "visible_if": { "field_key": "campo_gatilho", "operator": "neq", "value": false }
+  "options": ["Opcao A", "Opcao B", "Opcao C"]
 }
 ```
 
 - `weight` (float, default 1.0): peso no calculo de score ponderado
 - `allow_na` (bool, default false): habilita resposta N/A em campos booleanos
 - `options` (string[]): opcoes visiveis no select
-- `visible_if.operator`: `"eq"` (igual) ou `"neq"` (diferente)
-- campo oculto por `visible_if` nao e validado como obrigatorio na finalizacao
 
 ### `submissions`
 
@@ -310,10 +327,10 @@ Restricoes:
 
 Observacoes:
 
-- `score` e calculado no momento da finalizacao com formula ponderada:
-  `score = sum(weight_i para boolean_i == true) / sum(weight_i para boolean_i respondido e nao N/A) * 100`
+- `score` e calculado no momento da finalizacao com formula ponderada baseada em `submission_conformities`:
+  `score = sum(weight_i para status='conforme') / sum(weight_i para avaliados em submission_conformities) * 100`
+  (campos sem avaliacao de conformidade e N/A nao entram no denominador)
 - `answers_json` e um snapshot de `{ field_key: serialized_value }` gravado em `save_answers`
-- `answers_json` e a fonte usada para avaliacao de `visible_if` na finalizacao
 
 ### `submission_values`
 
@@ -338,6 +355,29 @@ Observacao sobre N/A:
 - isso distingue N/A (linha existe com `value_text = 'na'`) de sem resposta (linha inexistente)
 - campos do tipo `section` nunca geram linha nesta tabela
 
+### `submission_conformities`
+
+- `id UUID PK`
+- `submission_id UUID FK -> submissions.id ON DELETE CASCADE`
+- `form_field_id UUID FK -> form_fields.id ON DELETE CASCADE`
+- `status VARCHAR(20)`
+- `justification TEXT NULL`
+- `created_at TIMESTAMPTZ`
+- `updated_at TIMESTAMPTZ`
+
+Restricoes:
+
+- `UNIQUE(submission_id, form_field_id)` — uma avaliacao por campo por inspecao
+- `CHECK status IN ('conforme', 'nao_conforme')`
+- `INDEX ix_submission_conformities_submission_id`
+
+Observacoes:
+
+- registra a avaliacao de conformidade do inspetor para cada campo booleano
+- e a fonte primaria do calculo de score ponderado (substitui a leitura de `submission_values`)
+- `justification` armazena o motivo de nao conformidade (opcional)
+- N/A e representado pela ausencia de linha (sem registro em `submission_conformities`)
+
 ### `attachments`
 
 - `id UUID PK`
@@ -359,9 +399,9 @@ Observacoes:
 - `field_key` facilita a busca de evidencias por campo sem JOIN em `form_fields`
 - `uploaded_by` registra o usuario que fez o upload
 
-Tipos de arquivo permitidos: `image/jpeg`, `image/png`, `image/webp`, `video/mp4`, `video/quicktime`, `video/x-msvideo`, `audio/mpeg`, `audio/wav`, `audio/ogg`, `audio/m4a`, `application/pdf`
+Tipos de arquivo permitidos: `image/jpeg`, `image/png`, `image/webp`, `video/mp4`, `video/quicktime`, `video/x-msvideo`, `audio/mpeg`, `audio/wav`, `audio/ogg`, `audio/mp4`, `application/pdf`
 
-Limite de tamanho: 10 MB
+Limites de tamanho: imagem 10 MB, PDF 20 MB, audio 50 MB, video 200 MB
 
 ### `teams`
 
@@ -369,8 +409,15 @@ Limite de tamanho: 10 MB
 - `company_id UUID FK -> companies.id`
 - `name VARCHAR(150)`
 - `created_by UUID FK -> users.id`
+- `is_active BOOLEAN DEFAULT TRUE` — FALSE = equipe desativada (soft delete)
 - `created_at TIMESTAMPTZ`
 - `updated_at TIMESTAMPTZ`
+
+Observacoes:
+
+- listagem e detalhe filtram `WHERE is_active = TRUE`
+- `DELETE /teams/{id}` seta `is_active = FALSE` (nao exclui fisicamente)
+- membros da equipe desativada sao preservados no banco
 
 ### `team_members`
 
@@ -392,12 +439,13 @@ Toda query de dominio filtra por `company_id` com base no membership atual.
 
 Isso vale para:
 
-- usuarios da empresa
+- usuarios da empresa (memberships ativos, `revoked_at IS NULL`)
 - formularios
 - inspecoes
-- equipes
+- equipes (ativas, `is_active = TRUE`)
 - evidencias e uploads
 - stats e notificacoes
+- contagens de uso em `/me/usage`
 
 ### Versionamento
 
@@ -408,7 +456,7 @@ Isso vale para:
 ### Snapshot `answers_json`
 
 - fonte estruturada: `submission_values`
-- leitura otimizada e avaliacao de `visible_if`: `answers_json`
+- leitura otimizada: `answers_json`
 - ambos sao mantidos sincronizados no fluxo de `save_answers`
 
 ### Uploads e anexos
@@ -425,7 +473,15 @@ Nao existe tabela `notifications`. O endpoint `GET /me/notifications` deriva ale
 - `completed` com score < 80% → alerta `low_score`
 - `completed` com score >= 90% → alerta `excellent`
 
-O estado de leitura por usuario e persistido em `notification_reads` com chave deterministica (`pending-{id}`, `low-score-{id}`, `excellent-{id}`). Upsert idempotente via `ON CONFLICT DO NOTHING` na constraint `uq_notification_reads_user_key`.
+O estado de leitura e dismiss por usuario e persistido em `notification_reads`. Upsert via `ON CONFLICT DO UPDATE` na constraint `uq_notification_reads_user_key`. Notificacoes com `dismissed = TRUE` sao excluidas da resposta antes de retornar ao cliente.
+
+### Soft delete
+
+Duas estrategias conforme a semântica:
+
+- **memberships**: `revoked_at TIMESTAMPTZ NULL`. Revogacao seta o timestamp atual. Queries de membership ativo filtram `WHERE revoked_at IS NULL`. Dados de inspecoes do usuario revogado permanecem intactos.
+
+- **teams**: `is_active BOOLEAN`. Desativacao seta `is_active = FALSE`. Queries de equipe ativa filtram `WHERE is_active = TRUE`. Membros e historico permanecem intactos.
 
 ## Migracoes aplicadas
 
@@ -437,13 +493,20 @@ O estado de leitura por usuario e persistido em `notification_reads` com chave d
 | `d4e5f6a7b8c9` | add campos de contato em companies (cnpj, timezone, contact_email, phone) |
 | `e5f6a7b8c9d0` | add password_reset_tokens |
 | `a1b2c3d4e5f6` | add notification_reads |
-| `b2c3d4e5f6a7` | add 'section' ao CHECK de field_type em form_fields |
+| `b2c3d4e5f6a7` | add field_type 'evidence' ao CHECK de form_fields |
+| `c3d4e5f6a7b8` | add field_type 'section' ao CHECK de form_fields |
+| `a1b2c3d4e5f7` | remove field_type 'photo' — strip de dados e atualizacao do CHECK |
+| `b3c4d5e6f7a8` | remove field_type 'evidence' — evidencia vira capacidade de qualquer campo via attachments |
+| `c5d6e7f8a9b0` | add submission_conformities |
+| `d6e7f8a9b0c1` | add instruction TEXT NULL em form_fields |
+| `e7f8a9b0c1d2` | add dismissed BOOLEAN em notification_reads |
+| `f8a9b0c1d2e3` | add revoked_at TIMESTAMPTZ NULL em memberships |
+| `a9b0c1d2e3f4` | add is_active BOOLEAN em teams |
+| `b0c1d2e3f4a5` | create audit_logs |
 
 ## Evolucao futura prevista
 
 Ainda nao implementados como tabela/modulo:
 
-- `audit_logs` — rastreabilidade de acoes criticas
 - `corrective_actions` — acoes vinculadas a itens reprovados em inspecoes
-- `usage_limits` ou campo em `companies` — limites reais de uso por plano via API
 - storage externo (S3/GCS) em substituicao ao disco local

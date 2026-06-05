@@ -8,6 +8,7 @@ from app.core.pagination import PaginationParams
 from app.core.repositories import SQLAlchemyRepository
 from app.db.models.form_versions import FormVersion
 from app.db.models.forms import Form
+from app.db.models.submission_conformities import SubmissionConformity
 from app.db.models.submission_values import SubmissionValue
 from app.db.models.submissions import Submission
 
@@ -38,6 +39,7 @@ class SubmissionRepository(SQLAlchemyRepository[Submission]):
                 selectinload(Submission.form_version).selectinload(FormVersion.fields),
                 selectinload(Submission.form_version).selectinload(FormVersion.form),
                 selectinload(Submission.values),
+                selectinload(Submission.conformities).selectinload(SubmissionConformity.form_field),
             )
         )
         return await self._get_one(db, statement)
@@ -82,9 +84,24 @@ class SubmissionRepository(SQLAlchemyRepository[Submission]):
                 selectinload(Submission.values),
                 selectinload(Submission.creator),
                 selectinload(Submission.company),
+                selectinload(Submission.conformities).selectinload(SubmissionConformity.form_field),
             )
         )
         return await self._get_one(db, statement)
+
+    async def get_conformity(
+        self, db: AsyncSession, submission_id: str, form_field_id: str
+    ) -> SubmissionConformity | None:
+        statement = select(SubmissionConformity).where(
+            SubmissionConformity.submission_id == submission_id,
+            SubmissionConformity.form_field_id == form_field_id,
+        )
+        return await self._get_one(db, statement)
+
+    async def save_conformity(
+        self, db: AsyncSession, conformity: SubmissionConformity
+    ) -> SubmissionConformity:
+        return await self._save(db, conformity)
 
     async def get_submission_value_by_field_id(
         self,

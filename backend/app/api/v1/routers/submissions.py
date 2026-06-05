@@ -10,7 +10,11 @@ from app.db.session import get_db
 from app.modules.auth.dependencies import get_current_user
 from app.modules.memberships.dependencies import get_current_membership
 from app.modules.memberships.permissions import get_operator_membership
-from app.modules.submissions.schemas import SubmissionAnswersUpdateRequest, SubmissionCreateRequest
+from app.modules.submissions.schemas import (
+    SubmissionAnswersUpdateRequest,
+    SubmissionConformityUpdateRequest,
+    SubmissionCreateRequest,
+)
 from app.modules.submissions.service import SubmissionService
 
 router = APIRouter(prefix="/submissions", tags=["submissions"])
@@ -104,6 +108,18 @@ async def export_submission_pdf(
         media_type="application/pdf",
         headers={"Content-Disposition": disposition},
     )
+
+
+@router.put("/{submission_id}/conformity")
+async def save_conformity(
+    submission_id: str,
+    payload: SubmissionConformityUpdateRequest,
+    membership: Membership = Depends(get_operator_membership),
+    db: AsyncSession = Depends(get_db),
+    submission_service: SubmissionService = Depends(get_submission_service),
+) -> dict[str, object]:
+    data = await submission_service.save_conformity(db, membership, submission_id, payload)
+    return success_response(data.model_dump(mode="json"))
 
 
 @router.post("/{submission_id}/finish")

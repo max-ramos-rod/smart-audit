@@ -19,3 +19,14 @@ class CompanyResponse(BaseModel):
     timezone:      str | None
     contact_email: str | None
     phone:         str | None
+
+
+class UsageStat(BaseModel):
+    used:  int
+    limit: int
+
+
+class UsageResponse(BaseModel):
+    users:                UsageStat
+    forms:                UsageStat
+    submissions_this_month: UsageStat

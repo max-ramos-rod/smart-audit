@@ -7,6 +7,7 @@ import { useAuthStore } from '@/stores/auth/auth.store'
 import { useContextStore } from '@/stores/context/context.store'
 import { useFormsStore } from '@/stores/forms/forms.store'
 import type { ScoreTrendPoint } from '@/types/context'
+import { scoreClass } from '@/utils/score'
 
 const router = useRouter()
 const contextStore = useContextStore()
@@ -141,10 +142,10 @@ function statusLabel(status: string) {
               <div
                 class="dash-bar-fill"
                 :style="{ width: item.avg_score + '%' }"
-                :class="item.avg_score >= 85 ? 'fill-ok' : item.avg_score >= 65 ? 'fill-warn' : 'fill-err'"
+                :class="`fill-${scoreClass(item.avg_score)}`"
               ></div>
             </div>
-            <div class="dash-bar-pct" :class="item.avg_score >= 85 ? 'pct-ok' : item.avg_score >= 65 ? 'pct-warn' : 'pct-err'">
+            <div class="dash-bar-pct" :class="`pct-${scoreClass(item.avg_score)}`">
               {{ item.avg_score }}%
             </div>
             <div class="dash-bar-count">{{ item.count }}x</div>
@@ -197,7 +198,7 @@ function statusLabel(status: string) {
               <span
                 v-if="submission.score !== null"
                 class="score-val"
-                :class="submission.score >= 85 ? 'ok' : submission.score >= 65 ? 'warn' : 'err'"
+                :class="scoreClass(submission.score ?? 0)"
               >
                 {{ submission.score }}%
               </span>

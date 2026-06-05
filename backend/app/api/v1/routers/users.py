@@ -27,6 +27,17 @@ async def list_users(
     return paginated_response([item.model_dump(mode="json") for item in data], meta)
 
 
+@router.get("/revoked")
+async def list_revoked_users(
+    params: PaginationParams = Depends(),
+    membership: Membership = Depends(get_admin_membership),
+    db: AsyncSession = Depends(get_db),
+    user_service: UserService = Depends(get_user_service),
+) -> dict[str, object]:
+    data, meta = await user_service.list_revoked_users(db, membership, params)
+    return paginated_response([item.model_dump(mode="json") for item in data], meta)
+
+
 @router.get("/{user_id}")
 async def get_user(
     user_id: str,
@@ -59,3 +70,25 @@ async def update_user(
 ) -> dict[str, object]:
     data = await user_service.update_user(db, membership, user_id, payload)
     return success_response(data.model_dump(mode="json"))
+
+
+@router.post("/{user_id}/reactivate")
+async def reactivate_user_membership(
+    user_id: str,
+    membership: Membership = Depends(get_admin_membership),
+    db: AsyncSession = Depends(get_db),
+    user_service: UserService = Depends(get_user_service),
+) -> dict[str, object]:
+    await user_service.reactivate_membership(db, membership, user_id)
+    return success_response(None)
+
+
+@router.delete("/{user_id}")
+async def revoke_user_membership(
+    user_id: str,
+    membership: Membership = Depends(get_admin_membership),
+    db: AsyncSession = Depends(get_db),
+    user_service: UserService = Depends(get_user_service),
+) -> dict[str, object]:
+    await user_service.revoke_membership(db, membership, user_id)
+    return success_response(None)

@@ -47,7 +47,8 @@ async def test_upload_rejects_invalid_mime_type(client, auth_headers):
             files={"file": ("doc.txt", BytesIO(b"text"), "text/plain")},
         ),
         400,
-        "Tipo de arquivo nao permitido. Use JPEG, PNG, WebP, MP4, MOV, AVI, MP3, WAV, OGG, M4A ou PDF.",
+        "Tipo de arquivo nao permitido. "
+        "Use JPEG, PNG, WebP, MP4, MOV, AVI, MP3, WAV, OGG, M4A ou PDF.",
     )
 
 

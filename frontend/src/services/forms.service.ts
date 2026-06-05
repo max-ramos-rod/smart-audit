@@ -43,3 +43,11 @@ export async function publishNewVersion(formId: string, payload: FormVersionPubl
   const response = await http.post<ApiEnvelope<FormDetail>>(`/forms/${formId}/versions`, payload)
   return response.data.data
 }
+
+export async function importForm(file: File, name?: string) {
+  const formData = new FormData()
+  formData.append('file', file)
+  if (name) formData.append('name', name)
+  const response = await http.post<ApiEnvelope<FormDetail>>('/forms/import', formData)
+  return response.data.data
+}

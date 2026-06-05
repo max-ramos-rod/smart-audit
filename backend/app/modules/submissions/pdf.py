@@ -1,8 +1,13 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+from pathlib import Path
 
 from fpdf import FPDF
+
+_FONTS_DIR = Path(__file__).parent / "fonts"
+_FONT_REGULAR = str(_FONTS_DIR / "DejaVuSans.ttf")
+_FONT_NAME = "DejaVu"
 
 _STATUS_LABELS = {
     "draft": "Rascunho",
@@ -17,8 +22,6 @@ _TYPE_LABELS = {
     "number": "Número",
     "date": "Data",
     "select": "Seleção",
-    "photo": "Foto",
-    "evidence": "Evidências",
     "section": "Seção",
 }
 
@@ -48,8 +51,6 @@ def _fmt_value(field_type: str, value: object) -> str:
         if value == "na":
             return "N/A (não aplicável)"
         return "Sim (conforme)" if value else "Não (não conforme)"
-    if field_type in ("photo", "evidence"):
-        return "[arquivo anexado]"
     if field_type == "select" and isinstance(value, dict):
         return str(value.get("option", "-"))
     if isinstance(value, (date, datetime)):
@@ -68,18 +69,21 @@ class _PDF(FPDF):
         super().__init__()
         self._company_name = company_name
         self._form_name = form_name
+        self.add_font(_FONT_NAME, style="", fname=_FONT_REGULAR)
+        self.add_font(_FONT_NAME, style="B", fname=_FONT_REGULAR)
+        self.add_font(_FONT_NAME, style="I", fname=_FONT_REGULAR)
 
     def header(self) -> None:
         self.set_fill_color(*_C_BRAND)
         self.set_text_color(*_C_WHITE)
-        self.set_font("Helvetica", "B", 11)
+        self.set_font(_FONT_NAME, "B", 11)
         self.cell(0, 10, "Smart Audit", fill=True, align="L", new_x="LMARGIN", new_y="NEXT")
         self.set_text_color(*_C_TEXT)
         self.ln(2)
 
     def footer(self) -> None:
         self.set_y(-13)
-        self.set_font("Helvetica", "I", 8)
+        self.set_font(_FONT_NAME, "", 8)
         self.set_text_color(*_C_MUTED)
         self.cell(0, 8, f"Página {self.page_no()}  ·  Smart Audit", align="C")
 
@@ -95,10 +99,10 @@ def _draw_meta_box(pdf: _PDF, rows: list[tuple[str, str]]) -> None:
     for i, (label, value) in enumerate(rows):
         x = pdf.l_margin + 4 if i % 2 == 0 else pdf.l_margin + col_w + 4
         pdf.set_x(x)
-        pdf.set_font("Helvetica", "B", 8)
+        pdf.set_font(_FONT_NAME, "B", 8)
         pdf.set_text_color(*_C_MUTED)
         pdf.cell(28, 7, label.upper() + ":", border=0)
-        pdf.set_font("Helvetica", "", 9)
+        pdf.set_font(_FONT_NAME, "", 9)
         pdf.set_text_color(*_C_TEXT)
         pdf.cell(
             col_w - 32, 7, value,
@@ -134,23 +138,21 @@ def _draw_score_block(
     pdf.set_draw_color(*color)
     pdf.rect(pdf.l_margin, y0, box_size, box_size, style="F")
     pdf.set_text_color(*_C_WHITE)
-    pdf.set_font("Helvetica", "B", 12 if score is not None else 16)
+    pdf.set_font(_FONT_NAME, "B", 12 if score is not None else 16)
     pdf.set_xy(pdf.l_margin, y0 + (box_size - 8) / 2)
     pdf.cell(box_size, 8, score_str, align="C")
     pdf.set_xy(pdf.l_margin, y0 + box_size - 8)
-    pdf.set_font("Helvetica", "", 7)
+    pdf.set_font(_FONT_NAME, "", 7)
     pdf.cell(box_size, 6, label, align="C")
 
     # Right: 4 chips
     chips = [
         (str(conformes),    "Conformes",    _C_OK),
         (str(nao_conformes),"Não conf.",    _C_ERR),
-        (str(sem_resposta), "Sem resp.",    _C_MUTED),
+        (str(sem_resposta), "Sem aval.",    _C_MUTED),
     ]
-    if na_count > 0:
-        chips.append((str(na_count), "N/A", _C_MUTED))
     if total_bool > 0:
-        chips.append((f"/{total_bool}", "Total bool.", _C_TEXT))
+        chips.append((f"/{total_bool}", "Total",      _C_TEXT))
 
     chip_x = pdf.l_margin + box_size + 6
     chip_w = (pdf.epw - box_size - 6) / len(chips)
@@ -160,10 +162,10 @@ def _draw_score_block(
         pdf.set_draw_color(*_C_LINE)
         pdf.rect(chip_x, y0, chip_w - 2, box_size, style="DF")
         pdf.set_text_color(*chip_color)
-        pdf.set_font("Helvetica", "B", 13)
+        pdf.set_font(_FONT_NAME, "B", 13)
         pdf.set_xy(chip_x, y0 + 6)
         pdf.cell(chip_w - 2, 8, value, align="C")
-        pdf.set_font("Helvetica", "", 7)
+        pdf.set_font(_FONT_NAME, "", 7)
         pdf.set_text_color(*_C_MUTED)
         pdf.set_xy(chip_x, y0 + 18)
         pdf.cell(chip_w - 2, 6, chip_label, align="C")
@@ -186,16 +188,17 @@ def generate_submission_pdf(
     finished_at: datetime | None,
     fields_with_answers: list[dict],
     score_breakdown: dict | None = None,
+    non_conformities: list[dict] | None = None,
 ) -> bytes:
     pdf = _PDF(company_name=company_name, form_name=form_name)
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
 
     # ── Title ───────────────────────────────────────────────────────────
-    pdf.set_font("Helvetica", "B", 17)
+    pdf.set_font(_FONT_NAME, "B", 17)
     pdf.set_text_color(*_C_TEXT)
     pdf.cell(0, 10, form_name, new_x="LMARGIN", new_y="NEXT")
-    pdf.set_font("Helvetica", "", 10)
+    pdf.set_font(_FONT_NAME, "", 10)
     pdf.set_text_color(*_C_MUTED)
     pdf.cell(0, 6, f"Versão {form_version}  ·  {company_name}", new_x="LMARGIN", new_y="NEXT")
     pdf.ln(6)
@@ -224,7 +227,7 @@ def generate_submission_pdf(
     # ── Answers table header ─────────────────────────────────────────────
     col_widths = [8, 68, 22, pdf.epw - 8 - 68 - 22]
     headers = ["#", "Campo", "Tipo", "Resposta"]
-    pdf.set_font("Helvetica", "B", 8)
+    pdf.set_font(_FONT_NAME, "B", 8)
     pdf.set_fill_color(*_C_BRAND)
     pdf.set_text_color(*_C_WHITE)
     for w, h in zip(col_widths, headers):
@@ -240,16 +243,18 @@ def generate_submission_pdf(
         if field_type == "section":
             pdf.set_fill_color(*_C_SECTION)
             pdf.set_draw_color(*_C_LINE)
-            pdf.set_font("Helvetica", "B", 8)
+            pdf.set_font(_FONT_NAME, "B", 8)
             pdf.set_text_color(*_C_BRAND)
-            pdf.cell(0, 7, f"  {row['label']}", fill=True, border="B", new_x="LMARGIN", new_y="NEXT")
+            pdf.cell(
+                0, 7, f"  {row['label']}", fill=True, border="B", new_x="LMARGIN", new_y="NEXT"
+            )
             pdf.set_text_color(*_C_TEXT)
             continue
 
         fill = row_num % 2 == 0
         pdf.set_fill_color(*(_C_BG if fill else _C_WHITE))
         pdf.set_text_color(*_C_TEXT)
-        pdf.set_font("Helvetica", "", 8)
+        pdf.set_font(_FONT_NAME, "", 8)
 
         value = row.get("value")
         answer_text = _fmt_value(field_type, value)
@@ -277,15 +282,44 @@ def generate_submission_pdf(
         pdf.set_text_color(*_C_TEXT)
         row_num += 1
 
+    # ── Non-conformities section ─────────────────────────────────────────
+    if non_conformities:
+        pdf.ln(8)
+        pdf.set_font(_FONT_NAME, "B", 10)
+        pdf.set_text_color(*_C_ERR)
+        pdf.cell(0, 8, "Não Conformidades", new_x="LMARGIN", new_y="NEXT")
+        pdf.set_draw_color(*_C_ERR)
+        pdf.set_line_width(0.5)
+        pdf.line(pdf.l_margin, pdf.get_y(), pdf.l_margin + pdf.epw, pdf.get_y())
+        pdf.ln(4)
+
+        for nc in non_conformities:
+            pdf.set_font(_FONT_NAME, "B", 8)
+            pdf.set_text_color(*_C_TEXT)
+            label = nc.get("label", "")
+            pdf.cell(
+                0, 6, label[:80] + ("..." if len(label) > 80 else ""), new_x="LMARGIN", new_y="NEXT"
+            )
+            justification = nc.get("justification", "") or "Sem justificativa."
+            pdf.set_font(_FONT_NAME, "", 8)
+            pdf.set_text_color(*_C_MUTED)
+            pdf.set_x(pdf.l_margin + 4)
+            pdf.multi_cell(pdf.epw - 4, 5, justification)
+            pdf.ln(2)
+
     # ── Footer note ──────────────────────────────────────────────────────
     pdf.ln(6)
-    pdf.set_font("Helvetica", "I", 8)
+    pdf.set_font(_FONT_NAME, "I", 8)
     pdf.set_text_color(*_C_MUTED)
-    total_bool = sb.get("total_boolean", 0)
+    total_fields = sb.get("total_boolean", 0)
+    conformes    = sb.get("conformes", 0)
+    nao_conf     = sb.get("nao_conformes", 0)
     pdf.multi_cell(
         0, 5,
         f"Relatório gerado pelo Smart Audit. Score calculado com base em "
-        f"{total_bool} campo(s) booleano(s). Formulário: {form_name} v{form_version}.",
+        f"{total_fields} campo(s) avaliados "
+        f"({conformes} conforme(s), {nao_conf} não conforme(s)). "
+        f"Formulário: {form_name} v{form_version}.",
     )
 
     return bytes(pdf.output())

@@ -1,4 +1,4 @@
-from sqlalchemy import ForeignKey, Index, String, UniqueConstraint
+from sqlalchemy import Boolean, ForeignKey, Index, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.models.base import TimestampMixin, UUIDPrimaryKeyMixin
@@ -16,5 +16,8 @@ class NotificationRead(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     notification_key: Mapped[str] = mapped_column(String(100), nullable=False)
+    dismissed: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
 
     user = relationship("User")

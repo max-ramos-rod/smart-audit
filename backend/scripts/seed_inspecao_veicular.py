@@ -11,11 +11,10 @@ Uso:
 
 import argparse
 import asyncio
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import selectinload
 
 from app.core.config import get_settings
 from app.db.models.companies import Company
@@ -23,7 +22,6 @@ from app.db.models.form_fields import FormField
 from app.db.models.form_versions import FormVersion
 from app.db.models.forms import Form
 from app.db.models.memberships import Membership
-
 
 # ---------------------------------------------------------------------------
 # Definicao do formulario
@@ -45,7 +43,6 @@ FIELDS: list[dict] = [
     {"key": "km",           "label": "Quilometragem atual",    "field_type": "number",  "required": True},
     {"key": "inspetor",     "label": "Nome do inspetor",       "field_type": "text",    "required": True},
     {"key": "data_insp",    "label": "Data da inspecao",       "field_type": "date",    "required": True},
-    {"key": "id_foto",      "label": "Foto geral do veiculo",  "field_type": "evidence"},
 
     # ── Dianteira ──────────────────────────────────────────────────────────
     {"type": "section",  "label": "Dianteira"},
@@ -55,7 +52,6 @@ FIELDS: list[dict] = [
     {"key": "di_setas",       "label": "Setas dianteiras funcionando",         "field_type": "boolean", "required": True, "weight": 2},
     {"key": "di_limpador",    "label": "Limpadores de para-brisa funcionando", "field_type": "boolean", "required": True, "weight": 2},
     {"key": "di_parabrisa",   "label": "Para-brisa sem trincas ou rachaduras", "field_type": "boolean", "required": True, "weight": 3},
-    {"key": "di_foto",        "label": "Foto da dianteira",                    "field_type": "evidence"},
 
     # ── Lateral Esquerda ───────────────────────────────────────────────────
     {"type": "section",  "label": "Lateral Esquerda"},
@@ -63,7 +59,6 @@ FIELDS: list[dict] = [
     {"key": "le_pneu_diant",  "label": "Pneu dianteiro esquerdo em boas condicoes",     "field_type": "boolean", "required": True, "weight": 3},
     {"key": "le_pneu_tras",   "label": "Pneu traseiro esquerdo em boas condicoes",      "field_type": "boolean", "required": True, "weight": 3},
     {"key": "le_lataria",     "label": "Lataria esquerda sem avarias significativas",   "field_type": "boolean", "weight": 1, "allow_na": True},
-    {"key": "le_foto",        "label": "Foto lateral esquerda",                         "field_type": "evidence"},
 
     # ── Lateral Direita ────────────────────────────────────────────────────
     {"type": "section",  "label": "Lateral Direita"},
@@ -71,7 +66,6 @@ FIELDS: list[dict] = [
     {"key": "ld_pneu_diant",  "label": "Pneu dianteiro direito em boas condicoes",     "field_type": "boolean", "required": True, "weight": 3},
     {"key": "ld_pneu_tras",   "label": "Pneu traseiro direito em boas condicoes",      "field_type": "boolean", "required": True, "weight": 3},
     {"key": "ld_lataria",     "label": "Lataria direita sem avarias significativas",   "field_type": "boolean", "weight": 1, "allow_na": True},
-    {"key": "ld_foto",        "label": "Foto lateral direita",                         "field_type": "evidence"},
 
     # ── Traseira ───────────────────────────────────────────────────────────
     {"type": "section",  "label": "Traseira"},
@@ -80,7 +74,6 @@ FIELDS: list[dict] = [
     {"key": "tr_luz_freio",   "label": "Luz de freio funcionando",           "field_type": "boolean", "required": True, "weight": 3},
     {"key": "tr_luz_re",      "label": "Luz de re funcionando",              "field_type": "boolean", "required": True, "weight": 2},
     {"key": "tr_setas",       "label": "Setas traseiras funcionando",        "field_type": "boolean", "required": True, "weight": 2},
-    {"key": "tr_foto",        "label": "Foto da traseira",                   "field_type": "evidence"},
 
     # ── Motor ──────────────────────────────────────────────────────────────
     {"type": "section",  "label": "Motor"},
@@ -89,7 +82,6 @@ FIELDS: list[dict] = [
     {"key": "mo_correia",     "label": "Correia dentada em bom estado",        "field_type": "boolean", "required": True, "weight": 3},
     {"key": "mo_vazamento",   "label": "Sem vazamentos visiveis",              "field_type": "boolean", "required": True, "weight": 3},
     {"key": "mo_bateria",     "label": "Bateria em bom estado",                "field_type": "boolean", "required": True, "weight": 2},
-    {"key": "mo_foto",        "label": "Foto do compartimento do motor",       "field_type": "evidence", "required": True},
 
     # ── Interior ───────────────────────────────────────────────────────────
     {"type": "section",  "label": "Interior"},
@@ -102,7 +94,6 @@ FIELDS: list[dict] = [
     {"key": "in_triangulo",   "label": "Triangulo de sinalizacao presente",             "field_type": "boolean", "required": True, "weight": 2},
     {"key": "in_estepe",      "label": "Estepe em boas condicoes",                      "field_type": "boolean", "required": True, "weight": 2},
     {"key": "in_macaco",      "label": "Macaco e chave de roda presentes",              "field_type": "boolean", "required": True, "weight": 1},
-    {"key": "in_foto",        "label": "Foto do interior",                              "field_type": "evidence"},
 
     # ── Documentacao ──────────────────────────────────────────────────────
     {"type": "section",  "label": "Documentacao"},
@@ -110,7 +101,6 @@ FIELDS: list[dict] = [
     {"key": "do_seguro",      "label": "Seguro obrigatorio em dia",      "field_type": "boolean", "required": True, "weight": 2},
     {"key": "do_tacografo",   "label": "Tacografo aferido",              "field_type": "boolean", "weight": 3, "allow_na": True},
     {"key": "do_obs",         "label": "Observacoes gerais",             "field_type": "text"},
-    {"key": "do_foto",        "label": "Foto da documentacao",           "field_type": "evidence"},
 ]
 
 
@@ -141,7 +131,7 @@ async def run(company_slug: str | None) -> None:
 
         if company is None:
             raise SystemExit(
-                f"Nenhuma empresa ativa encontrada"
+                "Nenhuma empresa ativa encontrada"
                 + (f" com slug '{company_slug}'" if company_slug else "")
                 + ". Crie uma empresa antes de executar este script."
             )
@@ -228,15 +218,15 @@ async def run(company_slug: str | None) -> None:
 
         await db.commit()
 
-        print(f"")
-        print(f"  Formulario criado com sucesso!")
+        print("")
+        print("  Formulario criado com sucesso!")
         print(f"  Nome    : {FORM_NAME}")
         print(f"  ID      : {form.id}")
-        print(f"  Versao  : v1 (publicada)")
+        print("  Versao  : v1 (publicada)")
         print(f"  Secoes  : {section_counter}")
         print(f"  Campos  : {field_count}")
         print(f"  Total de posicoes: {position}")
-        print(f"")
+        print("")
         print(f"  Acesse em: /forms/{form.id}")
 
     await engine.dispose()

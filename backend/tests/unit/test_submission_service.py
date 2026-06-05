@@ -17,55 +17,47 @@ def make_field(field_type: str, key: str = "campo", allow_na: bool = False) -> M
 
 
 def make_weighted_submission(
-    answers: list[tuple[bool | None | str, float]],
+    answers: list[tuple[str | None, float]],
 ) -> MagicMock:
-    """Build a mock Submission with weighted boolean fields.
-    answers: list of (value, weight) where value can be True/False/None/"na".
+    """Build a mock Submission with weighted fields scored via conformity.
+    answers: list of (status, weight) where status is 'conforme', 'nao_conforme',
+    or None (not evaluated).
     """
     submission = MagicMock()
-    fields, values = [], []
-    for i, (answer, weight) in enumerate(answers):
+    fields, conformities = [], []
+    for i, (status, weight) in enumerate(answers):
         field = MagicMock()
         field.field_type = "boolean"
         field.id = str(i)
         field.config_json = {"weight": weight}
         fields.append(field)
-        if answer is not None:
-            sv = MagicMock()
-            sv.form_field_id = str(i)
-            if answer == "na":
-                sv.value_text = "na"
-                sv.value_boolean = None
-            else:
-                sv.value_boolean = answer
-                sv.value_text = None
-            values.append(sv)
+        if status is not None:
+            c = MagicMock()
+            c.form_field_id = str(i)
+            c.status = status
+            conformities.append(c)
     submission.form_version.fields = fields
-    submission.values = values
+    submission.conformities = conformities
     return submission
 
 
-def make_breakdown_submission(entries: list[bool | None | str]) -> MagicMock:
-    """Submission for score_breakdown tests. None = unanswered, "na" = N/A."""
+def make_breakdown_submission(entries: list[str | None]) -> MagicMock:
+    """Submission for score_breakdown tests. None = unevaluated (no conformity record)."""
     submission = MagicMock()
-    fields, values = [], []
-    for i, answer in enumerate(entries):
+    fields, conformities = [], []
+    for i, status in enumerate(entries):
         field = MagicMock()
         field.field_type = "boolean"
         field.id = str(i)
+        field.config_json = {}
         fields.append(field)
-        if answer is not None:
-            sv = MagicMock()
-            sv.form_field_id = str(i)
-            if answer == "na":
-                sv.value_text = "na"
-                sv.value_boolean = None
-            else:
-                sv.value_boolean = answer
-                sv.value_text = None
-            values.append(sv)
+        if status is not None:
+            c = MagicMock()
+            c.form_field_id = str(i)
+            c.status = status
+            conformities.append(c)
     submission.form_version.fields = fields
-    submission.values = values
+    submission.conformities = conformities
     return submission
 
 
@@ -127,10 +119,6 @@ class TestNormalizeValue:
             SubmissionService.normalize_value(make_field("text"), 123)
         assert exc_info.value.status_code == 400
 
-    def test_photo_string(self):
-        url = "https://bucket.s3.amazonaws.com/foto.jpg"
-        assert SubmissionService.normalize_value(make_field("photo"), url) == url
-
     def test_none_returns_none_for_text(self):
         assert SubmissionService.normalize_value(make_field("text"), None) is None
 
@@ -145,77 +133,73 @@ class TestNormalizeValue:
 # calculate_score
 # ---------------------------------------------------------------------------
 
-def make_submission(boolean_answers: list[bool | None]) -> MagicMock:
+def make_submission(answers: list[str | None]) -> MagicMock:
     """
-    Builds a mock Submission with boolean fields only.
-    Pass None to simulate an unanswered field (no SubmissionValue created).
+    Builds a mock Submission scored via conformity records.
+    answers: list of 'conforme', 'nao_conforme', or None (not evaluated).
     """
     submission = MagicMock()
-    fields = []
-    values = []
-    for i, answer in enumerate(boolean_answers):
+    fields, conformities = [], []
+    for i, answer in enumerate(answers):
         field = MagicMock()
         field.field_type = "boolean"
         field.id = str(i)
+        field.config_json = {}
         fields.append(field)
         if answer is not None:
-            sv = MagicMock()
-            sv.form_field_id = str(i)
-            sv.value_boolean = answer
-            values.append(sv)
+            c = MagicMock()
+            c.form_field_id = str(i)
+            c.status = answer
+            conformities.append(c)
     submission.form_version.fields = fields
-    submission.values = values
+    submission.conformities = conformities
     return submission
 
 
 class TestCalculateScore:
-    def test_all_true_is_100(self):
-        sub = make_submission([True, True, True])
+    def test_all_conforme_is_100(self):
+        sub = make_submission(["conforme", "conforme", "conforme"])
         assert SubmissionService.calculate_score(sub) == 100.0
 
-    def test_all_false_is_0(self):
-        sub = make_submission([False, False])
+    def test_all_nao_conforme_is_0(self):
+        sub = make_submission(["nao_conforme", "nao_conforme"])
         assert SubmissionService.calculate_score(sub) == 0.0
 
-    def test_half_true(self):
-        sub = make_submission([True, False])
+    def test_half_conforme(self):
+        sub = make_submission(["conforme", "nao_conforme"])
         assert SubmissionService.calculate_score(sub) == 50.0
 
-    def test_two_thirds_true(self):
-        sub = make_submission([True, True, False])
+    def test_two_thirds_conforme(self):
+        sub = make_submission(["conforme", "conforme", "nao_conforme"])
         assert SubmissionService.calculate_score(sub) == pytest.approx(66.67)
 
-    def test_no_boolean_fields_returns_none(self):
+    def test_no_conformities_returns_none(self):
         submission = MagicMock()
-        text_field = MagicMock()
-        text_field.field_type = "text"
-        submission.form_version.fields = [text_field]
-        submission.values = []
+        submission.form_version.fields = []
+        submission.conformities = []
         assert SubmissionService.calculate_score(submission) is None
 
-    def test_unanswered_booleans_excluded_from_score(self):
-        # 2 boolean fields, only 1 answered (True) — score should be 100%, not 50%
-        sub = make_submission([True, None])
+    def test_unevaluated_fields_excluded_from_score(self):
+        # 2 fields, only 1 evaluated (conforme) → score = 100%, not 50%
+        sub = make_submission(["conforme", None])
         assert SubmissionService.calculate_score(sub) == 100.0
 
-    def test_all_unanswered_returns_none(self):
+    def test_all_unevaluated_returns_none(self):
         sub = make_submission([None, None])
         assert SubmissionService.calculate_score(sub) is None
 
-    def test_mixed_field_types_only_counts_booleans(self):
+    def test_section_fields_excluded_from_score(self):
         submission = MagicMock()
-        bool_field = MagicMock()
-        bool_field.field_type = "boolean"
-        bool_field.id = "1"
-        text_field = MagicMock()
-        text_field.field_type = "text"
-        text_field.id = "2"
-        submission.form_version.fields = [bool_field, text_field]
-        sv = MagicMock()
-        sv.form_field_id = "1"
-        sv.value_boolean = True
-        submission.values = [sv]
-        assert SubmissionService.calculate_score(submission) == 100.0
+        section_field = MagicMock()
+        section_field.field_type = "section"
+        section_field.id = "1"
+        section_field.config_json = {}
+        submission.form_version.fields = [section_field]
+        c = MagicMock()
+        c.form_field_id = "1"
+        c.status = "conforme"
+        submission.conformities = [c]
+        assert SubmissionService.calculate_score(submission) is None
 
 
 # ---------------------------------------------------------------------------
@@ -265,20 +249,10 @@ class TestExtractValue:
         sv.value_text = "resposta livre"
         assert SubmissionService.extract_value(sv, "text") == "resposta livre"
 
-    def test_photo(self):
-        sv = MagicMock()
-        sv.value_text = "https://bucket/foto.jpg"
-        assert SubmissionService.extract_value(sv, "photo") == "https://bucket/foto.jpg"
-
     def test_boolean_na(self):
         sv = MagicMock()
         sv.value_text = "na"
         assert SubmissionService.extract_value(sv, "boolean") == "na"
-
-    def test_evidence_with_json(self):
-        sv = MagicMock()
-        sv.value_json = {"files": ["a.jpg"]}
-        assert SubmissionService.extract_value(sv, "evidence") == {"files": ["a.jpg"]}
 
 
 # ---------------------------------------------------------------------------
@@ -308,32 +282,32 @@ class TestNormalizeValueExtended:
 
 class TestCalculateScoreWeighted:
     def test_equal_weights_same_as_unweighted(self):
-        sub = make_weighted_submission([(True, 1.0), (False, 1.0)])
+        sub = make_weighted_submission([("conforme", 1.0), ("nao_conforme", 1.0)])
         assert SubmissionService.calculate_score(sub) == pytest.approx(50.0)
 
-    def test_higher_weight_on_true_increases_score(self):
-        # True with weight 3, False with weight 1 → score = 3/4 = 75%
-        sub = make_weighted_submission([(True, 3.0), (False, 1.0)])
+    def test_higher_weight_on_conforme_increases_score(self):
+        # conforme weight=3, nao_conforme weight=1 → score = 3/4 = 75%
+        sub = make_weighted_submission([("conforme", 3.0), ("nao_conforme", 1.0)])
         assert SubmissionService.calculate_score(sub) == pytest.approx(75.0)
 
-    def test_higher_weight_on_false_decreases_score(self):
-        # True with weight 1, False with weight 3 → score = 1/4 = 25%
-        sub = make_weighted_submission([(True, 1.0), (False, 3.0)])
+    def test_higher_weight_on_nao_conforme_decreases_score(self):
+        # conforme weight=1, nao_conforme weight=3 → score = 1/4 = 25%
+        sub = make_weighted_submission([("conforme", 1.0), ("nao_conforme", 3.0)])
         assert SubmissionService.calculate_score(sub) == pytest.approx(25.0)
 
-    def test_na_answer_excluded_from_score(self):
-        # One True, one N/A → N/A excluded → score = 1/1 = 100%
-        sub = make_weighted_submission([(True, 1.0), ("na", 1.0)])
+    def test_unevaluated_field_excluded_from_weighted_score(self):
+        # conforme weight=1, unevaluated weight=5 → only evaluated field counts → 100%
+        sub = make_weighted_submission([("conforme", 1.0), (None, 5.0)])
         assert SubmissionService.calculate_score(sub) == pytest.approx(100.0)
 
-    def test_only_na_answers_returns_none(self):
-        sub = make_weighted_submission([("na", 1.0), ("na", 2.0)])
+    def test_only_unevaluated_returns_none(self):
+        sub = make_weighted_submission([(None, 1.0), (None, 2.0)])
         assert SubmissionService.calculate_score(sub) is None
 
-    def test_unanswered_excluded_from_score(self):
-        # One True answered, one None (unanswered) → score = 100%
-        sub = make_weighted_submission([(True, 1.0), (None, 1.0)])
-        assert SubmissionService.calculate_score(sub) == pytest.approx(100.0)
+    def test_mixed_weighted_unevaluated_excluded(self):
+        # conforme weight=2, nao_conforme weight=2, unevaluated weight=10 → 2/4 = 50%
+        sub = make_weighted_submission([("conforme", 2.0), ("nao_conforme", 2.0), (None, 10.0)])
+        assert SubmissionService.calculate_score(sub) == pytest.approx(50.0)
 
 
 # ---------------------------------------------------------------------------
@@ -341,16 +315,16 @@ class TestCalculateScoreWeighted:
 # ---------------------------------------------------------------------------
 
 class TestCalculateScoreBreakdown:
-    def test_no_boolean_fields_returns_none(self):
+    def test_no_conformities_returns_none(self):
         submission = MagicMock()
         text_field = MagicMock()
         text_field.field_type = "text"
         submission.form_version.fields = [text_field]
-        submission.values = []
+        submission.conformities = []
         assert SubmissionService.calculate_score_breakdown(submission) is None
 
     def test_all_conformes(self):
-        sub = make_breakdown_submission([True, True, True])
+        sub = make_breakdown_submission(["conforme", "conforme", "conforme"])
         bd = SubmissionService.calculate_score_breakdown(sub)
         assert bd is not None
         assert bd.total_boolean == 3
@@ -359,34 +333,31 @@ class TestCalculateScoreBreakdown:
         assert bd.sem_resposta == 0
         assert bd.na_count == 0
 
-    def test_na_counted_separately(self):
-        sub = make_breakdown_submission([True, "na", False])
+    def test_mixed_statuses_counted_correctly(self):
+        # 1 conforme, 1 nao_conforme, 1 unevaluated
+        sub = make_breakdown_submission(["conforme", None, "nao_conforme"])
         bd = SubmissionService.calculate_score_breakdown(sub)
         assert bd is not None
         assert bd.total_boolean == 3
         assert bd.conformes == 1
         assert bd.nao_conformes == 1
-        assert bd.na_count == 1
-        assert bd.sem_resposta == 0
+        assert bd.na_count == 0
+        assert bd.sem_resposta == 1
 
-    def test_unanswered_counted_in_sem_resposta(self):
-        sub = make_breakdown_submission([True, None, None])
+    def test_unevaluated_counted_in_sem_resposta(self):
+        sub = make_breakdown_submission(["conforme", None, None])
         bd = SubmissionService.calculate_score_breakdown(sub)
         assert bd is not None
         assert bd.sem_resposta == 2
         assert bd.conformes == 1
 
-    def test_all_unanswered_returns_zero_score_counts(self):
+    def test_all_unevaluated_returns_none(self):
         sub = make_breakdown_submission([None, None])
         bd = SubmissionService.calculate_score_breakdown(sub)
-        assert bd is not None
-        assert bd.sem_resposta == 2
-        assert bd.conformes == 0
-        assert bd.nao_conformes == 0
-        assert bd.na_count == 0
+        assert bd is None
 
     def test_totals_always_sum_to_total_boolean(self):
-        sub = make_breakdown_submission([True, False, "na", None, True])
+        sub = make_breakdown_submission(["conforme", "nao_conforme", None, None, "conforme"])
         bd = SubmissionService.calculate_score_breakdown(sub)
         assert bd is not None
         assert bd.conformes + bd.nao_conformes + bd.sem_resposta + bd.na_count == bd.total_boolean
@@ -489,14 +460,6 @@ class TestPdfGeneration:
         pdf = generate_submission_pdf(**_base_pdf_kwargs(score=None))
         assert pdf[:4] == b"%PDF"
 
-    def test_evidence_field_rendered(self):
-        pdf = generate_submission_pdf(**_base_pdf_kwargs(
-            fields_with_answers=[
-                {"position": 1, "label": "Foto do local", "field_type": "evidence", "value": {"files": []}},
-            ]
-        ))
-        assert pdf[:4] == b"%PDF"
-
     def test_all_field_types_rendered(self):
         pdf = generate_submission_pdf(**_base_pdf_kwargs(
             fields_with_answers=[
@@ -507,9 +470,8 @@ class TestPdfGeneration:
                 {"position": 5, "label": "Texto", "field_type": "text", "value": "resposta"},
                 {"position": 6, "label": "Número", "field_type": "number", "value": 42.5},
                 {"position": 7, "label": "Data", "field_type": "date", "value": date(2025, 6, 1)},
-                {"position": 8, "label": "Select", "field_type": "select", "value": {"option": "A"}},
-                {"position": 9, "label": "Foto", "field_type": "photo", "value": "http://x.com/f.jpg"},
-                {"position": 10, "label": "Evidência", "field_type": "evidence", "value": None},
+                {"position": 8, "label": "Select", "field_type": "select",
+                 "value": {"option": "A"}},
             ]
         ))
         assert pdf[:4] == b"%PDF"

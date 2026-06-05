@@ -1,11 +1,14 @@
+export type FieldType = 'boolean' | 'text' | 'number' | 'date' | 'select' | 'section'
+
 export interface FormField {
   id: string
   key: string
   label: string
-  field_type: string
+  field_type: FieldType
   required: boolean
   position: number
   config_json: Record<string, unknown>
+  instruction: string | null
 }
 
 export interface FormVersion {
@@ -39,10 +42,11 @@ export interface FormDetail {
 export interface FormFieldCreatePayload {
   key: string
   label: string
-  field_type: string
+  field_type: FieldType
   required: boolean
   position: number
   config_json: Record<string, unknown>
+  instruction?: string | null
 }
 
 export interface FormCreatePayload {

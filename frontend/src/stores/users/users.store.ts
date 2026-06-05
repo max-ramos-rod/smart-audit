@@ -2,14 +2,30 @@ import { ref } from 'vue'
 import { defineStore } from 'pinia'
 
 import { extractProblemMessage } from '@/services/api/problem'
-import { createUser, fetchUser, fetchUsers, updateUser } from '@/services/users.service'
+import {
+  createUser,
+  fetchRevokedUsers,
+  fetchUser,
+  fetchUsers,
+  reactivateUser,
+  revokeUser,
+  updateUser,
+} from '@/services/users.service'
 import type { PaginationMeta } from '@/types/api'
-import type { UserCreatePayload, UserDetail, UserListItem, UserUpdatePayload } from '@/types/users'
+import type {
+  UserCreatePayload,
+  UserDetail,
+  UserListItem,
+  UserRevokedItem,
+  UserUpdatePayload,
+} from '@/types/users'
 
 export const useUsersStore = defineStore('users', () => {
   const items = ref<UserListItem[]>([])
+  const revokedItems = ref<UserRevokedItem[]>([])
   const selectedUser = ref<UserDetail | null>(null)
   const meta = ref<PaginationMeta | null>(null)
+  const revokedMeta = ref<PaginationMeta | null>(null)
   const isLoading = ref(false)
   const isSaving = ref(false)
   const error = ref<string | null>(null)
@@ -75,21 +91,72 @@ export const useUsersStore = defineStore('users', () => {
     }
   }
 
+  async function revoke(userId: string) {
+    isSaving.value = true
+    error.value = null
+    try {
+      await revokeUser(userId)
+      await load(meta.value?.page ?? 1, meta.value?.page_size ?? 20)
+      if (selectedUser.value?.id === userId) {
+        selectedUser.value = null
+      }
+    } catch (err: any) {
+      error.value = extractProblemMessage(err, 'Nao foi possivel revogar o acesso do usuario.')
+      throw err
+    } finally {
+      isSaving.value = false
+    }
+  }
+
+  async function loadRevoked(page = 1, pageSize = 20) {
+    isLoading.value = true
+    error.value = null
+    try {
+      const response = await fetchRevokedUsers(page, pageSize)
+      revokedItems.value = response.data
+      revokedMeta.value = response.meta
+    } catch (err: any) {
+      error.value = extractProblemMessage(err, 'Nao foi possivel carregar usuarios revogados.')
+      throw err
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  async function reactivate(userId: string) {
+    isSaving.value = true
+    error.value = null
+    try {
+      await reactivateUser(userId)
+      await loadRevoked(revokedMeta.value?.page ?? 1, revokedMeta.value?.page_size ?? 20)
+    } catch (err: any) {
+      error.value = extractProblemMessage(err, 'Nao foi possivel reativar o usuario.')
+      throw err
+    } finally {
+      isSaving.value = false
+    }
+  }
+
   function clearSelectedUser() {
     selectedUser.value = null
   }
 
   return {
     items,
+    revokedItems,
     selectedUser,
     meta,
+    revokedMeta,
     isLoading,
     isSaving,
     error,
     load,
     loadUser,
+    loadRevoked,
     create,
     update,
+    revoke,
+    reactivate,
     clearSelectedUser,
   }
 })

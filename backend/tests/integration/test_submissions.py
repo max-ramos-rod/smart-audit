@@ -83,6 +83,14 @@ async def test_submission_flow_with_attachment(client, auth_headers):
     assert attachment_response.status_code == 200
     assert attachment_response.json()["data"]["field_key"] == "extintor"
 
+    await client.put(
+        f"/api/v1/submissions/{submission_id}/conformity",
+        headers=auth_headers,
+        json={"items": [
+            {"field_key": "extintor", "status": "conforme", "justification": None},
+            {"field_key": "temperatura", "status": "conforme", "justification": None},
+        ]},
+    )
     finish_response = await client.post(
         f"/api/v1/submissions/{submission_id}/finish",
         headers=auth_headers,
@@ -341,7 +349,9 @@ async def test_submission_finish_blocked_for_viewer(client, viewer_headers):
     assert_problem(response, 403, "Usuario sem permissao para executar esta acao.")
 
 
-async def test_list_submissions_filter_by_status(client, auth_headers, inspector_headers, seeded_user):
+async def test_list_submissions_filter_by_status(
+    client, auth_headers, inspector_headers, seeded_user
+):
     """GET /submissions?status= filtra corretamente server-side."""
     forms_res = await client.get("/api/v1/forms", headers=auth_headers)
     forms = forms_res.json()["data"]
@@ -376,7 +386,9 @@ async def test_list_submissions_filter_by_status(client, auth_headers, inspector
     assert all(s["id"] != submission_id for s in data_done)
 
 
-async def test_list_submissions_filter_by_created_by(client, auth_headers, inspector_headers, inspector_user):
+async def test_list_submissions_filter_by_created_by(
+    client, auth_headers, inspector_headers, inspector_user
+):
     """GET /submissions?created_by= filtra por inspetor."""
     forms_res = await client.get("/api/v1/forms", headers=auth_headers)
     forms = forms_res.json()["data"]
@@ -445,4 +457,7 @@ async def test_submission_response_has_score_breakdown(client, auth_headers, ins
         assert "nao_conformes" in breakdown
         assert "sem_resposta" in breakdown
         assert breakdown["total_boolean"] == len(bool_fields)
-        assert breakdown["conformes"] + breakdown["nao_conformes"] + breakdown["sem_resposta"] == breakdown["total_boolean"]
+        assert (
+            breakdown["conformes"] + breakdown["nao_conformes"] + breakdown["sem_resposta"]
+            == breakdown["total_boolean"]
+        )

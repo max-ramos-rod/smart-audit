@@ -7,3 +7,11 @@ class MarkReadRequest(BaseModel):
 
 class MarkAllReadRequest(BaseModel):
     keys: list[str] = Field(min_length=1)
+
+
+class DismissRequest(BaseModel):
+    key: str = Field(min_length=1, max_length=100)
+
+
+class DismissAllRequest(BaseModel):
+    keys: list[str] = Field(min_length=1)

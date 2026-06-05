@@ -21,9 +21,11 @@ class NotificationService:
     async def list_notifications(
         self, db: AsyncSession, current_user: User, membership: Membership
     ) -> list[NotificationItem]:
-        read_keys = await self.repository.get_read_keys(db, str(current_user.id))
+        user_id = str(current_user.id)
+        read_keys = await self.repository.get_read_keys(db, user_id)
+        dismissed_keys = await self.repository.get_dismissed_keys(db, user_id)
         return await self.submission_service.get_notifications(
-            db, membership, read_keys=read_keys
+            db, membership, read_keys=read_keys, dismissed_keys=dismissed_keys
         )
 
     async def mark_read(self, db: AsyncSession, user_id: str, key: str) -> None:
@@ -32,5 +34,14 @@ class NotificationService:
 
     async def mark_many_read(self, db: AsyncSession, user_id: str, keys: list[str]) -> int:
         await self.repository.mark_many_read(db, user_id, keys)
+        await db.commit()
+        return len(keys)
+
+    async def dismiss(self, db: AsyncSession, user_id: str, key: str) -> None:
+        await self.repository.dismiss(db, user_id, key)
+        await db.commit()
+
+    async def dismiss_many(self, db: AsyncSession, user_id: str, keys: list[str]) -> int:
+        await self.repository.dismiss_many(db, user_id, keys)
         await db.commit()
         return len(keys)

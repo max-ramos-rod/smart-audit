@@ -24,3 +24,11 @@ export interface UserUpdatePayload {
   role?: string
   is_active?: boolean
 }
+
+export interface UserRevokedItem {
+  id: string
+  name: string
+  email: string
+  role: string
+  revoked_at: string
+}

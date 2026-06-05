@@ -34,6 +34,7 @@ const mockDetail: SubmissionDetail = {
   form_version_id: 'v1',
   score_breakdown: null,
   answers: [{ field_key: 'extintor_ok', field_type: 'boolean', value: true }],
+  conformity: [],
 }
 
 const mockCompletedDetail: SubmissionDetail = {
@@ -135,7 +136,7 @@ describe('submissions.store', () => {
 
   describe('updateAnswers', () => {
     it('calls saveAnswers and updates current', async () => {
-      const updatedDetail = { ...mockDetail, answers: [{ field_key: 'extintor_ok', field_type: 'boolean', value: false }] }
+      const updatedDetail = { ...mockDetail, answers: [{ field_key: 'extintor_ok', field_type: 'boolean' as const, value: false }] }
       vi.mocked(saveAnswers).mockResolvedValue(updatedDetail)
       const store = useSubmissionsStore()
       store.current = mockDetail

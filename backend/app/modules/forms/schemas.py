@@ -10,6 +10,7 @@ class FormFieldCreateRequest(BaseModel):
     required: bool = False
     position: int
     config_json: dict = Field(default_factory=dict)
+    instruction: str | None = Field(default=None, min_length=1, max_length=1000)
 
     @field_validator("config_json")
     @classmethod
@@ -41,6 +42,7 @@ class FormFieldResponse(BaseModel):
     required: bool
     position: int
     config_json: dict
+    instruction: str | None
 
 
 class FormVersionResponse(BaseModel):

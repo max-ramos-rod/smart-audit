@@ -3,17 +3,19 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import AppShell from '@/components/layout/AppShell.vue'
-import { fetchMyCompany, updateMyCompany } from '@/services/companies.service'
+import {
+  deactivateCompany,
+  fetchMyCompany,
+  fetchUsage,
+  updateMyCompany,
+  type UsageData,
+} from '@/services/companies.service'
+import { useAuthStore } from '@/stores/auth/auth.store'
 import { useContextStore } from '@/stores/context/context.store'
-import { useFormsStore } from '@/stores/forms/forms.store'
-import { useSubmissionsStore } from '@/stores/submissions/submissions.store'
-import { useUsersStore } from '@/stores/users/users.store'
 
 const router = useRouter()
+const authStore = useAuthStore()
 const contextStore = useContextStore()
-const formsStore = useFormsStore()
-const submissionsStore = useSubmissionsStore()
-const usersStore = useUsersStore()
 
 const tab = ref<'general' | 'plan' | 'usage'>('general')
 const company = computed(() => contextStore.activeCompany)
@@ -35,6 +37,9 @@ const isSaving = ref(false)
 const savedOnce = ref(false)
 const saveError = ref<string | null>(null)
 
+const usage = ref<UsageData | null>(null)
+const usageLoading = ref(false)
+
 onMounted(async () => {
   try {
     const data = await fetchMyCompany()
@@ -45,6 +50,14 @@ onMounted(async () => {
     form.phone = data.phone ?? ''
   } catch {
     form.name = company.value?.name ?? ''
+  }
+  usageLoading.value = true
+  try {
+    usage.value = await fetchUsage()
+  } catch {
+    // silently ignore — usage tab shows dashes on error
+  } finally {
+    usageLoading.value = false
   }
 })
 
@@ -83,34 +96,55 @@ const planFeatures = [
 interface UsageItem {
   label: string
   used: number
-  total: number
-  unit?: string
+  limit: number
 }
 
-const usageItems = computed<UsageItem[]>(() => [
-  {
-    label: 'Usuários ativos',
-    used: usersStore.meta?.total ?? usersStore.items.length,
-    total: 50,
-  },
-  {
-    label: 'Inspeções neste mês',
-    used: stats.value?.total_submissions ?? submissionsStore.items.length,
-    total: 500,
-  },
-  {
-    label: 'Formulários',
-    used: formsStore.meta?.total ?? formsStore.items.length,
-    total: 100,
-  },
-])
+const usageItems = computed<UsageItem[]>(() => {
+  if (!usage.value) return []
+  return [
+    { label: 'Usuários ativos',     used: usage.value.users.used,                 limit: usage.value.users.limit },
+    { label: 'Inspeções neste mês', used: usage.value.submissions_this_month.used, limit: usage.value.submissions_this_month.limit },
+    { label: 'Formulários',         used: usage.value.forms.used,                 limit: usage.value.forms.limit },
+  ]
+})
 
 function usagePct(item: UsageItem) {
-  return Math.min(100, Math.round((item.used / item.total) * 100))
+  return Math.min(100, Math.round((item.used / item.limit) * 100))
 }
 
 function usageColor(pct: number) {
   return pct >= 90 ? 'var(--sa-danger)' : pct >= 70 ? 'var(--sa-warn)' : 'var(--sa-ok)'
+}
+
+const isOwner = computed(() => contextStore.context?.membership?.role === 'OWNER')
+
+const showDeactivateModal = ref(false)
+const deactivateConfirmName = ref('')
+const isDeactivating = ref(false)
+const deactivateError = ref<string | null>(null)
+
+function openDeactivateModal() {
+  deactivateConfirmName.value = ''
+  deactivateError.value = null
+  showDeactivateModal.value = true
+}
+
+function closeDeactivateModal() {
+  showDeactivateModal.value = false
+}
+
+async function confirmDeactivate() {
+  if (deactivateConfirmName.value !== company.value?.name) return
+  isDeactivating.value = true
+  deactivateError.value = null
+  try {
+    await deactivateCompany()
+    authStore.logout()
+    router.replace('/login')
+  } catch (err: any) {
+    deactivateError.value = err.response?.data?.detail ?? 'Erro ao desativar empresa.'
+    isDeactivating.value = false
+  }
 }
 </script>
 
@@ -208,12 +242,21 @@ function usageColor(pct: number) {
           style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; background: var(--sa-err-bg); border: 1px solid var(--sa-err-bd, #fecaca); border-radius: 8px;"
         >
           <div>
-            <div style="font-size: 13px; font-weight: 700; color: var(--sa-danger);">Excluir empresa</div>
+            <div style="font-size: 13px; font-weight: 700; color: var(--sa-danger);">Desativar empresa</div>
             <div style="font-size: 12px; color: var(--sa-danger); opacity: .7;">
-              Ação irreversível. Ainda não existe fluxo funcional exposto na interface.
+              Ação irreversível. Todos os membros e equipes serão desativados.
             </div>
           </div>
-          <button type="button" class="btn-secondary btn-sm" disabled>Indisponível</button>
+          <button
+            v-if="isOwner"
+            type="button"
+            class="btn-sm"
+            style="background: var(--sa-danger); color: #fff; border: none; border-radius: 6px; padding: 6px 14px; font-size: 12px; font-weight: 600; cursor: pointer;"
+            @click="openDeactivateModal"
+          >
+            Desativar
+          </button>
+          <span v-else style="font-size: 12px; color: var(--sa-muted);">Apenas o OWNER pode desativar.</span>
         </div>
       </div>
 
@@ -263,34 +306,86 @@ function usageColor(pct: number) {
       <div v-else-if="tab === 'usage'" class="card card-p">
         <div class="slabel" style="margin-bottom: 16px;">Utilização do plano</div>
 
-        <div v-for="item in usageItems" :key="item.label" style="margin-bottom: 16px;">
-          <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 6px;">
-            <span style="font-weight: 600; color: var(--sa-text);">{{ item.label }}</span>
-            <span style="color: var(--sa-muted); font-variant-numeric: tabular-nums;">
-              {{ item.used }}{{ item.unit ?? '' }}
-              <span style="opacity: .6;">/ {{ item.total }}{{ item.unit ?? '' }}</span>
-            </span>
-          </div>
-          <div style="height: 4px; background: var(--sa-line); border-radius: 99px; overflow: hidden;">
-            <div
-              :style="{
-                height: '100%',
-                borderRadius: '99px',
-                width: usagePct(item) + '%',
-                background: usageColor(usagePct(item)),
-                transition: 'width .4s',
-              }"
-            ></div>
-          </div>
-          <div style="font-size: 11px; color: var(--sa-muted); margin-top: 4px;">
-            {{ usagePct(item) }}% utilizado
-          </div>
-        </div>
+        <p v-if="usageLoading" style="font-size:13px;color:var(--sa-muted);">Carregando...</p>
 
-        <div style="font-size: 12px; color: var(--sa-muted); margin-top: 8px;">
-          Dados exibidos a partir da sessão atual e atualizados conforme os módulos carregados.
-        </div>
+        <template v-else-if="usage">
+          <div v-for="item in usageItems" :key="item.label" style="margin-bottom: 16px;">
+            <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 6px;">
+              <span style="font-weight: 600; color: var(--sa-text);">{{ item.label }}</span>
+              <span style="color: var(--sa-muted); font-variant-numeric: tabular-nums;">
+                {{ item.used }}
+                <span style="opacity: .6;">/ {{ item.limit }}</span>
+              </span>
+            </div>
+            <div style="height: 4px; background: var(--sa-line); border-radius: 99px; overflow: hidden;">
+              <div
+                :style="{
+                  height: '100%',
+                  borderRadius: '99px',
+                  width: usagePct(item) + '%',
+                  background: usageColor(usagePct(item)),
+                  transition: 'width .4s',
+                }"
+              ></div>
+            </div>
+            <div style="font-size: 11px; color: var(--sa-muted); margin-top: 4px;">
+              {{ usagePct(item) }}% utilizado
+            </div>
+          </div>
+          <div style="font-size: 12px; color: var(--sa-muted); margin-top: 8px;">
+            Limites definidos pelo plano <strong>{{ company?.plan ?? 'starter' }}</strong>.
+            Contagens atualizadas em tempo real pelo servidor.
+          </div>
+        </template>
+
+        <p v-else style="font-size:13px;color:var(--sa-muted);">
+          Não foi possível carregar os dados de utilização.
+        </p>
       </div>
     </div>
+
+    <!-- Modal de confirmação de desativação -->
+    <Teleport to="body">
+      <div
+        v-if="showDeactivateModal"
+        style="position: fixed; inset: 0; background: rgba(0,0,0,.5); display: flex; align-items: center; justify-content: center; z-index: 9999; padding: 16px;"
+        @click.self="closeDeactivateModal"
+      >
+        <div style="background: var(--sa-card-bg, #fff); border-radius: 12px; padding: 24px; width: 100%; max-width: 420px; box-shadow: 0 20px 60px rgba(0,0,0,.2);">
+          <div style="font-size: 16px; font-weight: 700; color: var(--sa-danger); margin-bottom: 8px;">
+            Desativar empresa
+          </div>
+          <p style="font-size: 13px; color: var(--sa-muted); margin: 0 0 16px;">
+            Esta ação é <strong>irreversível</strong>. Todos os membros perderão acesso e as equipes serão desativadas.
+            Para confirmar, digite o nome da empresa:
+          </p>
+          <div style="font-size: 13px; font-weight: 700; color: var(--sa-text); margin-bottom: 8px;">
+            {{ company?.name }}
+          </div>
+          <input
+            v-model="deactivateConfirmName"
+            placeholder="Digite o nome da empresa"
+            style="width: 100%; margin-bottom: 12px; box-sizing: border-box;"
+          />
+          <div v-if="deactivateError" style="font-size: 12px; color: var(--sa-danger); margin-bottom: 10px;">
+            {{ deactivateError }}
+          </div>
+          <div style="display: flex; gap: 10px; justify-content: flex-end;">
+            <button type="button" class="btn-secondary btn-sm" :disabled="isDeactivating" @click="closeDeactivateModal">
+              Cancelar
+            </button>
+            <button
+              type="button"
+              class="btn-sm"
+              style="background: var(--sa-danger); color: #fff; border: none; border-radius: 6px; padding: 6px 14px; font-size: 12px; font-weight: 600; cursor: pointer;"
+              :disabled="deactivateConfirmName !== company?.name || isDeactivating"
+              @click="confirmDeactivate"
+            >
+              {{ isDeactivating ? 'Desativando...' : 'Confirmar desativação' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </AppShell>
 </template>

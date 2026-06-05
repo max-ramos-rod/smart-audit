@@ -1,11 +1,10 @@
-import pytest
 
 from backend.tests.integration.test_auth import assert_pagination_meta, assert_problem
 
 _PHOTO_FIELD = {
     "key": "foto_extintor",
-    "label": "Foto do extintor",
-    "field_type": "photo",
+    "label": "Extintor de incêndio",
+    "field_type": "boolean",
     "required": True,
     "position": 1,
     "config_json": {},
@@ -13,8 +12,8 @@ _PHOTO_FIELD = {
 
 _SECOND_FIELD = {
     "key": "foto_saida",
-    "label": "Foto da saida de emergencia",
-    "field_type": "photo",
+    "label": "Saída de emergência",
+    "field_type": "boolean",
     "required": False,
     "position": 2,
     "config_json": {},
@@ -34,7 +33,11 @@ async def _create_form_and_submission(client, auth_headers, fields=None):
     form_resp = await client.post(
         "/api/v1/forms",
         headers=auth_headers,
-        json={"name": "Checklist Evidencias", "description": "Testes de attachment", "fields": fields},
+        json={
+            "name": "Checklist Evidencias",
+            "description": "Testes de attachment",
+            "fields": fields,
+        },
     )
     form_id = form_resp.json()["data"]["id"]
 
@@ -149,7 +152,12 @@ async def test_create_two_attachments_on_different_fields(client, auth_headers):
         resp = await client.post(
             f"/api/v1/submissions/{submission_id}/attachments",
             headers=auth_headers,
-            json={"field_key": field_key, "file_url": url, "mime_type": "image/jpeg", "file_size": 1024},
+            json={
+                "field_key": field_key,
+                "file_url": url,
+                "mime_type": "image/jpeg",
+                "file_size": 1024,
+            },
         )
         assert resp.status_code == 200
 

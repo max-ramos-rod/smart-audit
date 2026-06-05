@@ -3,7 +3,6 @@ Advanced integration tests covering:
   - PDF export endpoint (content-type, attachment vs inline)
   - Company stats: score_by_form and score_trend fields
   - N/A boolean answers (allow_na=True) do not block required-field check
-  - visible_if conditional: hidden required fields don't block finish
   - Weighted scoring: custom weights affect final score
   - Score breakdown: na_count populated correctly
   - Multi-company tenant isolation on stats
@@ -11,7 +10,6 @@ Advanced integration tests covering:
 import pytest
 
 from backend.tests.integration.test_auth import assert_problem
-
 
 # ── helpers ─────────────────────────────────────────────────────────────────
 
@@ -41,6 +39,15 @@ async def _answer(client, headers, submission_id, answers):
     )
     assert resp.status_code == 200, resp.text
     return resp.json()["data"]
+
+
+async def _conformity(client, headers, submission_id, items):
+    resp = await client.put(
+        f"/api/v1/submissions/{submission_id}/conformity",
+        headers=headers,
+        json={"items": items},
+    )
+    assert resp.status_code == 200, resp.text
 
 
 async def _finish(client, headers, submission_id):
@@ -175,7 +182,7 @@ async def test_na_boolean_answer_accepted_and_finish_succeeds(client, auth_heade
 
 
 async def test_na_boolean_appears_in_score_breakdown(client, auth_headers):
-    """na_count is incremented in score_breakdown when N/A answer is given."""
+    """N/A-answered field with no conformity record appears as sem_resposta in score_breakdown."""
     form_id = await _create_form(client, auth_headers, [
         {"key": "b1", "label": "B1", "field_type": "boolean",
          "required": True, "position": 1, "config_json": {}},
@@ -187,17 +194,22 @@ async def test_na_boolean_appears_in_score_breakdown(client, auth_headers):
         {"field_key": "b1", "value": True},
         {"field_key": "b2", "value": "na"},
     ])
+    # Only b1 gets a conformity evaluation; b2 (N/A) is left unevaluated
+    await _conformity(client, auth_headers, sub_id, [
+        {"field_key": "b1", "status": "conforme", "justification": None},
+    ])
     data = await _finish(client, auth_headers, sub_id)
 
     breakdown = data["score_breakdown"]
     assert breakdown is not None
-    assert breakdown["na_count"] == 1
+    assert breakdown["na_count"] == 0
     assert breakdown["conformes"] == 1
+    assert breakdown["sem_resposta"] == 1
     assert breakdown["total_boolean"] == 2
 
 
 async def test_na_boolean_excluded_from_score_calculation(client, auth_headers):
-    """N/A boolean does not count as non-conforme — score stays 100% when only other field is True."""
+    """N/A-answered field without conformity record is excluded from score — score stays 100%."""
     form_id = await _create_form(client, auth_headers, [
         {"key": "b1", "label": "B1", "field_type": "boolean",
          "required": True, "position": 1, "config_json": {}},
@@ -209,46 +221,12 @@ async def test_na_boolean_excluded_from_score_calculation(client, auth_headers):
         {"field_key": "b1", "value": True},
         {"field_key": "b2", "value": "na"},
     ])
+    # Only b1 gets evaluated; b2 (N/A) is excluded → score = 1/1 = 100%
+    await _conformity(client, auth_headers, sub_id, [
+        {"field_key": "b1", "status": "conforme", "justification": None},
+    ])
     data = await _finish(client, auth_headers, sub_id)
     assert data["score"] == pytest.approx(100.0)
-
-
-# ── visible_if conditional rules ────────────────────────────────────────────
-
-async def test_visible_if_hidden_required_field_does_not_block_finish(client, auth_headers):
-    """A required field hidden by visible_if should not block completion."""
-    form_id = await _create_form(client, auth_headers, [
-        {"key": "eh_perigoso", "label": "É perigoso?", "field_type": "boolean",
-         "required": True, "position": 1, "config_json": {}},
-        {"key": "medida", "label": "Medida de segurança", "field_type": "text",
-         "required": True, "position": 2,
-         "config_json": {"visible_if": {"field_key": "eh_perigoso", "operator": "eq", "value": True}}},
-    ], name="VisibleIf Form")
-    sub_id = await _create_submission(client, auth_headers, form_id)
-    # Answer trigger as False → conditional field is hidden → should not block
-    await _answer(client, auth_headers, sub_id, [{"field_key": "eh_perigoso", "value": False}])
-
-    data = await _finish(client, auth_headers, sub_id)
-    assert data["status"] == "completed"
-
-
-async def test_visible_if_visible_required_field_blocks_finish(client, auth_headers):
-    """A required field that IS visible (visible_if condition met) still blocks if unanswered."""
-    form_id = await _create_form(client, auth_headers, [
-        {"key": "eh_perigoso", "label": "É perigoso?", "field_type": "boolean",
-         "required": True, "position": 1, "config_json": {}},
-        {"key": "medida", "label": "Medida de segurança", "field_type": "text",
-         "required": True, "position": 2,
-         "config_json": {"visible_if": {"field_key": "eh_perigoso", "operator": "eq", "value": True}}},
-    ], name="VisibleIf Required Form")
-    sub_id = await _create_submission(client, auth_headers, form_id)
-    # Answer trigger as True → conditional field IS visible → required but not answered → blocks
-    await _answer(client, auth_headers, sub_id, [{"field_key": "eh_perigoso", "value": True}])
-
-    resp = await client.post(
-        f"/api/v1/submissions/{sub_id}/finish", headers=auth_headers
-    )
-    assert_problem(resp, 400, "Campos obrigatorios pendentes: medida.")
 
 
 # ── weighted scoring ─────────────────────────────────────────────────────────
@@ -256,10 +234,10 @@ async def test_visible_if_visible_required_field_blocks_finish(client, auth_head
 async def test_weighted_boolean_fields_affect_score(client, auth_headers):
     """Fields with higher weight contribute proportionally more to the final score."""
     form_id = await _create_form(client, auth_headers, [
-        # weight 3: True → contributes 3
+        # weight 3: conforme → contributes 3
         {"key": "critico", "label": "Crítico", "field_type": "boolean",
          "required": True, "position": 1, "config_json": {"weight": 3}},
-        # weight 1: False → contributes 0
+        # weight 1: nao_conforme → contributes 0
         {"key": "menor", "label": "Menor", "field_type": "boolean",
          "required": True, "position": 2, "config_json": {"weight": 1}},
     ], name="Weighted Form")
@@ -267,6 +245,10 @@ async def test_weighted_boolean_fields_affect_score(client, auth_headers):
     await _answer(client, auth_headers, sub_id, [
         {"field_key": "critico", "value": True},
         {"field_key": "menor", "value": False},
+    ])
+    await _conformity(client, auth_headers, sub_id, [
+        {"field_key": "critico", "status": "conforme", "justification": None},
+        {"field_key": "menor", "status": "nao_conforme", "justification": "Falha menor"},
     ])
     data = await _finish(client, auth_headers, sub_id)
     # score = 3 / (3+1) = 75%
@@ -284,6 +266,10 @@ async def test_equal_weight_fields_give_unweighted_score(client, auth_headers):
     await _answer(client, auth_headers, sub_id, [
         {"field_key": "b1", "value": True},
         {"field_key": "b2", "value": False},
+    ])
+    await _conformity(client, auth_headers, sub_id, [
+        {"field_key": "b1", "status": "conforme", "justification": None},
+        {"field_key": "b2", "status": "nao_conforme", "justification": "Reprovado"},
     ])
     data = await _finish(client, auth_headers, sub_id)
     assert data["score"] == pytest.approx(50.0)

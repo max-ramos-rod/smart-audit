@@ -3,11 +3,16 @@ import { computed, onMounted, reactive, ref } from 'vue'
 
 import AppShell from '@/components/layout/AppShell.vue'
 import { extractProblemMessage } from '@/services/api/problem'
+import { useContextStore } from '@/stores/context/context.store'
 import { useUsersStore } from '@/stores/users/users.store'
-import type { UserCreatePayload, UserListItem, UserUpdatePayload } from '@/types/users'
+import type { UserCreatePayload, UserListItem, UserRevokedItem, UserUpdatePayload } from '@/types/users'
 
 const usersStore = useUsersStore()
+const contextStore = useContextStore()
+const tab = ref<'active' | 'revoked'>('active')
 const isEditing = ref(false)
+const revokeError = ref<string | null>(null)
+const reactivateError = ref<string | null>(null)
 const formError = ref<string | null>(null)
 const savedOnce = ref(false)
 const form = reactive({
@@ -31,6 +36,8 @@ onMounted(() => {
   usersStore.load()
 })
 
+const currentUserId = computed(() => contextStore.context?.user?.id)
+
 function resetForm() {
   form.id = ''
   form.name = ''
@@ -40,7 +47,36 @@ function resetForm() {
   form.is_active = true
   isEditing.value = false
   formError.value = null
+  revokeError.value = null
   usersStore.clearSelectedUser()
+}
+
+async function switchTab(t: 'active' | 'revoked') {
+  tab.value = t
+  if (t === 'revoked' && usersStore.revokedItems.length === 0) {
+    await usersStore.loadRevoked()
+  }
+}
+
+async function confirmReactivate(user: UserRevokedItem) {
+  if (!confirm(`Reativar o acesso de "${user.name}" nesta empresa?`)) return
+  reactivateError.value = null
+  try {
+    await usersStore.reactivate(user.id)
+  } catch (err: any) {
+    reactivateError.value = extractProblemMessage(err, 'Não foi possível reativar o acesso.')
+  }
+}
+
+async function confirmRevoke(user: UserListItem) {
+  if (!confirm(`Revogar o acesso de "${user.name}" a esta empresa? O usuário não conseguirá mais fazer login nesta empresa.`)) return
+  revokeError.value = null
+  try {
+    await usersStore.revoke(user.id)
+    if (isEditing.value && form.id === user.id) resetForm()
+  } catch (err: any) {
+    revokeError.value = extractProblemMessage(err, 'Não foi possível revogar o acesso.')
+  }
 }
 
 function fillFormFromUser(user: UserListItem & { company_id?: string }) {
@@ -108,11 +144,27 @@ async function submit() {
         <button type="button" class="btn-secondary btn-sm" @click="resetForm">+ Novo usuário</button>
       </div>
 
+      <div class="filter-tabs" style="margin-bottom: 16px;">
+        <button class="filter-tab" :class="{ active: tab === 'active' }" type="button" @click="switchTab('active')">
+          Ativos
+        </button>
+        <button class="filter-tab" :class="{ active: tab === 'revoked' }" type="button" @click="switchTab('revoked')">
+          Revogados
+        </button>
+      </div>
+
       <p v-if="usersStore.error" style="font-size:13px;font-weight:600;color:var(--sa-danger);margin-bottom:12px;">
         {{ usersStore.error }}
       </p>
+      <p v-if="revokeError" style="font-size:13px;font-weight:600;color:var(--sa-danger);margin-bottom:12px;">
+        {{ revokeError }}
+      </p>
+      <p v-if="reactivateError" style="font-size:13px;font-weight:600;color:var(--sa-danger);margin-bottom:12px;">
+        {{ reactivateError }}
+      </p>
 
-      <div class="users-layout">
+      <!-- Aba Ativos -->
+      <div v-if="tab === 'active'" class="users-layout">
 
         <!-- Formulário -->
         <div class="card card-p" style="align-self:flex-start;position:sticky;top:20px;">
@@ -219,13 +271,65 @@ async function submit() {
                   </span>
                 </td>
                 <td>
-                  <button class="inline-action" type="button" @click="editUser(user)">Editar</button>
+                  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                    <button class="inline-action" type="button" @click="editUser(user)">Editar</button>
+                    <button
+                      v-if="user.id !== currentUserId"
+                      class="inline-action"
+                      type="button"
+                      style="color:var(--sa-danger);"
+                      :disabled="usersStore.isSaving"
+                      @click="confirmRevoke(user)"
+                    >Revogar</button>
+                  </div>
                 </td>
               </tr>
             </tbody>
           </table>
         </div>
 
+      </div>
+
+      <!-- Aba Revogados -->
+      <div v-else-if="tab === 'revoked'" class="card" style="overflow-x:auto;">
+        <p v-if="usersStore.isLoading" style="font-size:13px;color:var(--sa-muted);padding:16px;">Carregando...</p>
+        <template v-else>
+          <p v-if="usersStore.revokedItems.length === 0" style="font-size:13px;color:var(--sa-muted);padding:16px;">
+            Nenhum usuário revogado nesta empresa.
+          </p>
+          <table v-else class="tbl">
+            <thead>
+              <tr>
+                <th>Nome</th>
+                <th>E-mail</th>
+                <th>Papel</th>
+                <th>Revogado em</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="user in usersStore.revokedItems" :key="user.id">
+                <td class="tbl-name">{{ user.name }}</td>
+                <td class="tbl-muted" style="font-family:'DM Mono',monospace;font-size:12px;">{{ user.email }}</td>
+                <td>
+                  <span class="role-badge" :class="'role-' + user.role.toLowerCase()">{{ user.role }}</span>
+                </td>
+                <td class="tbl-muted" style="font-size:12px;">
+                  {{ new Date(user.revoked_at).toLocaleDateString('pt-BR') }}
+                </td>
+                <td>
+                  <button
+                    class="inline-action"
+                    type="button"
+                    style="color:var(--sa-ok);"
+                    :disabled="usersStore.isSaving"
+                    @click="confirmReactivate(user)"
+                  >Reativar</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </template>
       </div>
     </div>
   </AppShell>

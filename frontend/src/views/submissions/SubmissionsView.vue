@@ -5,6 +5,7 @@ import { useRouter } from 'vue-router'
 import AppShell from '@/components/layout/AppShell.vue'
 import { extractProblemMessage } from '@/services/api/problem'
 import { exportSubmissionsCSV } from '@/services/submissions.service'
+import { scoreClass } from '@/utils/score'
 import { useFormsStore } from '@/stores/forms/forms.store'
 import { useSubmissionsStore } from '@/stores/submissions/submissions.store'
 
@@ -194,7 +195,7 @@ function statusLabel(status: string) {
             <span
               v-if="submission.score !== null"
               class="score-val"
-              :class="submission.score >= 85 ? 'ok' : submission.score >= 65 ? 'warn' : 'err'"
+              :class="scoreClass(submission.score ?? 0)"
             >
               {{ submission.score }}%
             </span>

@@ -75,7 +75,7 @@ async function submitForm() {
 }
 
 async function confirmDelete(team: TeamListItem) {
-  if (!confirm(`Excluir a equipe "${team.name}"? Esta ação não pode ser desfeita.`)) return
+  if (!confirm(`Desativar a equipe "${team.name}"? A equipe deixará de aparecer nas listagens.`)) return
   try {
     await teamsStore.remove(team.id)
     resetToCreate()
@@ -293,7 +293,7 @@ function memberInitials(name: string) {
                     style="color:var(--sa-danger);border-color:var(--sa-err-bg);"
                     @click="confirmDelete(team)"
                   >
-                    Excluir
+                    Desativar
                   </button>
                 </div>
               </div>
@@ -325,7 +325,7 @@ function memberInitials(name: string) {
                           style="color:var(--sa-danger);border-color:var(--sa-err-bg);"
                           @click="confirmDelete(team)"
                         >
-                          Excluir
+                          Desativar
                         </button>
                       </div>
                     </td>

@@ -69,7 +69,7 @@ async def delete_team(
     db: AsyncSession = Depends(get_db),
     service: TeamService = Depends(get_team_service),
 ) -> dict[str, object]:
-    await service.delete_team(db, membership, team_id)
+    await service.deactivate_team(db, membership, team_id)
     return success_response(None)
 
 

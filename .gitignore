@@ -15,6 +15,8 @@ uploads/
 # Cache de ferramentas
 .pytest_cache/
 .ruff_cache/
+*.egg-info/
+__pycache__/
 
 # Docker — overrides locais não devem ser commitados
 docker-compose.override.yml
@@ -27,3 +29,6 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+
+# Redesign handoff (material de referência local, não vai para o repo)
+redesign-handoff/

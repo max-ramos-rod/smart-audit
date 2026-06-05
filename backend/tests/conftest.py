@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection, AsyncSession
 from app.core.limiter import limiter
 from app.core.security import hash_password
 from app.db.models import Company, Membership, User
-from app.db.session import get_db, engine
+from app.db.session import engine, get_db
 from app.main import app
 
 

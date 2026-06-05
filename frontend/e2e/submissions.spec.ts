@@ -100,8 +100,8 @@ test.describe('Submission detail', () => {
   })
 
   test('displays form name and status', async ({ authed: page }) => {
-    await expect(page.getByText('Safety Check')).toBeVisible()
-    await expect(page.getByText('Em andamento')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Safety Check' })).toBeVisible()
+    await expect(page.getByText('Em andamento').first()).toBeVisible()
   })
 
   test('displays fields', async ({ authed: page }) => {

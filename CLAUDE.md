@@ -140,13 +140,58 @@ This is the load-bearing domain decision (see Decisão 2 and 3 in `docs/Arquitet
 
   `SubmissionService.save_answers` writes both and they must stay in sync. When adding a new field type, update `normalize_value`, `serialize_raw_value`, `extract_value`, and (if it should affect scoring) `calculate_score` in [backend/app/modules/submissions/service.py](backend/app/modules/submissions/service.py).
 
+#### Field types
+
+The allowed `field_type` values (enforced by CHECK constraint on `form_fields`):
+
+| Type | Stored in | Notes |
+|---|---|---|
+| `boolean` | `value_boolean` (or `value_text = "na"` for N/A) | Only type that contributes to score |
+| `text` | `value_text` | Plain string |
+| `number` | `value_number` | Float |
+| `date` | `value_date` | ISO date |
+| `select` | `value_json` as `{"option": "..."}` | Options list in `config_json.options` |
+| `section` | — (not stored) | Visual divider / group header; never contributes to answers or score |
+
+**Removed types** (do not re-add): `photo` (removed migration `a1b2c3d4e5f7`) and `evidence` (removed migration `b3c4d5e6f7a8`). Evidence is now a capability of any field via the Attachments module.
+
+#### `config_json` schema per field type
+
+- **`boolean`**: `{ weight?: number, allow_na?: boolean }`
+  - `weight` (default 1) — multiplier used in score calculation
+  - `allow_na` — enables a "N/A" answer option
+- **`select`**: `{ options: string[] }`
+- **`text` / `number` / `date`**: `{}`
+- **`section`**: always `{}` — no config allowed; auto-keyed as `__section_{position}__` by the form builder
+
+#### Score calculation
+
+Score is 0–100, calculated only from `boolean` fields with at least one answered field. N/A and unanswered fields are excluded from both numerator and denominator. Each boolean field has an optional `weight` (`config_json.weight`, default 1). Formula: `round((sum of weight for conformes) / (sum of weight for answered non-na) * 100, 2)`. See `calculate_score` and `calculate_score_breakdown` in [backend/app/modules/submissions/service.py](backend/app/modules/submissions/service.py).
+
+### Attachments module (evidence)
+
+Evidence is **not** a field type — it is a capability attached to any field during an inspection. The `attachments` bounded context lives under `backend/app/modules/attachments/` and is served at `/submissions/{id}/attachments`.
+
+**Data model:** `Attachment` → FK(CASCADE) → `SubmissionValue` → FK → `FormField`. An attachment is always linked to a `submission_value`, which is created on-demand if it doesn't exist yet for the target field.
+
+**Endpoints (all require JWT + X-Company-Id):**
+- `GET  /submissions/{id}/attachments?page=1&page_size=N` — lists all attachments for a submission
+- `POST /submissions/{id}/attachments` — creates an attachment; body: `{ field_key, file_url, mime_type, file_size, thumbnail_url? }`; validates that `field_key` exists in the form version
+- `DELETE /submissions/{id}/attachments/{attachment_id}` — deletes attachment and removes local file if stored on disk
+
+**Side effect on create:** `AttachmentService.create_attachment` also writes `answers_json[field_key] = file_url` on the submission snapshot, so the field appears as answered in the denormalized store.
+
+**Serialize shape** (`AttachmentResponse`): `id`, `submission_id`, `field_key` (resolved from `submission_value.form_field.key`), `file_url`, `thumbnail_url`, `mime_type`, `file_size`, `created_at`.
+
+**Allowed MIME types for uploads:** `image/jpeg`, `image/png`, `image/webp`, `video/mp4`, `video/quicktime`, `video/x-msvideo`, `audio/mpeg`, `audio/wav`, `audio/ogg`, `audio/mp4`, `application/pdf` (enforced in uploads router). Size limits: images 10 MB, PDF 20 MB, audio 50 MB, video 200 MB.
+
 ### Teams module
 
 `teams` and `team_members` are a separate bounded context under `backend/app/modules/teams/`. Teams belong to a company; members must already be members of that company (validated in `TeamService.add_member`). Read endpoints use `get_current_membership`; write endpoints require `get_manager_membership`.
 
 ### Uploads
 
-Uploads are handled directly in [backend/app/api/v1/routers/uploads.py](backend/app/api/v1/routers/uploads.py) — no separate module. Files are written to `settings.upload_dir/<company_id>/<uuid>.<ext>` and served via FastAPI `StaticFiles` mounted at `/uploads`. The returned URL uses `settings.upload_base_url` as prefix. Allowed MIME types: `image/jpeg`, `image/png`, `image/webp`. Max size: 10 MB.
+Uploads are handled directly in [backend/app/api/v1/routers/uploads.py](backend/app/api/v1/routers/uploads.py) — no separate module. Files are written to `settings.upload_dir/<company_id>/<uuid>.<ext>` and served via FastAPI `StaticFiles` mounted at `/uploads`. The returned URL uses `settings.upload_base_url` as prefix. Allowed MIME types: images (JPEG/PNG/WebP), video (MP4/MOV/AVI), audio (MP3/WAV/OGG/M4A), PDF. Size limits: images 10 MB, PDF 20 MB, audio 50 MB, video 200 MB.
 
 ### Frontend
 
@@ -156,6 +201,67 @@ SPA structured by domain (`stores/<domain>`, `services/<domain>.service.ts`, `vi
 - HTTP client is centralized in [frontend/src/services/api/http.ts](frontend/src/services/api/http.ts); never call `axios` directly from views/stores.
 - Token + active company id are persisted in `localStorage` under `smart-audit.token` / `smart-audit.company-id` via [frontend/src/services/api/storage.ts](frontend/src/services/api/storage.ts).
 - Frontend tests live in `frontend/src/__tests__/` and run with Vitest (`npm test`). Use `setActivePinia(createPinia())` + `localStorage.clear()` in `beforeEach`. Mock service modules with `vi.mock`.
+
+#### Score utility (`frontend/src/utils/score.ts`)
+
+Central module for score display logic. Import from here — never inline score threshold comparisons in views.
+
+```typescript
+SCORE_THRESHOLD_OK   = 85  // green / "Aprovado"
+SCORE_THRESHOLD_WARN = 65  // yellow / "Atenção"
+                           // below 65 → red / "Reprovado"
+
+scoreClass(score)     // → 'ok' | 'warn' | 'err'   (CSS modifier)
+scoreColorVar(score)  // → 'var(--sa-ok)' | 'var(--sa-warn)' | 'var(--sa-danger)'
+scoreChipClass(score) // → '' | 'status-chip--warn' | 'status-chip--inactive'
+scoreText(score)      // → 'Aprovado' | 'Atenção' | 'Reprovado'
+```
+
+#### `FieldType` (`frontend/src/types/forms.ts`)
+
+```typescript
+export type FieldType = 'boolean' | 'text' | 'number' | 'date' | 'select' | 'section'
+```
+
+`FormField.field_type` and `FormFieldCreatePayload.field_type` are typed as `FieldType`. When writing test mocks with string literals, use `as const` to satisfy the union: `field_type: 'boolean' as const`.
+
+#### Shared components
+
+**`frontend/src/components/submissions/InspectionFieldRow.vue`** — renders a single field row in the **normal list mode** (read-only and in-progress via the default page view). Props: `field`, `answer`, `conformityStatus`, `conformityJustification`, `isCompleted`, `isPendingRequired`, `evidenceAttachments`, `evidenceUploading`, `evidenceError`, `compact?`. Card view and inspection list mode do not use this component.
+
+**`frontend/src/components/submissions/InspectionListRow.vue`** — compact row used exclusively in the **inspection list overlay** (`.insp-listshell`). Props: `field`, `position`, `answer`, `conformityStatus`, `conformityJustification`, `isCompleted`, `isPendingRequired`, `evidenceCount`, `isExpanded`. Expandable inline panel for answer + conformity + evidence. Emits: `toggle`, `update-answer`, `set-conformity`, `update-justification`, `request-evidence`, `request-justification`.
+
+**`frontend/src/components/forms/FormFieldEditor.vue`** — reusable field editor used in the version composer (FormDetailView and FormsView). Accepts a `FormFieldCreatePayload` via `v-model`, `index`, and `showRemove`. Emits `remove`. Configures: label, key, field type, required, weight (boolean), allow_na (boolean), options (select), instruction.
+
+#### Submission inspection UI (`SubmissionDetailView`)
+
+The main inspection screen has three mutually exclusive display modes:
+
+1. **Normal list mode** (default, also for completed inspections) — all fields rendered in a scrollable list in the page body. Completed inspections are read-only. Uses `InspectionFieldRow.vue`.
+2. **Inspection card mode** (`viewMode = 'card'`) — fullscreen Teleport overlay (`.insp-fullscreen`), one field at a time, swipe gestures (right = Conforme, left = Não conforme). Only available for in-progress inspections. Card rendered inline in the view.
+3. **Inspection list mode** (`viewMode = 'list'`) — fullscreen Teleport overlay (`.insp-listshell`), compact scrollable list with filter chips and section headers. Only available for in-progress inspections. Uses `InspectionListRow.vue`.
+
+**Overlay positioning:** Both `insp-fullscreen` and `insp-listshell` are `position: fixed`. On desktop (≥768px) `left: 248px` keeps the sidebar visible. On mobile they cover the full viewport (`z-index: 200`).
+
+**Shared header (identical in both inspection modes):**
+- Line 1 (`.insp-fhdr`): back button + form name + toggle [Lista][Cartão] + score ring
+- Line 2 (`.insp-fprog`): segmented progress bar + counter + color legend + separator + chips (section chips in card, filter chips in list)
+
+**Navigation flow:** In-progress inspections open directly in list mode. Toggle switches between card and list modes. The back button in card mode returns to list mode (does not exit inspection).
+
+**Filter chips (list mode):** `Todos`, `Pendentes`, `Conformes`, `Não conf.`, `S/N`, `Seleção` — drives `filteredListFields` computed.
+
+Evidence (attachments) is rendered **under each field** in all three modes via `evidenceAttachments: reactive<Record<string, AttachmentItem[]>>`, keyed by `field.key`. Loaded once in `onMounted` via `loadEvidenceAttachments()` → `listAttachments(submissionId)`. New uploads are pushed to the reactive dict immediately without a reload.
+
+The upload button only shows for non-completed inspections (`v-if="!isCompleted"`). For completed inspections, the evidence section shows only if there are attachments. A summary line ("X evidência(s) registrada(s)" or "Sem evidências registradas") appears at the top of the fields area for completed inspections after evidence loads.
+
+#### Report view (`SubmissionReportView`)
+
+Read-only summary for completed (and in-progress) inspections accessible at `/submissions/:id/report`. Shows score, breakdown, boolean field results, non-boolean field values, and any evidence (attachments) for each field as clickable links. PDF export via `exportSubmissionPdf` → backend `/submissions/{id}/export`.
+
+#### Attachments service
+
+`frontend/src/services/attachments.service.ts` exposes `listAttachments`, `createAttachment`, `deleteAttachment`. Uploads go through `frontend/src/services/uploads.service.ts` (`uploadFile` → `POST /uploads`) first, which returns a `{ url, mime_type, file_size }` object, then the URL is forwarded to `createAttachment`.
 
 ## Conventions worth knowing
 

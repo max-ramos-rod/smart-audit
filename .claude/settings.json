@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(python -m pytest backend/tests/unit/ -x -q)"
+      "Bash(python -m pytest backend/tests/unit/ -x -q)",
+      "Bash(npm run *)"
     ]
   }
 }

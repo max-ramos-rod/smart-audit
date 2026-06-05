@@ -51,7 +51,7 @@ class TestValidateFields:
             make_field("num_field", 3, "number"),
             make_field("date_field", 4, "date"),
             make_field("sel_field", 5, "select"),
-            make_field("photo_field", 6, "photo"),
+            make_field("section_field", 6, "section"),
         ]
         FormService.validate_fields(fields)
 
@@ -75,10 +75,10 @@ class TestValidateFields:
             FormService.validate_fields(fields)
         assert exc_info.value.status_code == 400
 
-    def test_evidence_and_section_types_accepted(self):
+    def test_section_type_accepted_with_other_types(self):
         fields = [
             make_field("s1", 1, "section"),
-            make_field("ev1", 2, "evidence"),
+            make_field("txt1", 2, "text"),
             make_field("bool1", 3, "boolean"),
         ]
         FormService.validate_fields(fields)
