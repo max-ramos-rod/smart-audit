@@ -990,6 +990,9 @@ const currentFieldEvidenceCount = computed(() =>
           </div>
         </div>
 
+        <!-- Separador entre linha 2 e 3 -->
+        <div style="height:1px;background:var(--sa-line);flex-shrink:0;"></div>
+
         <!-- ── 3. SWIPE ZONE ── -->
         <div class="insp-fswipe">
 
@@ -1259,8 +1262,45 @@ const currentFieldEvidenceCount = computed(() =>
             </div>
           </div>
 
-          <!-- Filter bar -->
-          <div class="insp-filter-bar">
+          <!-- Linha 2: barra de progresso + section chips (idêntica ao card mode) -->
+          <div class="insp-fprog">
+            <div class="insp-fprog-row">
+              <div class="insp-fprog-bar">
+                <div :style="{
+                  height: '100%',
+                  background: 'var(--sa-ok)',
+                  width: progressStats.total ? (progressStats.conformes / progressStats.total * 100) + '%' : '0%',
+                  transition: 'width .35s ease',
+                }" />
+                <div :style="{
+                  height: '100%',
+                  background: 'var(--sa-danger)',
+                  width: progressStats.total ? (progressStats.naoConformes / progressStats.total * 100) + '%' : '0%',
+                  transition: 'width .35s ease',
+                }" />
+              </div>
+              <div class="insp-fprog-lbl">{{ progressStats.evaluated }}/{{ progressStats.total }}</div>
+            </div>
+            <div v-if="formSections.length" class="insp-sec-chips">
+              <button
+                v-for="sec in formSections"
+                :key="sec.key"
+                type="button"
+                class="insp-sec-chip"
+                :class="{
+                  'insp-sec-chip--done':   sec.pct === 100,
+                  'insp-sec-chip--active': sec.label === inspectionSectionLabel,
+                }"
+                @click="jumpToSection(sec.key)"
+              >
+                {{ sec.label.length > 18 ? sec.label.slice(0, 18) + '…' : sec.label }}
+                <span class="insp-sec-pct">{{ sec.pct }}%</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Filter bar (com separador acima) -->
+          <div class="insp-filter-bar insp-filter-bar--with-sep">
             <button
               v-for="f in FILTERS"
               :key="f.id"
@@ -2353,6 +2393,10 @@ const currentFieldEvidenceCount = computed(() =>
 .insp-filter-bar {
   display: flex; gap: 6px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 4px;
   -webkit-overflow-scrolling: touch; scrollbar-width: none; flex-shrink: 0;
+}
+.insp-filter-bar--with-sep {
+  padding-top: 8px;
+  border-top: 1px solid var(--sa-line);
 }
 .insp-filter-bar::-webkit-scrollbar { display: none; }
 .insp-fchip {
