@@ -1236,6 +1236,7 @@ const currentFieldEvidenceCount = computed(() =>
       >
         <!-- ── HEADER (branco, fixo) ── -->
         <div class="insp-lshdr">
+          <!-- Linha 1: voltar + nome + toggle + score ring -->
           <div class="insp-lshdr-top">
             <button type="button" class="insp-fback" @click="router.push({ name: 'submissions' })">
               <SvgIcon name="back" :size="16" />
@@ -1244,12 +1245,21 @@ const currentFieldEvidenceCount = computed(() =>
               <div class="insp-fhdr-name">{{ submission.form_name }}</div>
               <div class="insp-fhdr-sub">Em andamento</div>
             </div>
+            <!-- Toggle inline na primeira linha -->
+            <div class="insp-vt-seg insp-lshdr-toggle">
+              <button class="insp-vt-btn" :class="String(viewMode) === 'card' ? 'active' : ''" @click="viewMode='card'">
+                <span class="insp-vt-icon">▦</span> Cartão
+              </button>
+              <button class="insp-vt-btn" :class="String(viewMode) === 'list' ? 'active' : ''" @click="viewMode='list'">
+                <span class="insp-vt-icon">☰</span> Lista
+              </button>
+            </div>
             <div class="score-ring" :style="scoreRingStyle">
               <div class="score-ring-inner">{{ liveScore !== null ? liveScore + '%' : '—' }}</div>
             </div>
           </div>
 
-          <!-- Progress bar + counters -->
+          <!-- Linha 2: barra de progresso + legenda -->
           <div class="insp-lshdr-prog">
             <div class="insp-fprog-bar" style="height:6px;">
               <div :style="{
@@ -1270,16 +1280,8 @@ const currentFieldEvidenceCount = computed(() =>
             </div>
           </div>
 
-          <!-- ViewToggle + jump pendentes -->
-          <div class="insp-view-toggle-bar">
-            <div class="insp-vt-seg">
-              <button class="insp-vt-btn" :class="String(viewMode) === 'card' ? 'active' : ''" @click="viewMode='card'">
-                <span class="insp-vt-icon">▦</span> Cartão
-              </button>
-              <button class="insp-vt-btn" :class="String(viewMode) === 'list' ? 'active' : ''" @click="viewMode='list'">
-                <span class="insp-vt-icon">☰</span> Lista
-              </button>
-            </div>
+          <!-- Linha 3: jump pendentes -->
+          <div style="display:flex;justify-content:flex-end;padding-top:6px;">
             <button
               class="insp-jump-pend"
               :disabled="filterCount('pend') === 0"
@@ -1784,7 +1786,11 @@ const currentFieldEvidenceCount = computed(() =>
 .insp-lshdr-top {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+}
+.insp-lshdr-toggle {
+  margin: 0 auto 0 0;
+  padding: 3px;
 }
 .insp-lshdr-prog {
   display: flex;
