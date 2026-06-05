@@ -1,11 +1,13 @@
 import argparse
 import asyncio
+import os
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
-from app.db.models import Company, Membership, User
-from app.db.session import engine
+from app.db.models.companies import Company
+from app.db.models.memberships import Membership
+from app.db.models.users import User
 
 
 async def main() -> None:
@@ -16,6 +18,7 @@ async def main() -> None:
     parser.add_argument("--role", default="OWNER")
     args = parser.parse_args()
 
+    engine = create_async_engine(os.environ["DATABASE_URL"])
     async with AsyncSession(engine, expire_on_commit=False) as db:
         user = await db.scalar(select(User).where(User.email == args.email))
         if user is None:
