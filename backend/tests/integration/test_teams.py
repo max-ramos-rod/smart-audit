@@ -18,7 +18,9 @@ async def test_teams_create_list_detail_update_and_delete(client, auth_headers):
     list_payload = list_response.json()
     assert len(list_payload["data"]) == 1
     assert list_payload["data"][0]["member_count"] == 0
-    assert_pagination_meta(list_payload, total=1, page=1, page_size=10, has_next=False, total_pages=1)
+    assert_pagination_meta(
+        list_payload, total=1, page=1, page_size=10, has_next=False, total_pages=1
+    )
 
     detail_response = await client.get(f"/api/v1/teams/{team_id}", headers=auth_headers)
     assert detail_response.status_code == 200
@@ -147,7 +149,9 @@ async def test_teams_create_blocked_for_inspector(client, inspector_headers):
 
 async def test_teams_get_nonexistent_returns_404(client, auth_headers):
     assert_problem(
-        await client.get("/api/v1/teams/00000000-0000-0000-0000-000000000000", headers=auth_headers),
+        await client.get(
+            "/api/v1/teams/00000000-0000-0000-0000-000000000000", headers=auth_headers
+        ),
         404,
         "Equipe nao encontrada.",
     )

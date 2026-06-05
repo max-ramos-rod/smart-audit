@@ -1,6 +1,5 @@
 from backend.tests.integration.test_auth import assert_problem
 
-
 _FORM_PAYLOAD = {
     "name": "Stats Form",
     "fields": [
@@ -252,7 +251,9 @@ async def test_mark_read_persists_across_requests(client, auth_headers):
     assert next(n for n in items if n["id"] == key)["read"] is False
 
     # mark as read
-    resp = await client.post("/api/v1/me/notifications/read", headers=auth_headers, json={"key": key})
+    resp = await client.post(
+        "/api/v1/me/notifications/read", headers=auth_headers, json={"key": key}
+    )
     assert resp.status_code == 200
     assert resp.json()["data"]["read"] is True
 

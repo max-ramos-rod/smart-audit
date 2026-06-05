@@ -68,8 +68,12 @@ class SQLAlchemyRepository(Generic[ModelT], ABC):
         unique: bool = False,
     ) -> tuple[list[Any], int]:
         total = int(
-            await db.scalar(select(func.count()).select_from(statement.order_by(None).subquery())) or 0
+            await db.scalar(
+                select(func.count()).select_from(statement.order_by(None).subquery())
+            ) or 0
         )
-        paginated_statement = statement.offset((params.page - 1) * params.page_size).limit(params.page_size)
+        paginated_statement = (
+            statement.offset((params.page - 1) * params.page_size).limit(params.page_size)
+        )
         items = await self._list_from_stmt(db, paginated_statement, unique=unique)
         return items, total

@@ -6,7 +6,6 @@ from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
 from starlette import status as http_status
 
-
 PROBLEM_JSON = "application/problem+json"
 
 
@@ -51,7 +50,9 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> JSONRe
     return build_problem(request, status_code=exc.status_code, detail=detail)
 
 
-async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+async def validation_exception_handler(
+    request: Request, exc: RequestValidationError
+) -> JSONResponse:
     return build_problem(
         request,
         status_code=http_status.HTTP_422_UNPROCESSABLE_ENTITY,

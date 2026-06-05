@@ -245,7 +245,9 @@ def generate_submission_pdf(
             pdf.set_draw_color(*_C_LINE)
             pdf.set_font(_FONT_NAME, "B", 8)
             pdf.set_text_color(*_C_BRAND)
-            pdf.cell(0, 7, f"  {row['label']}", fill=True, border="B", new_x="LMARGIN", new_y="NEXT")
+            pdf.cell(
+                0, 7, f"  {row['label']}", fill=True, border="B", new_x="LMARGIN", new_y="NEXT"
+            )
             pdf.set_text_color(*_C_TEXT)
             continue
 
@@ -295,7 +297,9 @@ def generate_submission_pdf(
             pdf.set_font(_FONT_NAME, "B", 8)
             pdf.set_text_color(*_C_TEXT)
             label = nc.get("label", "")
-            pdf.cell(0, 6, label[:80] + ("..." if len(label) > 80 else ""), new_x="LMARGIN", new_y="NEXT")
+            pdf.cell(
+                0, 6, label[:80] + ("..." if len(label) > 80 else ""), new_x="LMARGIN", new_y="NEXT"
+            )
             justification = nc.get("justification", "") or "Sem justificativa."
             pdf.set_font(_FONT_NAME, "", 8)
             pdf.set_text_color(*_C_MUTED)
@@ -312,8 +316,10 @@ def generate_submission_pdf(
     nao_conf     = sb.get("nao_conformes", 0)
     pdf.multi_cell(
         0, 5,
-        f"Relatório gerado pelo Smart Audit. Score calculado com base em {total_fields} campo(s) avaliados "
-        f"({conformes} conforme(s), {nao_conf} não conforme(s)). Formulário: {form_name} v{form_version}.",
+        f"Relatório gerado pelo Smart Audit. Score calculado com base em "
+        f"{total_fields} campo(s) avaliados "
+        f"({conformes} conforme(s), {nao_conf} não conforme(s)). "
+        f"Formulário: {form_name} v{form_version}.",
     )
 
     return bytes(pdf.output())

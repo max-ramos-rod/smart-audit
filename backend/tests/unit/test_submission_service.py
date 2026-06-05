@@ -20,7 +20,8 @@ def make_weighted_submission(
     answers: list[tuple[str | None, float]],
 ) -> MagicMock:
     """Build a mock Submission with weighted fields scored via conformity.
-    answers: list of (status, weight) where status is 'conforme', 'nao_conforme', or None (not evaluated).
+    answers: list of (status, weight) where status is 'conforme', 'nao_conforme',
+    or None (not evaluated).
     """
     submission = MagicMock()
     fields, conformities = [], []
@@ -469,7 +470,8 @@ class TestPdfGeneration:
                 {"position": 5, "label": "Texto", "field_type": "text", "value": "resposta"},
                 {"position": 6, "label": "Número", "field_type": "number", "value": 42.5},
                 {"position": 7, "label": "Data", "field_type": "date", "value": date(2025, 6, 1)},
-                {"position": 8, "label": "Select", "field_type": "select", "value": {"option": "A"}},
+                {"position": 8, "label": "Select", "field_type": "select",
+                 "value": {"option": "A"}},
             ]
         ))
         assert pdf[:4] == b"%PDF"

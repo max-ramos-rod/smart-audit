@@ -11,12 +11,16 @@ from app.db.session import Base
 class SubmissionValue(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "submission_values"
     __table_args__ = (
-        UniqueConstraint("submission_id", "form_field_id", name="uq_submission_values_submission_field"),
+        UniqueConstraint(
+            "submission_id", "form_field_id", name="uq_submission_values_submission_field"
+        ),
         Index("ix_submission_values_submission_id", "submission_id"),
         Index("ix_submission_values_form_field_id", "form_field_id"),
     )
 
-    submission_id: Mapped[str] = mapped_column(ForeignKey("submissions.id", ondelete="CASCADE"), nullable=False)
+    submission_id: Mapped[str] = mapped_column(
+        ForeignKey("submissions.id", ondelete="CASCADE"), nullable=False
+    )
     form_field_id: Mapped[str] = mapped_column(ForeignKey("form_fields.id"), nullable=False)
     value_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     value_number: Mapped[float | None] = mapped_column(Numeric(14, 4), nullable=True)

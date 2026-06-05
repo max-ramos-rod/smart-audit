@@ -16,6 +16,8 @@ class NotificationRead(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     notification_key: Mapped[str] = mapped_column(String(100), nullable=False)
-    dismissed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    dismissed: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
 
     user = relationship("User")

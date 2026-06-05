@@ -49,7 +49,9 @@ class UserService:
             db, str(membership.company_id), user_id
         )
         if target_membership is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario nao encontrado.")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Usuario nao encontrado."
+            )
         return self.serialize_user(target_membership)
 
     async def create_user(
@@ -103,7 +105,9 @@ class UserService:
             db, str(membership.company_id), user_id
         )
         if target_membership is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario nao encontrado.")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Usuario nao encontrado."
+            )
 
         user_updates: dict[str, object] = {}
         if payload.name is not None:
@@ -166,7 +170,9 @@ class UserService:
             db, str(membership.company_id), user_id
         )
         if target_membership is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario nao encontrado.")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Usuario nao encontrado."
+            )
         if str(target_membership.user_id) == str(membership.user_id):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,

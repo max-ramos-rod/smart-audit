@@ -4,7 +4,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models.memberships import Membership
 from app.modules.audit_logs.repository import AuditLogRepository
 from app.modules.companies.repository import CompanyRepository
-from app.modules.companies.schemas import CompanyResponse, CompanyUpdateRequest, UsageResponse, UsageStat
+from app.modules.companies.schemas import (
+    CompanyResponse,
+    CompanyUpdateRequest,
+    UsageResponse,
+    UsageStat,
+)
 
 
 class CompanyService:
@@ -19,7 +24,9 @@ class CompanyService:
     async def get_company(self, db: AsyncSession, membership: Membership) -> CompanyResponse:
         company = await self.repository.get_by_id(db, str(membership.company_id))
         if company is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Empresa nao encontrada.")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Empresa nao encontrada."
+            )
         return self._serialize(company)
 
     async def update_company(
@@ -30,7 +37,9 @@ class CompanyService:
     ) -> CompanyResponse:
         company = await self.repository.get_by_id(db, str(membership.company_id))
         if company is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Empresa nao encontrada.")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Empresa nao encontrada."
+            )
 
         data = payload.model_dump(exclude_none=True)
         if data:
@@ -68,7 +77,9 @@ class CompanyService:
     async def deactivate_company(self, db: AsyncSession, membership: Membership) -> None:
         company = await self.repository.get_by_id(db, str(membership.company_id))
         if company is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Empresa nao encontrada.")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Empresa nao encontrada."
+            )
         await self.repository.deactivate_company(db, str(membership.company_id))
         await self.audit_repository.log(
             db,

@@ -27,8 +27,8 @@ async def test_forgot_password_empty_email_returns_422(client):
 
 async def _get_reset_token(client, seeded_user, capfd=None) -> str:
     """Request a reset and capture the token from the log output."""
-    import logging
     import io
+    import logging
 
     log_stream = io.StringIO()
     handler = logging.StreamHandler(log_stream)

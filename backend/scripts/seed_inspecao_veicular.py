@@ -11,11 +11,10 @@ Uso:
 
 import argparse
 import asyncio
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import selectinload
 
 from app.core.config import get_settings
 from app.db.models.companies import Company
@@ -23,7 +22,6 @@ from app.db.models.form_fields import FormField
 from app.db.models.form_versions import FormVersion
 from app.db.models.forms import Form
 from app.db.models.memberships import Membership
-
 
 # ---------------------------------------------------------------------------
 # Definicao do formulario
@@ -133,7 +131,7 @@ async def run(company_slug: str | None) -> None:
 
         if company is None:
             raise SystemExit(
-                f"Nenhuma empresa ativa encontrada"
+                "Nenhuma empresa ativa encontrada"
                 + (f" com slug '{company_slug}'" if company_slug else "")
                 + ". Crie uma empresa antes de executar este script."
             )
@@ -220,15 +218,15 @@ async def run(company_slug: str | None) -> None:
 
         await db.commit()
 
-        print(f"")
-        print(f"  Formulario criado com sucesso!")
+        print("")
+        print("  Formulario criado com sucesso!")
         print(f"  Nome    : {FORM_NAME}")
         print(f"  ID      : {form.id}")
-        print(f"  Versao  : v1 (publicada)")
+        print("  Versao  : v1 (publicada)")
         print(f"  Secoes  : {section_counter}")
         print(f"  Campos  : {field_count}")
         print(f"  Total de posicoes: {position}")
-        print(f"")
+        print("")
         print(f"  Acesse em: /forms/{form.id}")
 
     await engine.dispose()

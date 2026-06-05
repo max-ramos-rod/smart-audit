@@ -7,7 +7,9 @@ from fastapi import HTTPException
 from app.modules.forms.importer import parse_csv, parse_excel, parse_import_file
 
 
-def _make_csv(*rows: str, header: str = "label,tipo,instrucao,obrigatorio,peso,opcoes,permite_na") -> bytes:
+def _make_csv(
+    *rows: str, header: str = "label,tipo,instrucao,obrigatorio,peso,opcoes,permite_na"
+) -> bytes:
     lines = [header] + list(rows)
     return "\n".join(lines).encode("utf-8")
 

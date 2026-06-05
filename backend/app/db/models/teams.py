@@ -11,10 +11,14 @@ class Team(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         Index("ix_teams_company_id", "company_id"),
     )
 
-    company_id: Mapped[str] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), nullable=False)
+    company_id: Mapped[str] = mapped_column(
+        ForeignKey("companies.id", ondelete="CASCADE"), nullable=False
+    )
     name: Mapped[str] = mapped_column(String(150), nullable=False)
     created_by: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False)
-    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
+    is_active: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
 
     company = relationship("Company", back_populates="teams")
     members = relationship("TeamMember", back_populates="team", cascade="all, delete-orphan")

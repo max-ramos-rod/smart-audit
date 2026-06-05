@@ -6,7 +6,6 @@ from sqlalchemy.orm import selectinload
 
 from app.core.pagination import PaginationParams
 from app.core.repositories import SQLAlchemyRepository
-from app.db.models.form_fields import FormField
 from app.db.models.form_versions import FormVersion
 from app.db.models.forms import Form
 from app.db.models.submission_conformities import SubmissionConformity

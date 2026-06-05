@@ -2,8 +2,8 @@
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.db.session import Base
 from app.db.models.base import TimestampMixin, UUIDPrimaryKeyMixin
+from app.db.session import Base
 
 
 class FormField(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -18,13 +18,17 @@ class FormField(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         Index("ix_form_fields_form_version_id", "form_version_id"),
     )
 
-    form_version_id: Mapped[str] = mapped_column(ForeignKey("form_versions.id", ondelete="CASCADE"), nullable=False)
+    form_version_id: Mapped[str] = mapped_column(
+        ForeignKey("form_versions.id", ondelete="CASCADE"), nullable=False
+    )
     key: Mapped[str] = mapped_column(String(100), nullable=False)
     label: Mapped[str] = mapped_column(String(180), nullable=False)
     field_type: Mapped[str] = mapped_column(String(30), nullable=False)
     required: Mapped[bool] = mapped_column(nullable=False, default=False, server_default="false")
     position: Mapped[int] = mapped_column(Integer, nullable=False)
-    config_json: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default="{}")
+    config_json: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
     instruction: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     form_version = relationship("FormVersion", back_populates="fields")

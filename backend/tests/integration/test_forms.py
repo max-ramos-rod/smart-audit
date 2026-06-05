@@ -1,4 +1,3 @@
-import pytest
 
 from backend.tests.integration.test_auth import assert_pagination_meta, assert_problem
 

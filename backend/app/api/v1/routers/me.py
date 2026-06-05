@@ -5,11 +5,16 @@ from app.core.responses import success_response
 from app.db.models.users import User
 from app.db.session import get_db
 from app.modules.auth.dependencies import get_current_user
+from app.modules.companies.service import CompanyService
 from app.modules.memberships.dependencies import get_current_membership
 from app.modules.memberships.schemas import MeUpdateRequest
-from app.modules.companies.service import CompanyService
 from app.modules.memberships.service import MembershipService
-from app.modules.notifications.schemas import DismissAllRequest, DismissRequest, MarkAllReadRequest, MarkReadRequest
+from app.modules.notifications.schemas import (
+    DismissAllRequest,
+    DismissRequest,
+    MarkAllReadRequest,
+    MarkReadRequest,
+)
 from app.modules.notifications.service import NotificationService
 from app.modules.submissions.service import SubmissionService
 

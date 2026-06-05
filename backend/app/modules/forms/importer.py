@@ -205,14 +205,21 @@ def parse_excel(content: bytes, form_name: str) -> FormCreateRequest:
 
     rows: list[dict[str, str]] = []
     for raw in raw_rows[1:]:
-        row = {headers[i]: (str(v).strip() if v is not None else "") for i, v in enumerate(raw) if i < len(headers)}
+        row = {
+            headers[i]: (str(v).strip() if v is not None else "")
+            for i, v in enumerate(raw)
+            if i < len(headers)
+        }
         rows.append(row)
 
     return _parse_rows(rows, form_name)
 
 
 def parse_import_file(content: bytes, filename: str, form_name: str | None) -> FormCreateRequest:
-    name = (form_name or "").strip() or filename.rsplit(".", 1)[0].replace("_", " ").replace("-", " ").title()
+    name = (
+        (form_name or "").strip()
+        or filename.rsplit(".", 1)[0].replace("_", " ").replace("-", " ").title()
+    )
     ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
     if ext in ("xlsx", "xls", "xlsm"):
         return parse_excel(content, name)
