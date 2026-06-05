@@ -1797,6 +1797,11 @@ const currentFieldEvidenceCount = computed(() =>
   flex-direction: column;
   gap: 4px;
 }
+.insp-lshdr-prog .insp-fprog-bar {
+  flex: none;
+  width: 100%;
+  height: 6px;
+}
 .insp-lshdr-legend {
   display: flex;
   flex-wrap: wrap;
