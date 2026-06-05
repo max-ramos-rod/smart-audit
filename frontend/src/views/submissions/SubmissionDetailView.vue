@@ -990,9 +990,6 @@ const currentFieldEvidenceCount = computed(() =>
           </div>
         </div>
 
-        <!-- Separador entre linha 2 e 3 -->
-        <div style="height:1px;background:var(--sa-line);flex-shrink:0;"></div>
-
         <!-- ── 3. SWIPE ZONE ── -->
         <div class="insp-fswipe">
 
@@ -1939,15 +1936,16 @@ const currentFieldEvidenceCount = computed(() =>
 /* ── Progress area ── */
 .insp-fprog {
   background: #fff;
+  border-top: 1px solid var(--sa-line);
   border-bottom: 1px solid var(--sa-line);
-  padding: 10px 14px 0;
+  padding: 10px 14px;
   flex-shrink: 0;
 }
 .insp-fprog-row {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
 }
 .insp-fprog-bar {
   flex: 1;
