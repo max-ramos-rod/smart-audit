@@ -1961,7 +1961,6 @@ const currentFieldEvidenceCount = computed(() =>
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 4px;
 }
 .insp-fprog-bar {
   flex: 1;
