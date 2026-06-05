@@ -941,8 +941,12 @@ const currentFieldEvidenceCount = computed(() =>
             <div class="insp-fhdr-sub">Em andamento</div>
           </div>
           <div class="insp-fhdr-vt">
-            <button class="insp-fhdr-vt-btn" @click="viewMode = 'list'">Lista</button>
-            <button class="insp-fhdr-vt-btn insp-fhdr-vt-btn--active">Cartão</button>
+            <button class="insp-fhdr-vt-btn" :class="String(viewMode) === 'list' ? 'active' : ''" @click="viewMode = 'list'">
+              <span style="font-size: 11px;">☰</span> Lista
+            </button>
+            <button class="insp-fhdr-vt-btn" :class="String(viewMode) === 'card' ? 'active' : ''">
+              <span style="font-size: 11px;">▦</span> Cartão
+            </button>
           </div>
           <div class="score-ring" :style="scoreRingStyle">
             <div class="score-ring-inner">{{ liveScore !== null ? liveScore + '%' : '—' }}</div>
@@ -1269,8 +1273,12 @@ const currentFieldEvidenceCount = computed(() =>
           <!-- ViewToggle + jump pendentes -->
           <div class="insp-view-toggle-bar">
             <div class="insp-vt-seg">
-              <button class="insp-vt-btn" @click="viewMode='card'">Cartão</button>
-              <button class="insp-vt-btn active">Lista</button>
+              <button class="insp-vt-btn" :class="String(viewMode) === 'card' ? 'active' : ''" @click="viewMode='card'">
+                <span class="insp-vt-icon">▦</span> Cartão
+              </button>
+              <button class="insp-vt-btn" :class="String(viewMode) === 'list' ? 'active' : ''" @click="viewMode='list'">
+                <span class="insp-vt-icon">☰</span> Lista
+              </button>
             </div>
             <button
               class="insp-jump-pend"
@@ -1890,8 +1898,11 @@ const currentFieldEvidenceCount = computed(() =>
   font-weight: 600;
   color: var(--sa-muted);
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
-.insp-fhdr-vt-btn--active {
+.insp-fhdr-vt-btn.active {
   background: #fff;
   color: var(--sa-brand);
   box-shadow: 0 1px 3px rgba(0,0,0,.1);
@@ -2339,6 +2350,10 @@ const currentFieldEvidenceCount = computed(() =>
 .insp-vt-btn {
   padding: 5px 14px; border-radius: 6px; border: none; background: none;
   font-family: inherit; font-size: 12px; font-weight: 600; color: var(--sa-muted); cursor: pointer;
+  display: flex; align-items: center; gap: 5px;
+}
+.insp-vt-icon {
+  font-size: 11px; display: inline-flex; align-items: center;
 }
 .insp-vt-btn.active {
   background: #fff; color: var(--sa-brand); box-shadow: 0 1px 3px rgba(0,0,0,.1);
