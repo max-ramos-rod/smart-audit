@@ -1294,6 +1294,21 @@ const currentFieldEvidenceCount = computed(() =>
                 <span class="insp-sec-pct">{{ sec.pct }}%</span>
               </button>
             </div>
+            <!-- Legenda de cores -->
+            <div style="display:flex;flex-wrap:wrap;gap:10px;font-size:11px;color:var(--sa-muted);padding-top:4px;">
+              <span style="display:flex;align-items:center;gap:4px;">
+                <span style="width:8px;height:8px;border-radius:50%;background:var(--sa-ok);flex-shrink:0;"></span>
+                {{ progressStats.conformes }} Conforme
+              </span>
+              <span style="display:flex;align-items:center;gap:4px;">
+                <span style="width:8px;height:8px;border-radius:50%;background:var(--sa-danger);flex-shrink:0;"></span>
+                {{ progressStats.naoConformes }} Não conforme
+              </span>
+              <span v-if="progressStats.pending > 0" style="display:flex;align-items:center;gap:4px;">
+                <span style="width:8px;height:8px;border-radius:50%;background:var(--sa-line);flex-shrink:0;"></span>
+                {{ progressStats.pending }} Pendente
+              </span>
+            </div>
           </div>
 
           <!-- Filter bar (com separador acima) -->
