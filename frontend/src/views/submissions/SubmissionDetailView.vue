@@ -972,6 +972,23 @@ const currentFieldEvidenceCount = computed(() =>
             </div>
             <div class="insp-fprog-lbl">{{ progressStats.evaluated }}/{{ progressStats.total }}</div>
           </div>
+          <!-- Legenda de cores -->
+          <div style="display:flex;flex-wrap:wrap;gap:10px;font-size:11px;color:var(--sa-muted);padding:8px 0;">
+            <span style="display:flex;align-items:center;gap:4px;">
+              <span style="width:8px;height:8px;border-radius:50%;background:var(--sa-ok);flex-shrink:0;"></span>
+              {{ progressStats.conformes }} Conforme
+            </span>
+            <span style="display:flex;align-items:center;gap:4px;">
+              <span style="width:8px;height:8px;border-radius:50%;background:var(--sa-danger);flex-shrink:0;"></span>
+              {{ progressStats.naoConformes }} Não conforme
+            </span>
+            <span v-if="progressStats.pending > 0" style="display:flex;align-items:center;gap:4px;">
+              <span style="width:8px;height:8px;border-radius:50%;background:var(--sa-line);flex-shrink:0;"></span>
+              {{ progressStats.pending }} Pendente
+            </span>
+          </div>
+          <!-- Separador entre legenda e buttons -->
+          <div style="height:1px;background:var(--sa-line);margin:0 -14px;"></div>
           <div v-if="formSections.length" class="insp-sec-chips">
             <button
               v-for="sec in formSections"
