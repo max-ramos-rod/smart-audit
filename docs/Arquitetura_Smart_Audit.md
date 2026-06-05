@@ -47,8 +47,8 @@ O Smart Audit ja nao esta mais em fase apenas de fundacao. O estado atual do cod
 - importacao de formulario via CSV ou Excel
 - inspecoes com respostas tipadas e score ponderado por peso de campo
 - suporte a resposta N/A em campos booleanos com `allow_na: true`
-- modo de inspecao (card a card) e modo lista com carga progressiva (`load more`)
-- barra de progresso e atalhos rapidos por secao na execucao da inspecao
+- modo de inspecao com dois overlays fullscreen (card a card com swipe + lista compacta com filtros)
+- barra de progresso segmentada, legenda de cores e atalhos rapidos por secao na execucao da inspecao
 - finalizacao de inspecao com calculo de score ponderado
 - score_breakdown com contagem de conformes, nao conformes, sem resposta e N/A
 - relatorio detalhado por inspecao com exportacao PDF profissional com suporte a Unicode (fonte DejaVu Sans TTF)
@@ -381,18 +381,40 @@ Referencias:
 
 A view `SubmissionDetailView.vue` opera em tres modos mutuamente exclusivos:
 
-- **Modo lista normal** (padrao, tambem para inspecoes concluidas): todos os campos em scroll; concluidas sao somente leitura
-- **Modo inspecao — card** (`inspectionMode = true`, `viewMode = 'card'`): um campo por vez com gestos de swipe (esquerda = Nao conforme, direita = Conforme); disponivel apenas para inspecoes em andamento
-- **Modo inspecao — lista** (`inspectionMode = true`, `viewMode = 'list'`): lista compacta dentro do fluxo de inspecao
+- **Modo lista normal** (padrao, tambem para inspecoes concluidas): todos os campos em scroll; concluidas sao somente leitura; usa `InspectionFieldRow.vue`
+- **Modo inspecao — card** (`viewMode = 'card'`): um campo por vez com gestos de swipe (esquerda = Nao conforme, direita = Conforme); disponivel apenas para inspecoes em andamento; renderizado via `Teleport to="body"` em overlay `.insp-fullscreen`
+- **Modo inspecao — lista** (`viewMode = 'list'`): lista compacta com filtros e navegacao por secao; disponivel apenas para inspecoes em andamento; renderizado via `Teleport to="body"` em overlay `.insp-listshell`; usa `InspectionListRow.vue`
 
-Os dois modos lista usam o componente `InspectionFieldRow.vue` (prop `compact` distingue inspecao de leitura normal). O modo card permanece inline na view.
+**Componentes de campo:**
+
+- `InspectionFieldRow.vue` — modo lista normal (leitura de inspecoes concluidas e em andamento na view padrao). Props: `field`, `answer`, `conformityStatus`, `conformityJustification`, `isCompleted`, `isPendingRequired`, `evidenceAttachments`, `evidenceUploading`, `evidenceError`, `compact?`
+- `InspectionListRow.vue` — modo inspecao lista (overlay `.insp-listshell`). Props: `field`, `position`, `answer`, `conformityStatus`, `conformityJustification`, `isCompleted`, `isPendingRequired`, `evidenceCount`, `isExpanded`. Linha compacta com expand inline para resposta + conformidade + evidencias
+
+**Overlays fullscreen (Teleport):**
+
+Ambos os overlays de inspecao (`insp-fullscreen` e `insp-listshell`) sao renderizados via `<Teleport to="body">` com `position: fixed`. No desktop (>768px) o offset `left: 248px` deixa a sidebar visivel. No mobile cobrem o viewport completo (`z-index: 200`).
+
+**Header compartilhado (identico nos dois modos):**
+
+- Linha 1 (`.insp-fhdr`): botao voltar + nome do formulario + toggle [Lista][Cartao] + anel de score
+- Linha 2 (`.insp-fprog`): barra de progresso segmentada + counter (X/N) + legenda de cores (conformes/nao conformes/pendentes) + separador + chips (section chips no card, filter chips na lista)
+
+**Navegacao entre modos:**
+
+- Inspecoes em andamento entram diretamente no modo lista
+- Toggle `[Lista][Cartao]` disponivel no header de ambos os modos
+- Botao voltar no card mode retorna ao modo lista (nao sai da inspecao)
+
+**Filter chips (modo lista):** `Todos`, `Pendentes`, `Conformes`, `Nao conf.`, `S/N`, `Selecao` — filtram `filteredListFields`
 
 Computeds relevantes:
 
 - `answerableFields`: campos respondiveis (exclui secoes)
-- `progressPct`: percentual respondido dos campos respondiveis
-- `formSections`: lista de secoes para atalhos rapidos de navegacao
-- `liveScore`: score calculado em tempo real durante a inspecao (baseado em `conformityStatus`, que espelha `submission_conformities`; mesma formula ponderada do backend)
+- `progressStats`: `{ conformes, naoConformes, pending, evaluated, total }` — fonte da barra e da legenda
+- `formSections`: lista de secoes com `{ key, label, pct }` para navigation chips no card
+- `filteredListFields`: campos filtrados por `listFilter` no modo lista
+- `visibleSectionKeys`: set de chaves de secoes com campos visiveis no filtro atual
+- `liveScore`: score calculado em tempo real (baseado em `conformityStatus` espelhando `submission_conformities`; mesma formula ponderada do backend)
 
 ## 6. Design system e front-end visual
 
@@ -408,12 +430,19 @@ Base visual ativa:
 
 Classes CSS de inspecao:
 
-- `.insp-card`, `.insp-meta`, `.insp-section`, `.insp-counter`, `.insp-nav` — modo inspecao card
-- `.insp-progress-bar` — barra de progresso (preenchimento via `:style` inline)
-- `.insp-sec-chips`, `.insp-sec-chip`, `.insp-sec-chip--done`, `.insp-sec-chip--active` — chips de secao no modo inspecao (card e lista inspecao)
-- `.score-ring`, `.score-ring-inner` — anel de score conic-gradient no header de inspecao
+- `.insp-fullscreen`, `.insp-listshell` — overlays fullscreen Teleport para card e lista de inspecao
+- `.insp-fhdr`, `.insp-fhdr-vt`, `.insp-fhdr-vt-btn` — header linha 1 (compartilhado card e lista)
+- `.insp-fback` — botao voltar do header
+- `.insp-fhdr-info`, `.insp-fhdr-name`, `.insp-fhdr-sub` — bloco de nome/subtitulo do formulario
+- `.insp-fprog`, `.insp-fprog-row`, `.insp-fprog-bar`, `.insp-fprog-lbl` — area de progresso linha 2 (compartilhada)
+- `.insp-sec-chips`, `.insp-sec-chip`, `.insp-sec-chip--done`, `.insp-sec-chip--active`, `.insp-sec-pct` — chips de secao no card mode (dentro de `.insp-fprog`)
+- `.insp-filter-bar`, `.insp-fchip` — chips de filtro no lista mode (dentro de `.insp-fprog`)
+- `.score-ring`, `.score-ring-inner` — anel de score conic-gradient no header
+- `.insp-list-sec-hdr`, `.insp-list-sec-ring`, `.insp-list-sec-ring-inner`, `.insp-list-sec-name`, `.insp-list-sec-cnt` — cabecalho sticky de secao no modo lista
+- `.insp-list-container` — area scrollavel do modo lista (fundo cinza)
+- `.insp-lsfooter`, `.insp-lsfooter-finish`, `.insp-lsfooter-err` — footer fixo do modo lista
 - `.section-jump-bar`, `.section-jump-chip` — atalhos de secao no modo lista normal (leitura)
-- `.section-divider` — divisor visual de secao no modo lista
+- `.section-divider` — divisor visual de secao no modo lista normal
 
 Classes CSS de dashboard:
 
@@ -697,9 +726,10 @@ Ja e realidade no codigo. Qualquer documentacao antiga que ainda fale em sessao 
 - formularios com versionamento, secoes, tipos completos e config_json
 - campo `instruction` por campo de formulario (builder UI + importacao)
 - importacao de formulario via CSV ou Excel (`POST /api/v1/forms/import`)
-- inspecoes com score ponderado, N/A, modo inspecao, carga progressiva
+- inspecoes com score ponderado, N/A, modo inspecao card e lista
 - avaliacao de conformidade por campo (`submission_conformities`) — base do score e da barra de progresso
 - comportamento de avanco automatico apenas no botao "Conforme" (card view)
+- redesign UX do modo de inspecao: overlays fullscreen Teleport, header unificado com legenda de cores, filter chips no modo lista, `InspectionListRow.vue` como componente compacto de linha
 - finalizacao com validacao de campos visiveis
 - relatorio e exportacao PDF profissional (score colorido, breakdown, secoes, Unicode via DejaVu Sans)
 - evidencias e uploads (imagem, video, audio, PDF)

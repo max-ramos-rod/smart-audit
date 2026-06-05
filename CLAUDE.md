@@ -227,7 +227,9 @@ export type FieldType = 'boolean' | 'text' | 'number' | 'date' | 'select' | 'sec
 
 #### Shared components
 
-**`frontend/src/components/submissions/InspectionFieldRow.vue`** — renders a single field row inside the inspection list and normal list modes of `SubmissionDetailView`. Props: `field`, `answer`, `conformityStatus`, `conformityJustification`, `isCompleted`, `isPendingRequired`, `evidenceAttachments`, `evidenceUploading`, `evidenceError`, `compact?`. The `compact` prop controls visual density: `true` → inspection list (inline evidence chips, no justification text); `false` (default) → normal list (full card evidence with file sizes, justification on completion). Card view (swipe mode) is rendered inline in `SubmissionDetailView` and does not use this component.
+**`frontend/src/components/submissions/InspectionFieldRow.vue`** — renders a single field row in the **normal list mode** (read-only and in-progress via the default page view). Props: `field`, `answer`, `conformityStatus`, `conformityJustification`, `isCompleted`, `isPendingRequired`, `evidenceAttachments`, `evidenceUploading`, `evidenceError`, `compact?`. Card view and inspection list mode do not use this component.
+
+**`frontend/src/components/submissions/InspectionListRow.vue`** — compact row used exclusively in the **inspection list overlay** (`.insp-listshell`). Props: `field`, `position`, `answer`, `conformityStatus`, `conformityJustification`, `isCompleted`, `isPendingRequired`, `evidenceCount`, `isExpanded`. Expandable inline panel for answer + conformity + evidence. Emits: `toggle`, `update-answer`, `set-conformity`, `update-justification`, `request-evidence`, `request-justification`.
 
 **`frontend/src/components/forms/FormFieldEditor.vue`** — reusable field editor used in the version composer (FormDetailView and FormsView). Accepts a `FormFieldCreatePayload` via `v-model`, `index`, and `showRemove`. Emits `remove`. Configures: label, key, field type, required, weight (boolean), allow_na (boolean), options (select), instruction.
 
@@ -235,9 +237,19 @@ export type FieldType = 'boolean' | 'text' | 'number' | 'date' | 'select' | 'sec
 
 The main inspection screen has three mutually exclusive display modes:
 
-1. **Normal list mode** (default, also for completed inspections) — all fields rendered in a scrollable list. Completed inspections are read-only.
-2. **Inspection card mode** (`inspectionMode = true`, `viewMode = 'card'`) — one field at a time, swipe gestures (left = Não conforme, right = Sim/Conforme). Only available for in-progress inspections.
-3. **Inspection list mode** (`inspectionMode = true`, `viewMode = 'list'`) — compact scrollable list while in inspection flow.
+1. **Normal list mode** (default, also for completed inspections) — all fields rendered in a scrollable list in the page body. Completed inspections are read-only. Uses `InspectionFieldRow.vue`.
+2. **Inspection card mode** (`viewMode = 'card'`) — fullscreen Teleport overlay (`.insp-fullscreen`), one field at a time, swipe gestures (right = Conforme, left = Não conforme). Only available for in-progress inspections. Card rendered inline in the view.
+3. **Inspection list mode** (`viewMode = 'list'`) — fullscreen Teleport overlay (`.insp-listshell`), compact scrollable list with filter chips and section headers. Only available for in-progress inspections. Uses `InspectionListRow.vue`.
+
+**Overlay positioning:** Both `insp-fullscreen` and `insp-listshell` are `position: fixed`. On desktop (≥768px) `left: 248px` keeps the sidebar visible. On mobile they cover the full viewport (`z-index: 200`).
+
+**Shared header (identical in both inspection modes):**
+- Line 1 (`.insp-fhdr`): back button + form name + toggle [Lista][Cartão] + score ring
+- Line 2 (`.insp-fprog`): segmented progress bar + counter + color legend + separator + chips (section chips in card, filter chips in list)
+
+**Navigation flow:** In-progress inspections open directly in list mode. Toggle switches between card and list modes. The back button in card mode returns to list mode (does not exit inspection).
+
+**Filter chips (list mode):** `Todos`, `Pendentes`, `Conformes`, `Não conf.`, `S/N`, `Seleção` — drives `filteredListFields` computed.
 
 Evidence (attachments) is rendered **under each field** in all three modes via `evidenceAttachments: reactive<Record<string, AttachmentItem[]>>`, keyed by `field.key`. Loaded once in `onMounted` via `loadEvidenceAttachments()` → `listAttachments(submissionId)`. New uploads are pushed to the reactive dict immediately without a reload.
 
