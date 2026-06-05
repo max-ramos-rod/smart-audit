@@ -1259,39 +1259,6 @@ const currentFieldEvidenceCount = computed(() =>
             </div>
           </div>
 
-          <!-- Linha 2: barra de progresso + legenda -->
-          <div class="insp-lshdr-prog">
-            <div class="insp-fprog-bar" style="height:6px;">
-              <div :style="{
-                height: '100%', background: 'var(--sa-ok)',
-                width: progressStats.total ? (progressStats.conformes / progressStats.total * 100) + '%' : '0%',
-                transition: 'width .35s ease',
-              }" />
-              <div :style="{
-                height: '100%', background: 'var(--sa-danger)',
-                width: progressStats.total ? (progressStats.naoConformes / progressStats.total * 100) + '%' : '0%',
-                transition: 'width .35s ease',
-              }" />
-            </div>
-            <div class="insp-lshdr-legend">
-              <span><span class="dot dot-ok"></span>{{ progressStats.conformes }} conformes</span>
-              <span><span class="dot dot-err"></span>{{ progressStats.naoConformes }} não conf.</span>
-              <span><span class="dot dot-pend"></span>{{ progressStats.pending }} pendentes</span>
-            </div>
-          </div>
-
-          <!-- Linha 3: jump pendentes -->
-          <div style="display:flex;justify-content:flex-end;padding-top:6px;">
-            <button
-              class="insp-jump-pend"
-              :disabled="filterCount('pend') === 0"
-              @click="jumpFirstPending()"
-            >
-              ⚡ Ir para pendentes
-              <span class="insp-jump-pend-cnt">{{ filterCount('pend') }}</span>
-            </button>
-          </div>
-
           <!-- Filter bar -->
           <div class="insp-filter-bar">
             <button
