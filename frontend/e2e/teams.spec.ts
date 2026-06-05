@@ -22,7 +22,7 @@ test.describe('Teams', () => {
   test.beforeEach(async ({ authed: page }) => {
     await page.route(`${API}/teams**`, (r) => r.fulfill({ json: paginated(MOCK_TEAMS) }))
     await page.route(`${API}/users**`, (r) => r.fulfill({ json: paginated(MOCK_USERS) }))
-    await page.goto('/teams')
+    await page.goto('/app/teams')
   })
 
   test('displays teams list', async ({ authed: page }) => {
@@ -50,7 +50,7 @@ test.describe('Teams', () => {
 
   test('shows empty state when no teams', async ({ authed: page }) => {
     await page.route(`${API}/teams**`, (r) => r.fulfill({ json: paginated([]) }))
-    await page.goto('/teams')
+    await page.goto('/app/teams')
     await expect(page.getByText(/nenhuma equipe/i)).toBeVisible()
   })
 })

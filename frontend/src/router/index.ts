@@ -23,7 +23,7 @@ import TeamsView from '@/views/teams/TeamsView.vue'
 import UsersView from '@/views/users/UsersView.vue'
 
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHistory('/app/'),
   routes: [
     {
       path: '/login',

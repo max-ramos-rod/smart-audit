@@ -34,7 +34,7 @@ const MOCK_VERSIONS = [
 test.describe('Forms list', () => {
   test.beforeEach(async ({ authed: page }) => {
     await page.route(`${API}/forms**`, (r) => r.fulfill({ json: paginated([MOCK_FORM]) }))
-    await page.goto('/forms')
+    await page.goto('/app/forms')
   })
 
   test('displays form list', async ({ authed: page }) => {
@@ -44,7 +44,7 @@ test.describe('Forms list', () => {
 
   test('shows empty state when no forms', async ({ authed: page }) => {
     await page.route(`${API}/forms**`, (r) => r.fulfill({ json: paginated([]) }))
-    await page.goto('/forms')
+    await page.goto('/app/forms')
     await expect(page.getByText(/nenhum formulário/i)).toBeVisible()
   })
 
@@ -65,7 +65,7 @@ test.describe('Form detail', () => {
   test.beforeEach(async ({ authed: page }) => {
     await page.route(`${API}/submissions**`, (r) => r.fulfill({ json: paginated([]) }))
     await page.route(`${API}/forms/f1**`, (r) => r.fulfill({ json: envelope(MOCK_FORM_DETAIL) }))
-    await page.goto('/forms/f1')
+    await page.goto('/app/forms/f1')
   })
 
   test('displays form name and fields', async ({ authed: page }) => {
@@ -84,7 +84,7 @@ test.describe('Form versions', () => {
     await page.route(`${API}/forms/f1/versions**`, (r) =>
       r.fulfill({ json: envelope(MOCK_VERSIONS) }),
     )
-    await page.goto('/forms/f1/versions')
+    await page.goto('/app/forms/f1/versions')
     await expect(page.getByText(/v2|versão 2/i).first()).toBeVisible()
     await expect(page.getByText('Atual')).toBeVisible()
   })

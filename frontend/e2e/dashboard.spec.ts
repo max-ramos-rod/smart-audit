@@ -10,7 +10,7 @@ test.describe('Dashboard (Home)', () => {
         ]),
       }),
     )
-    await page.goto('/')
+    await page.goto('/app/')
   })
 
   test('displays greeting with user name', async ({ authed: page }) => {
@@ -43,7 +43,7 @@ test.describe('Dashboard (Home)', () => {
       ],
     }
     await page.route(`${API}/me/stats**`, (r) => r.fulfill({ json: envelope(statsWithRecent) }))
-    await page.goto('/')
+    await page.goto('/app/')
     await expect(page.getByText('Inspeções recentes')).toBeVisible()
     await expect(page.getByText('95%')).toBeVisible()
   })

@@ -36,7 +36,7 @@ const MOCK_VERSION = {
 test.describe('Submissions list', () => {
   test.beforeEach(async ({ authed: page }) => {
     await page.route(`${API}/submissions**`, (r) => r.fulfill({ json: paginated([MOCK_LIST_ITEM]) }))
-    await page.goto('/submissions')
+    await page.goto('/app/submissions')
   })
 
   test('displays submission list', async ({ authed: page }) => {
@@ -46,7 +46,7 @@ test.describe('Submissions list', () => {
 
   test('shows empty state when no submissions', async ({ authed: page }) => {
     await page.route(`${API}/submissions**`, (r) => r.fulfill({ json: paginated([]) }))
-    await page.goto('/submissions')
+    await page.goto('/app/submissions')
     await expect(page.getByText(/nenhuma inspeção/i)).toBeVisible()
   })
 
@@ -67,7 +67,7 @@ test.describe('Create submission', () => {
     await page.route(`${API}/forms**`, (r) =>
       r.fulfill({ json: paginated([{ id: 'f1', name: 'Safety Check', current_version_number: 1 }]) }),
     )
-    await page.goto('/submissions')
+    await page.goto('/app/submissions')
     await page.getByRole('button', { name: /nova inspeção/i }).click()
     await expect(page.getByText('Selecione o formulário')).toBeVisible()
     await expect(page.getByRole('combobox')).toBeVisible()
@@ -84,7 +84,7 @@ test.describe('Create submission', () => {
       return r.fulfill({ json: paginated([]) })
     })
 
-    await page.goto('/submissions')
+    await page.goto('/app/submissions')
     await page.getByRole('button', { name: /nova inspeção/i }).click()
     await page.getByRole('combobox').selectOption('f1')
     await page.getByRole('button', { name: /iniciar inspeção/i }).click()
@@ -96,7 +96,7 @@ test.describe('Submission detail', () => {
   test.beforeEach(async ({ authed: page }) => {
     await page.route(`${API}/forms/f1/versions/v1**`, (r) => r.fulfill({ json: envelope(MOCK_VERSION) }))
     await page.route(`${API}/submissions/s1**`, (r) => r.fulfill({ json: envelope(MOCK_DETAIL) }))
-    await page.goto('/submissions/s1')
+    await page.goto('/app/submissions/s1')
   })
 
   test('displays form name and status', async ({ authed: page }) => {
@@ -118,7 +118,7 @@ test.describe('Submission report', () => {
     const completed = { ...MOCK_DETAIL, status: 'completed', score: 100, finished_at: '2024-01-10T11:00:00Z' }
     await page.route(`${API}/forms/f1/versions/v1**`, (r) => r.fulfill({ json: envelope(MOCK_VERSION) }))
     await page.route(`${API}/submissions/s1**`, (r) => r.fulfill({ json: envelope(completed) }))
-    await page.goto('/submissions/s1/report')
+    await page.goto('/app/submissions/s1/report')
     await expect(page.getByText('100').first()).toBeVisible()
     await expect(page.getByText('Aprovado')).toBeVisible()
   })

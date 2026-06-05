@@ -8,7 +8,7 @@ const MOCK_USERS = [
 test.describe('Users', () => {
   test.beforeEach(async ({ authed: page }) => {
     await page.route(`${API}/users**`, (r) => r.fulfill({ json: paginated(MOCK_USERS) }))
-    await page.goto('/users')
+    await page.goto('/app/users')
   })
 
   test('displays user list', async ({ authed: page }) => {

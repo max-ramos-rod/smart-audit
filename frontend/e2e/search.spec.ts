@@ -11,7 +11,7 @@ const MOCK_RESULTS = {
 
 test.describe('Search', () => {
   test.beforeEach(async ({ authed: page }) => {
-    await page.goto('/search')
+    await page.goto('/app/search')
   })
 
   test('shows search input', async ({ authed: page }) => {

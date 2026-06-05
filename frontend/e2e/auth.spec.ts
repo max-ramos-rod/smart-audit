@@ -4,7 +4,7 @@ const API = '**/api/v1'
 
 base.describe('Login', () => {
   base.beforeEach(async ({ page }) => {
-    await page.goto('/login')
+    await page.goto('/app/login')
   })
 
   base('renders login form', async ({ page }) => {
@@ -74,7 +74,7 @@ base.describe('Login', () => {
 
 base.describe('Forgot Password', () => {
   base.beforeEach(async ({ page }) => {
-    await page.goto('/forgot-password')
+    await page.goto('/app/forgot-password')
   })
 
   base('renders email form', async ({ page }) => {
@@ -92,18 +92,18 @@ base.describe('Forgot Password', () => {
 
 base.describe('Reset Password', () => {
   base('shows error when no token in URL', async ({ page }) => {
-    await page.goto('/reset-password')
+    await page.goto('/app/reset-password')
     await expect(page.getByRole('heading', { name: 'Link inválido' })).toBeVisible()
   })
 
   base('shows form when token is present', async ({ page }) => {
-    await page.goto('/reset-password?token=abc123')
+    await page.goto('/app/reset-password?token=abc123')
     await expect(page.getByPlaceholder('Mínimo 8 caracteres')).toBeVisible()
   })
 
   base('shows success after reset', async ({ page }) => {
     await page.route(`${API}/auth/reset-password`, (r) => r.fulfill({ status: 200, json: {} }))
-    await page.goto('/reset-password?token=validtoken')
+    await page.goto('/app/reset-password?token=validtoken')
     await page.getByPlaceholder('Mínimo 8 caracteres').fill('newpass99')
     await page.getByPlaceholder('Repita a senha').fill('newpass99')
     await page.getByRole('button', { name: 'Definir nova senha' }).click()

@@ -37,7 +37,7 @@ test.describe('Notifications', () => {
       }
       return r.fulfill({ json: envelope(MOCK_NOTIFICATIONS) })
     })
-    await page.goto('/notifications')
+    await page.goto('/app/notifications')
   })
 
   test('displays all notification titles', async ({ authed: page }) => {
@@ -70,7 +70,7 @@ test.describe('Notifications', () => {
 
   test('empty state when no notifications', async ({ authed: page }) => {
     await page.route(`${API}/me/notifications**`, (r) => r.fulfill({ json: envelope([]) }))
-    await page.goto('/notifications')
+    await page.goto('/app/notifications')
     await expect(page.getByText(/nenhuma notificação/i)).toBeVisible()
   })
 })
