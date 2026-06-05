@@ -1767,11 +1767,11 @@ const currentFieldEvidenceCount = computed(() =>
 .insp-lshdr {
   background: #fff;
   border-bottom: 1px solid var(--sa-line);
-  padding: 10px 14px 8px;
+  padding: 10px 14px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;
 }
 .insp-lshdr-top {
   display: flex;
@@ -1781,7 +1781,7 @@ const currentFieldEvidenceCount = computed(() =>
 .insp-lshdr-prog {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 .insp-lshdr-legend {
   display: flex;
@@ -1802,9 +1802,17 @@ const currentFieldEvidenceCount = computed(() =>
 .insp-lshdr-legend .dot-err  { background: var(--sa-danger); }
 .insp-lshdr-legend .dot-pend { background: var(--sa-line); }
 
-/* Toggle + filtros dentro do header (sem margin-bottom extra) */
-.insp-listshell .insp-view-toggle-bar { margin-bottom: 0; padding: 0; }
-.insp-listshell .insp-filter-bar { margin-bottom: 0; padding-bottom: 0; }
+/* Toggle + filtros dentro do header (sem borders) */
+.insp-listshell .insp-view-toggle-bar {
+  margin-bottom: 0; margin-top: 0; padding: 0;
+  border-top: none; border-bottom: none;
+  flex-shrink: 0;
+}
+.insp-listshell .insp-filter-bar {
+  margin-bottom: 0; margin-top: 0; padding: 0;
+  border-top: none; border-bottom: none;
+  flex-shrink: 0;
+}
 
 /* Lista scrollável (fundo cinza, separada do header branco) */
 .insp-listshell .insp-list-container {
