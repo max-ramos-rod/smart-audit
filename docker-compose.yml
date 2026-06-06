@@ -33,6 +33,7 @@ services:
     restart: always
     networks:
       - internal
+      - app_network
 
   frontend:
     build:
