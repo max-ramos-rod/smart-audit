@@ -26,7 +26,7 @@ Stack atual:
 
 Baseline validado em `2026-06-06`:
 
-- backend: `214 passed, 3 skipped`
+- backend: `216 passed`
 - frontend Vitest: `119 passed`
 - frontend build: `npm run build` OK
 - E2E Playwright: `54 testes` (todos mockados, sem backend necessario)
@@ -599,7 +599,7 @@ Observacao: mensagens de erro do backend nao usam acentos para evitar problemas 
 
 Estado validado em `2026-06-06`:
 
-- `214 passed, 3 skipped`
+- `216 passed`
 
 Cobertura atual:
 
@@ -781,7 +781,7 @@ Ja e realidade no codigo. Qualquer documentacao antiga que ainda fale em sessao 
 - notificacoes com persistencia de leitura e dismiss
 - endpoint `/me/usage` com contagens reais e limites por plano
 - CI com jobs separados: backend (ruff + pytest), frontend (vue-tsc + Vitest), E2E (Playwright)
-- testes automatizados: backend 214 passed, frontend 119 passed (Vitest), 54 E2E (Playwright)
+- testes automatizados: backend 216 passed, frontend 119 passed (Vitest), 54 E2E (Playwright)
 
 ### Parcial ou com limitacao conhecida
 

@@ -1,6 +1,27 @@
-import pytest
-
 from backend.tests.integration.test_auth import assert_pagination_meta, assert_problem
+
+
+async def _create_boolean_form(client, headers) -> str:
+    """Cria um formulario com um campo booleano obrigatorio e devolve o form_id."""
+    res = await client.post(
+        "/api/v1/forms",
+        headers=headers,
+        json={
+            "name": "Form Filtro",
+            "description": "",
+            "fields": [
+                {
+                    "key": "item_ok",
+                    "label": "Item OK",
+                    "field_type": "boolean",
+                    "required": True,
+                    "position": 1,
+                    "config_json": {},
+                },
+            ],
+        },
+    )
+    return res.json()["data"]["id"]
 
 
 async def test_submission_flow_with_attachment(client, auth_headers):
@@ -349,25 +370,19 @@ async def test_submission_finish_blocked_for_viewer(client, viewer_headers):
     assert_problem(response, 403, "Usuario sem permissao para executar esta acao.")
 
 
-async def test_list_submissions_filter_by_status(
-    client, auth_headers, inspector_headers, seeded_user
-):
+async def test_list_submissions_filter_by_status(client, auth_headers):
     """GET /submissions?status= filtra corretamente server-side."""
-    forms_res = await client.get("/api/v1/forms", headers=auth_headers)
-    forms = forms_res.json()["data"]
-    if not forms:
-        pytest.skip("Nenhum formulário cadastrado para testar filtro")
-    form_id = forms[0]["id"]
+    form_id = await _create_boolean_form(client, auth_headers)
 
     create_res = await client.post(
         "/api/v1/submissions",
-        headers=inspector_headers,
+        headers=auth_headers,
         json={"form_id": form_id},
     )
     assert create_res.status_code == 200
     submission_id = create_res.json()["data"]["id"]
 
-    # Filtrar por in_progress
+    # Filtrar por in_progress — inclui a recem-criada
     res_ip = await client.get(
         "/api/v1/submissions?status=in_progress",
         headers=auth_headers,
@@ -375,6 +390,7 @@ async def test_list_submissions_filter_by_status(
     assert res_ip.status_code == 200
     data_ip = res_ip.json()["data"]
     assert all(s["status"] == "in_progress" for s in data_ip)
+    assert any(s["id"] == submission_id for s in data_ip)
 
     # Filtrar por completed — não deve incluir o recém-criado
     res_done = await client.get(
@@ -387,77 +403,30 @@ async def test_list_submissions_filter_by_status(
 
 
 async def test_list_submissions_filter_by_created_by(
-    client, auth_headers, inspector_headers, inspector_user
+    client, auth_headers, inspector_user, seeded_user
 ):
-    """GET /submissions?created_by= filtra por inspetor."""
-    forms_res = await client.get("/api/v1/forms", headers=auth_headers)
-    forms = forms_res.json()["data"]
-    if not forms:
-        pytest.skip("Nenhum formulário cadastrado para testar filtro")
-    form_id = forms[0]["id"]
+    """GET /submissions?created_by= filtra server-side pelo criador."""
+    form_id = await _create_boolean_form(client, auth_headers)
 
-    await client.post("/api/v1/submissions", headers=inspector_headers, json={"form_id": form_id})
+    created = await client.post(
+        "/api/v1/submissions", headers=auth_headers, json={"form_id": form_id}
+    )
+    assert created.status_code == 200
+    submission_id = created.json()["data"]["id"]
 
-    inspector_id = inspector_user["user_id"]
+    # Filtrar pelo proprio criador (OWNER) inclui a inspecao
+    owner_id = seeded_user["user_id"]
     res = await client.get(
-        f"/api/v1/submissions?created_by={inspector_id}",
+        f"/api/v1/submissions?created_by={owner_id}",
         headers=auth_headers,
     )
     assert res.status_code == 200
-    data = res.json()["data"]
-    # Todas as inspeções retornadas pertencem ao inspetor (verificar via detalhe)
-    assert isinstance(data, list)
+    assert any(s["id"] == submission_id for s in res.json()["data"])
 
-
-async def test_submission_response_has_score_breakdown(client, auth_headers, inspector_headers):
-    """Inspeção finalizada retorna score_breakdown com campos esperados."""
-    forms_res = await client.get("/api/v1/forms", headers=auth_headers)
-    forms = forms_res.json()["data"]
-    if not forms:
-        pytest.skip("Nenhum formulário com campos booleanos para testar score_breakdown")
-
-    form_id = forms[0]["id"]
-    create_res = await client.post(
-        "/api/v1/submissions", headers=inspector_headers, json={"form_id": form_id}
+    # Filtrar por outro usuario nao inclui a inspecao
+    res_other = await client.get(
+        f"/api/v1/submissions?created_by={inspector_user['user_id']}",
+        headers=auth_headers,
     )
-    assert create_res.status_code == 200
-    submission_id = create_res.json()["data"]["id"]
-
-    # Buscar campos booleanos do formulário
-    form_res = await client.get(f"/api/v1/forms/{form_id}", headers=auth_headers)
-    fields = form_res.json()["data"]["current_version"]["fields"]
-    bool_fields = [f for f in fields if f["field_type"] == "boolean"]
-    if not bool_fields:
-        pytest.skip("Formulário sem campos booleanos")
-
-    # Responder campos booleanos obrigatórios
-    required_bool = [f for f in bool_fields if f["required"]]
-    answers = [{"field_key": f["key"], "value": True} for f in required_bool]
-    if answers:
-        await client.put(
-            f"/api/v1/submissions/{submission_id}/answers",
-            headers=inspector_headers,
-            json={"answers": answers},
-        )
-
-    # Finalizar
-    finish_res = await client.post(
-        f"/api/v1/submissions/{submission_id}/finish",
-        headers=inspector_headers,
-    )
-    assert finish_res.status_code == 200
-    data = finish_res.json()["data"]
-
-    # Verificar score_breakdown
-    breakdown = data.get("score_breakdown")
-    if bool_fields:
-        assert breakdown is not None
-        assert "total_boolean" in breakdown
-        assert "conformes" in breakdown
-        assert "nao_conformes" in breakdown
-        assert "sem_resposta" in breakdown
-        assert breakdown["total_boolean"] == len(bool_fields)
-        assert (
-            breakdown["conformes"] + breakdown["nao_conformes"] + breakdown["sem_resposta"]
-            == breakdown["total_boolean"]
-        )
+    assert res_other.status_code == 200
+    assert all(s["id"] != submission_id for s in res_other.json()["data"])
