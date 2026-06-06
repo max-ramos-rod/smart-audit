@@ -33,7 +33,7 @@ async def _get_reset_token(client, seeded_user, capfd=None) -> str:
     log_stream = io.StringIO()
     handler = logging.StreamHandler(log_stream)
     handler.setLevel(logging.INFO)
-    logger = logging.getLogger("app.modules.auth.service")
+    logger = logging.getLogger("app.core.email.sender")
     logger.addHandler(handler)
     logger.setLevel(logging.INFO)
 

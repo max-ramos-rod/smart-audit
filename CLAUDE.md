@@ -196,6 +196,16 @@ Evidence is **not** a field type — it is a capability attached to any field du
 
 Uploads are handled directly in [backend/app/api/v1/routers/uploads.py](backend/app/api/v1/routers/uploads.py) — no separate module. Files are written to `settings.upload_dir/<company_id>/<uuid>.<ext>` and served via FastAPI `StaticFiles` mounted at `/uploads`. The returned URL uses `settings.upload_base_url` as prefix. Allowed MIME types: images (JPEG/PNG/WebP), video (MP4/MOV/AVI), audio (MP3/WAV/OGG/M4A), PDF. Size limits: images 10 MB, PDF 20 MB, audio 50 MB, video 200 MB.
 
+### Email
+
+Email is shared infrastructure under [backend/app/core/email/](backend/app/core/email/) — never send mail with raw `smtplib` from a module. The layers:
+
+- **`sender.py`** — `EmailSender` protocol + `SmtpEmailSender` (prod) and `ConsoleEmailSender` (dev fallback, logs the message when `SMTP_HOST` is unset). `get_email_sender()` is an `lru_cache` factory that picks the impl from settings (same pattern as `get_settings`). `SmtpEmailSender` runs the blocking `smtplib` call via `asyncio.to_thread` and swallows exceptions (sending must never break the request flow — e.g. the anti-enumeration reset endpoint stays fail-soft).
+- **`templates.py`** — pure functions returning an `EmailMessage` (subject + plain-text + HTML). Keep formatting out of services. Each template provides both a text and an HTML body (multipart/alternative improves deliverability).
+- **`service.py`** — `EmailService` with semantic methods (`send_password_reset`, `send_user_invite`). Modules call intent, not SMTP — the same rule as repositories hiding ORM. Services that send mail take an optional `EmailService` in `__init__` for injection (e.g. `AuthService(email_service=...)`).
+
+`FRONTEND_URL` (settings, includes the `/app` base path) is the single source for absolute links in emails — no `/app` hardcoded in code. `templates.py` is exempted from `E501` in `pyproject.toml` (long inline-CSS lines in HTML f-strings).
+
 ### Frontend
 
 SPA structured by domain (`stores/<domain>`, `services/<domain>.service.ts`, `views/<domain>/`). The `@` alias resolves to `frontend/src`.
