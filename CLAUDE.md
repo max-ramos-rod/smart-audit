@@ -206,6 +206,8 @@ Email is shared infrastructure under [backend/app/core/email/](backend/app/core/
 
 `FRONTEND_URL` (settings, includes the `/app` base path) is the single source for absolute links in emails — no `/app` hardcoded in code. `templates.py` is exempted from `E501` in `pyproject.toml` (long inline-CSS lines in HTML f-strings).
 
+**User invite reuses the reset-password machinery.** `POST /users/invite` (admin-gated) creates the user with an unusable random password and issues a token in the **same** `password_reset_tokens` table with a longer TTL (`invite_token_ttl_hours`, default 72h). The invitee sets their password via the **same** `POST /auth/reset-password` endpoint and screen. `UserService` injects `AuthRepository`, `CompanyRepository` and `EmailService` for this. Cross-company provisioning (a brand-new company's first OWNER) stays manual via scripts — no membership can authorize it (see [docs/Deploy_Smart_Audit.md](docs/Deploy_Smart_Audit.md)).
+
 ### Frontend
 
 SPA structured by domain (`stores/<domain>`, `services/<domain>.service.ts`, `views/<domain>/`). The `@` alias resolves to `frontend/src`.

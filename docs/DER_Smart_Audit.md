@@ -203,8 +203,9 @@ Observacoes:
 Observacoes:
 
 - `token` e gerado com `secrets.token_urlsafe(32)` (URL-safe base64, ~43 chars)
-- TTL de 1 hora a partir da criacao
-- uso unico: `used_at` e preenchido na troca de senha e valida como barreira de reuso
+- TTL de 1 hora para reset de senha; **a mesma tabela e reusada para o convite de usuario** (`POST /users/invite`) com TTL maior (`invite_token_ttl_hours`, default 72h)
+- uso unico: `used_at` e preenchido na troca/definicao de senha e valida como barreira de reuso
+- tanto o reset quanto o convite usam o mesmo endpoint `POST /auth/reset-password` para gravar a senha
 - o endpoint de forgot-password nao expoe se o email existe (anti-enumeracao)
 
 ### `notification_reads`

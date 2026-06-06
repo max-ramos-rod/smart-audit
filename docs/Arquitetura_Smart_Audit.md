@@ -24,12 +24,12 @@ Stack atual:
 - Deploy: Docker Compose (db + backend + frontend) atras de proxy reverso Nginx e Cloudflare Tunnel — ver `docs/Deploy_Smart_Audit.md`
 - CI: GitHub Actions com jobs separados para backend, frontend (Vitest) e E2E (Playwright)
 
-Baseline validado em `2026-06-04`:
+Baseline validado em `2026-06-06`:
 
-- backend: `212 passed, 3 skipped`
+- backend: `214 passed, 3 skipped`
 - frontend Vitest: `119 passed`
 - frontend build: `npm run build` OK
-- E2E Playwright: `53 testes` (todos mockados, sem backend necessario)
+- E2E Playwright: `54 testes` (todos mockados, sem backend necessario)
 
 ## 2. Estado real do produto
 
@@ -37,6 +37,8 @@ O Smart Audit ja nao esta mais em fase apenas de fundacao. O estado atual do cod
 
 - autenticacao JWT funcional
 - recuperacao de senha completa (forgot-password + reset via token com TTL de 1h)
+- infraestrutura de e-mail com provider abstraction (SMTP/console), templates HTML+texto e metodos semanticos
+- convite de usuario por e-mail (onboarding intra-empresa): o convidado define a propria senha pelo link
 - contexto de empresa ativa e selecao de empresa
 - dashboard com metricas por periodo, grafico de score por formulario e sparkline de tendencia 30 dias
 - CRUD de usuarios com desativacao de usuario (`is_active`) e revogacao de acesso (`DELETE /users/{id}`)
@@ -109,9 +111,20 @@ Capacidades ativas:
 
 - `GET /api/v1/users` — lista memberships ativos (`revoked_at IS NULL`)
 - `GET /api/v1/users/{id}`
-- `POST /api/v1/users` — cria usuario e vincula via membership
+- `POST /api/v1/users` — cria usuario com senha inicial e vincula via membership
+- `POST /api/v1/users/invite` — convida usuario por e-mail (sem senha): cria usuario com senha aleatoria inutilizavel, vincula via membership, gera token e envia link
 - `PATCH /api/v1/users/{id}` — atualiza nome, senha, role, `is_active` do usuario
 - `DELETE /api/v1/users/{id}` — revoga o acesso do usuario (seta `revoked_at`); nao exclui dados
+- `POST /api/v1/users/{id}/reactivate` — reativa membership revogado
+
+Todas as rotas de usuarios exigem ADMIN ou superior (`get_admin_membership`).
+
+Convite de usuario (onboarding intra-empresa):
+
+- o convidado nao consegue logar ate definir a propria senha pelo link
+- o link reaproveita a tabela `password_reset_tokens` e o endpoint `POST /auth/reset-password` (mesma tela do reset), com TTL configuravel (`invite_token_ttl_hours`, default 72h)
+- audit log: `user.invited`
+- so resolve o onboarding *dentro* de uma empresa existente; o primeiro usuario (OWNER) de uma empresa nova ainda e provisionado por script (ver `docs/Deploy_Smart_Audit.md`)
 
 Regras de revogacao:
 
@@ -216,6 +229,16 @@ Responsavel por receber arquivos e gravar em disco.
 - a logica fica encapsulada no router
 - tipos permitidos: `image/jpeg`, `image/png`, `image/webp`, `video/mp4`, `video/quicktime`, `video/x-msvideo`, `audio/mpeg`, `audio/wav`, `audio/ogg`, `audio/mp4`, `application/pdf`
 - limites por tipo: imagem 10 MB, PDF 20 MB, audio 50 MB, video 200 MB
+
+### Email
+
+Infraestrutura compartilhada em `backend/app/core/email/` — nenhum modulo envia e-mail com `smtplib` direto. Tres camadas:
+
+- **`sender.py`**: protocol `EmailSender` + `SmtpEmailSender` (producao, roda o `smtplib` bloqueante via `asyncio.to_thread` e engole excecoes — envio nunca quebra o fluxo) e `ConsoleEmailSender` (dev, loga a mensagem quando `SMTP_HOST` esta vazio). `get_email_sender()` e uma factory `lru_cache` que escolhe a implementacao pelas settings.
+- **`templates.py`**: funcoes puras que retornam `EmailMessage` (assunto + corpo texto + corpo HTML). `password_reset` e `user_invite`. O par multipart/alternative melhora deliverability.
+- **`service.py`**: `EmailService` com metodos semanticos (`send_password_reset`, `send_user_invite`). Modulos chamam intencao, nao SMTP — mesma regra dos repositories que escondem ORM. Servicos que enviam e-mail recebem um `EmailService` opcional no `__init__` (injetavel).
+
+Links absolutos nos e-mails usam `FRONTEND_URL` (ja inclui o base `/app`) — sem `/app` hardcoded. Variaveis SMTP: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` (nomes exatos; `SMTP_FROM` deve ser o endereco autenticado). Ver `docs/Deploy_Smart_Audit.md`.
 
 ### Equipes
 
@@ -468,7 +491,7 @@ Rotas agregadas hoje:
 - `auth` (login, me, forgot-password, reset-password)
 - `companies`
 - `me` (context, companies, stats com score_by_form/score_trend, usage, notifications com read/dismiss)
-- `users` (CRUD + revogacao de acesso via `DELETE /users/{id}`)
+- `users` (CRUD + convite via `POST /users/invite` + revogacao via `DELETE /users/{id}` + reativacao)
 - `forms` (CRUD, versoes, importacao via CSV/Excel)
 - `submissions` (CRUD, answers, conformity, finish, export CSV, export PDF com `?inline`)
 - `search`
@@ -485,7 +508,7 @@ Rotas de interface existentes hoje:
 - `/reset-password` (recebe `?token=` na query string)
 - `/select-company`
 - `/` — dashboard com metricas, barras de score por formulario, sparkline de tendencia
-- `/users` — lista, cria, edita, revoga acesso
+- `/users` — lista, cria (senha inicial ou convite por e-mail), edita, revoga e reativa acesso
 - `/forms`
 - `/forms/:formId` — editor com secoes, peso, allow_na, instrucao por campo
 - `/forms/:formId/versions`
@@ -574,9 +597,9 @@ Observacao: mensagens de erro do backend nao usam acentos para evitar problemas 
 
 ### Backend
 
-Estado validado em `2026-06-04`:
+Estado validado em `2026-06-06`:
 
-- `212 passed, 3 skipped`
+- `214 passed, 3 skipped`
 
 Cobertura atual:
 
@@ -589,7 +612,7 @@ Cobertura atual:
 | `test_submissions_export.py` | integracao | CSV export, filtros, isolamento |
 | `test_submissions_advanced.py` | integracao | PDF, N/A, pesos, stats, isolamento |
 | `test_search.py` | integracao | busca full-text |
-| `test_users.py` | integracao | CRUD usuarios |
+| `test_users.py` | integracao | CRUD usuarios + convite (invite -> login bloqueado -> define senha -> login) |
 | `test_teams.py` | integracao | CRUD equipes e membros (soft delete) |
 | `test_companies.py` | integracao | configuracoes de empresa |
 | `test_me.py` | integracao | context, stats, notificacoes, usage |
@@ -638,7 +661,7 @@ Cobertura atual:
 
 ### E2E — Playwright
 
-Job `e2e` no CI (`.github/workflows/ci.yml`). Todos os 53 testes usam `page.route()` para mockar chamadas de API — nao requerem backend em execucao.
+Job `e2e` no CI (`.github/workflows/ci.yml`). Todos os 54 testes usam `page.route()` para mockar chamadas de API — nao requerem backend em execucao.
 
 ## 10. Decisoes arquiteturais consolidadas
 
@@ -707,7 +730,15 @@ O PDF e gerado com fpdf2 usando a fonte DejaVu Sans TTF embutida em `backend/app
 
 ### Recuperacao de senha
 
-Implementada com token de uso unico (TTL 1h) em `password_reset_tokens`. Entrega via SMTP quando configurado, ou via log em desenvolvimento. Anti-enumeracao: o endpoint sempre retorna 200 independente de o email existir.
+Implementada com token de uso unico (TTL 1h) em `password_reset_tokens`. Entrega via `EmailService` (SMTP quando configurado, ou log em desenvolvimento). Anti-enumeracao: o endpoint sempre retorna 200 independente de o email existir.
+
+### Email como infraestrutura compartilhada
+
+O envio de e-mail vive em `backend/app/core/email/` (sender + templates + service), nao espalhado pelos modulos. Provider abstraction via protocol `EmailSender` permite trocar o transporte (SMTP -> Resend/SES) sem tocar nos chamadores. `SmtpEmailSender` roda o `smtplib` bloqueante via `asyncio.to_thread` e e fail-soft (excecoes logadas, nunca propagadas). Ver secao "Email" em Bounded contexts.
+
+### Convite de usuario reaproveita o reset de senha
+
+O convite (`POST /users/invite`) cria o usuario com senha aleatoria inutilizavel e gera um token na **mesma** tabela `password_reset_tokens`, com TTL maior (`invite_token_ttl_hours`, default 72h). O convidado define a senha pelo **mesmo** endpoint e tela do reset. Isso evita um fluxo de "ativacao" separado — uma unica maquina de tokens serve reset e convite. O onboarding cross-empresa (primeiro OWNER) permanece manual (script), pois nenhum membership pode autoriza-lo.
 
 ### Upload local antes de storage externo
 
@@ -724,6 +755,8 @@ Ja e realidade no codigo. Qualquer documentacao antiga que ainda fale em sessao 
 - backend principal e contratos HTTP
 - autenticacao, contexto e sessao
 - recuperacao de senha (forgot + reset)
+- infraestrutura de e-mail (`core/email/`: provider abstraction, templates HTML+texto, metodos semanticos)
+- convite de usuario por e-mail (`POST /users/invite`) com botao na tela `/app/users`
 - shell autenticado consistente em todas as telas
 - usuarios com desativacao (`is_active`), revogacao (`DELETE /users/{id}`) e reativacao (`POST /users/{id}/reactivate`)
 - formularios com versionamento, secoes, tipos completos e config_json
@@ -739,7 +772,7 @@ Ja e realidade no codigo. Qualquer documentacao antiga que ainda fale em sessao 
 - equipes com soft delete (`is_active`)
 - memberships com soft delete (`revoked_at`) e reativacao
 - desativacao de empresa (`DELETE /companies/me`) com cascade de memberships e equipes; modal de confirmacao com digitacao do nome + logout automatico
-- audit_logs: tabela imutavel, bounded context completo, eventos company.deactivated / membership.revoked / membership.reactivated / user.created / team.deactivated; view com filtro e paginacao
+- audit_logs: tabela imutavel, bounded context completo, eventos company.deactivated / membership.revoked / membership.reactivated / user.created / user.invited / team.deactivated; view com filtro e paginacao
 - exportacao CSV
 - busca em tempo real
 - dashboard com score_by_form e score_trend
@@ -748,7 +781,7 @@ Ja e realidade no codigo. Qualquer documentacao antiga que ainda fale em sessao 
 - notificacoes com persistencia de leitura e dismiss
 - endpoint `/me/usage` com contagens reais e limites por plano
 - CI com jobs separados: backend (ruff + pytest), frontend (vue-tsc + Vitest), E2E (Playwright)
-- testes automatizados: backend 218 passed, frontend 119 passed (Vitest), 53 E2E (Playwright)
+- testes automatizados: backend 214 passed, frontend 119 passed (Vitest), 54 E2E (Playwright)
 
 ### Parcial ou com limitacao conhecida
 
