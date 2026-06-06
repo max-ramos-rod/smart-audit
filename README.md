@@ -7,35 +7,38 @@ Smart Audit é uma plataforma web para execução de checklists, auditorias e in
 O projeto já passou da fundação inicial. Hoje ele possui:
 
 - backend assinado por FastAPI + SQLAlchemy async + PostgreSQL
-- frontend SPA em Vue 3 + Pinia + Vue Router + Tailwind CSS v4
-- autenticação JWT
+- frontend SPA em Vue 3 + Pinia + Vue Router + Tailwind CSS v4, servido sob a base `/app/`
+- landing page institucional estática na raiz `/` do domínio
+- autenticação JWT + recuperação de senha completa (forgot + reset com token TTL 1h)
 - contexto de empresa ativa com GET + PATCH `/companies/me`
-- CRUD de usuários
-- formulários versionados
-- inspeções com respostas tipadas e score
+- CRUD de usuários com desativação e revogação de acesso
+- formulários versionados com seções, instruções e config por campo
+- inspeções com respostas tipadas, score ponderado e avaliação de conformidade
 - anexos e uploads locais
-- equipes e membros
-- exportação PDF de inspeções
-- dashboard, busca, notificações derivadas e telas administrativas
-- recuperação de acesso com rota placeholder segura
+- equipes e membros com soft delete
+- exportação PDF de inspeções (Unicode via DejaVu Sans) e exportação CSV
+- dashboard, busca, notificações derivadas, auditoria e telas administrativas
+- deploy em Docker Compose atrás de proxy reverso Nginx + Cloudflare Tunnel
 
-Baseline validado em `2026-05-27`:
+Baseline validado em `2026-06-04`:
 
-- backend: `97 passed, 3 skipped`
-- frontend: `68 passed`
+- backend: `212 passed, 3 skipped`
+- frontend Vitest: `119 passed`
 - frontend build: `npm run build` OK
+- E2E Playwright: `53 testes` (mockados)
 
 Leitura de status:
 
-- consolidado: autenticação, contexto multiempresa, usuários, equipes, formulários, inspeções, evidências, uploads, PDF e configurações da empresa
+- consolidado: autenticação, recuperação de senha, contexto multiempresa, usuários, equipes, formulários, inspeções, conformidade, evidências, uploads, PDF, auditoria e configurações da empresa
 - parcial: busca (local, sem índice dedicado no backend), notificações (derivadas do estado das inspeções)
-- placeholder intencional: `forgot-password`, ainda sem fluxo transacional completo
+- pendente: storage externo (S3/R2), cadastro self-service de clientes
 
 ## Stack principal
 
 - Backend: FastAPI, SQLAlchemy 2.x async, Alembic, PostgreSQL
-- Frontend: Vue 3, Pinia, Vue Router, Tailwind CSS v4, Axios, Vitest
+- Frontend: Vue 3, Pinia, Vue Router, Tailwind CSS v4, Axios, Vitest, Playwright
 - Uploads: armazenamento local em disco, com desenho compatível para migração futura a S3/R2
+- Deploy: Docker Compose (db + backend + frontend), proxy reverso Nginx, Cloudflare Tunnel — ver `docs/Deploy_Smart_Audit.md`
 
 ## Princípios do projeto
 

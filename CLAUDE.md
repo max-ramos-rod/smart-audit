@@ -7,8 +7,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Monorepo with two deployables:
 
 - `backend/` — FastAPI service (Python 3.12, SQLAlchemy 2.0, Alembic, PostgreSQL). Installed as the `smart-audit-backend` package via `pyproject.toml` at the repo root (`package-dir = backend/`).
-- `frontend/` — Vue 3 SPA (Vite, Pinia, Vue Router, Axios, TailwindCSS 4).
+- `frontend/` — Vue 3 SPA (Vite, Pinia, Vue Router, Axios, TailwindCSS 4). Served under the `/app/` base in production (see Frontend section).
+- `landing/` — static institutional landing page (`index.html`) served at the domain root `/` by the external Nginx proxy. Links point to `/app/login`.
 - `docs/Arquitetura_Smart_Audit.md` and `docs/DER_Smart_Audit.md` — source of truth for domain decisions and ER model.
+- `docs/Deploy_Smart_Audit.md` — production topology: Docker networks, Nginx proxy, `/app/` base, onboarding scripts.
+- `docker-compose.yml` — three services (`db`, `backend`, `frontend`) on an `internal` network + shared external `app_network`. Cross-network references must use unique container names (`smart_audit_db`, `smart_audit_backend`) to avoid DNS collisions with other projects on `app_network`.
 - `db/schema_v1.sql` — reference schema snapshot; canonical schema is managed by Alembic in `backend/alembic/versions/`.
 - `db/fix_postgres_ownership.sql` — helper script to fix PostgreSQL ownership when setting up a local database.
 
@@ -197,6 +200,7 @@ Uploads are handled directly in [backend/app/api/v1/routers/uploads.py](backend/
 
 SPA structured by domain (`stores/<domain>`, `services/<domain>.service.ts`, `views/<domain>/`). The `@` alias resolves to `frontend/src`.
 
+- **The SPA is served under the `/app/` base path** (the landing page at `landing/index.html` owns the domain root `/`). This base is set in three places that must stay in sync: `base: '/app/'` in [frontend/vite.config.ts](frontend/vite.config.ts), `createWebHistory('/app/')` in [frontend/src/router/index.ts](frontend/src/router/index.ts), and the `location /app/` rewrite in [frontend/nginx.conf](frontend/nginx.conf). All routes are therefore reached at `/app/login`, `/app/submissions`, etc. E2E tests (`page.goto`, `toHaveURL`) use the `/app/` prefix. The Vite dev server still runs at the root on port 5174 (the base only affects build/production paths). See [docs/Deploy_Smart_Audit.md](docs/Deploy_Smart_Audit.md) for the full deployment topology.
 - Auth/session state is bootstrapped in the router guard ([frontend/src/router/index.ts](frontend/src/router/index.ts)): if a route requires auth and a token exists, it calls `useContextStore().bootstrap()` to load `/me/companies` + `/me/context` before rendering. Without that, downstream stores will not have an active company. After bootstrap, `authStore.user` is synced from `contextStore.context.user` if null.
 - HTTP client is centralized in [frontend/src/services/api/http.ts](frontend/src/services/api/http.ts); never call `axios` directly from views/stores.
 - Token + active company id are persisted in `localStorage` under `smart-audit.token` / `smart-audit.company-id` via [frontend/src/services/api/storage.ts](frontend/src/services/api/storage.ts).

@@ -18,8 +18,10 @@ Perfis de acesso atualmente modelados:
 Stack atual:
 
 - Backend: FastAPI, SQLAlchemy async, Alembic, PostgreSQL, slowapi, fpdf2 — porta `8003`
-- Frontend: Vue 3, Pinia, Vue Router, Tailwind CSS v4, Axios, Vitest, Playwright — porta `5174`
+- Frontend: Vue 3, Pinia, Vue Router, Tailwind CSS v4, Axios, Vitest, Playwright — porta `5174` (dev); em producao o SPA e servido sob a base `/app/`
+- Landing page institucional estatica (`landing/index.html`) servida na raiz `/` do dominio
 - Uploads: armazenamento local em disco
+- Deploy: Docker Compose (db + backend + frontend) atras de proxy reverso Nginx e Cloudflare Tunnel — ver `docs/Deploy_Smart_Audit.md`
 - CI: GitHub Actions com jobs separados para backend, frontend (Vitest) e E2E (Playwright)
 
 Baseline validado em `2026-06-04`:
@@ -355,6 +357,7 @@ Organizacao principal:
 ### Padroes realmente aplicados
 
 - SPA com Vue Router
+- SPA servido sob a base `/app/` (a landing institucional ocupa a raiz `/`); base definida em `vite.config.ts` (`base: '/app/'`), `router/index.ts` (`createWebHistory('/app/')`) e `frontend/nginx.conf` (`location /app/` com rewrite) — os tres devem ficar em sincronia
 - stores Pinia por dominio
 - axios centralizado em `services/api/http.ts`
 - token e `company-id` em `localStorage`
