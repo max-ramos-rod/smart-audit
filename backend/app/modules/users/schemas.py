@@ -34,6 +34,12 @@ class UserCreateRequest(BaseModel):
     is_active: bool = True
 
 
+class UserInviteRequest(BaseModel):
+    name: str = Field(min_length=2, max_length=150)
+    email: str = Field(min_length=5, max_length=255)
+    role: str
+
+
 class UserUpdateRequest(BaseModel):
     name: str | None = Field(default=None, min_length=2, max_length=150)
     password: str | None = Field(default=None, min_length=8, max_length=128)

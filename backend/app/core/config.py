@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     smtp_user: str | None = None
     smtp_password: str | None = None
     smtp_from: str = "noreply@smartaudit.local"
+    # TTL do link de convite de usuario (mais longo que o reset de senha,
+    # pois o convidado pode demorar a abrir o e-mail)
+    invite_token_ttl_hours: int = 72
 
     model_config = SettingsConfigDict(
         env_file=str(_REPO_ROOT / ".env"),

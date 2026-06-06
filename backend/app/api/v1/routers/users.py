@@ -6,7 +6,7 @@ from app.core.responses import paginated_response, success_response
 from app.db.models.memberships import Membership
 from app.db.session import get_db
 from app.modules.memberships.permissions import get_admin_membership
-from app.modules.users.schemas import UserCreateRequest, UserUpdateRequest
+from app.modules.users.schemas import UserCreateRequest, UserInviteRequest, UserUpdateRequest
 from app.modules.users.service import UserService
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -57,6 +57,17 @@ async def create_user(
     user_service: UserService = Depends(get_user_service),
 ) -> dict[str, object]:
     data = await user_service.create_user(db, membership, payload)
+    return success_response(data.model_dump(mode="json"))
+
+
+@router.post("/invite")
+async def invite_user(
+    payload: UserInviteRequest,
+    membership: Membership = Depends(get_admin_membership),
+    db: AsyncSession = Depends(get_db),
+    user_service: UserService = Depends(get_user_service),
+) -> dict[str, object]:
+    data = await user_service.invite_user(db, membership, payload)
     return success_response(data.model_dump(mode="json"))
 
 
