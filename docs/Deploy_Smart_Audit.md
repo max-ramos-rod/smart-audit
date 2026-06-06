@@ -136,6 +136,15 @@ re-resolver o nome.
 - `.env` (raiz do repo) - lido pelo backend. Contem `DATABASE_URL`,
   `JWT_SECRET_KEY`, etc. O `DATABASE_URL` usa o driver `asyncpg` e aponta para o
   host `db` (rede internal) ou `smart_audit_db` (container unico) na porta 5432.
+- `FRONTEND_URL` - URL base do SPA **incluindo o base path `/app`**
+  (ex.: `https://smartaudit.goevolux.com.br/app`). E a unica fonte usada para
+  montar links absolutos em e-mails (reset de senha). O codigo nao tem `/app`
+  hardcoded; se o base path mudar, ajuste apenas esta variavel.
+- SMTP (opcional): `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`,
+  `SMTP_FROM`. **Nomes exatos** - nao use `SMTP_USERNAME`/`SMTP_FROM_EMAIL`
+  (nomes de outro projeto); o backend nao os reconhece e o STARTTLS e pulado.
+  `SMTP_FROM` deve ser identico ao endereco autenticado em `SMTP_USER`. Sem
+  `SMTP_HOST`, o link de reset e apenas logado (`PASSWORD RESET | ...`).
 - `.env.db` - lido pelo container PostgreSQL (`POSTGRES_USER`,
   `POSTGRES_PASSWORD`, `POSTGRES_DB`). A senha aqui deve ser identica a do
   `DATABASE_URL`.

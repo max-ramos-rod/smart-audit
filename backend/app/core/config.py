@@ -17,7 +17,10 @@ class Settings(BaseSettings):
     allowed_origins: list[str] = ["http://localhost:5174", "http://127.0.0.1:5174"]
     upload_dir: str = "uploads"
     upload_base_url: str = "http://localhost:8003/uploads"
-    frontend_url: str = "http://localhost:5174"
+    # URL base onde o SPA esta publicado, incluindo o base path (ex.: /app).
+    # Usada para montar links absolutos enviados por e-mail (reset de senha).
+    # Em producao: https://smartaudit.goevolux.com.br/app
+    frontend_url: str = "http://localhost:5174/app"
     smtp_host: str | None = None
     smtp_port: int = 587
     smtp_user: str | None = None
