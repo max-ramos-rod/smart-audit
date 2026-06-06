@@ -7,6 +7,7 @@ import {
   fetchRevokedUsers,
   fetchUser,
   fetchUsers,
+  inviteUser,
   reactivateUser,
   revokeUser,
   updateUser,
@@ -15,6 +16,7 @@ import type { PaginationMeta } from '@/types/api'
 import type {
   UserCreatePayload,
   UserDetail,
+  UserInvitePayload,
   UserListItem,
   UserRevokedItem,
   UserUpdatePayload,
@@ -69,6 +71,21 @@ export const useUsersStore = defineStore('users', () => {
       return created
     } catch (err: any) {
       error.value = extractProblemMessage(err, 'Nao foi possivel criar o usuario.')
+      throw err
+    } finally {
+      isSaving.value = false
+    }
+  }
+
+  async function invite(payload: UserInvitePayload) {
+    isSaving.value = true
+    error.value = null
+    try {
+      const invited = await inviteUser(payload)
+      await load(meta.value?.page ?? 1, meta.value?.page_size ?? 20)
+      return invited
+    } catch (err: any) {
+      error.value = extractProblemMessage(err, 'Nao foi possivel enviar o convite.')
       throw err
     } finally {
       isSaving.value = false
@@ -154,6 +171,7 @@ export const useUsersStore = defineStore('users', () => {
     loadUser,
     loadRevoked,
     create,
+    invite,
     update,
     revoke,
     reactivate,

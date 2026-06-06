@@ -18,6 +18,12 @@ export interface UserCreatePayload {
   is_active: boolean
 }
 
+export interface UserInvitePayload {
+  name: string
+  email: string
+  role: string
+}
+
 export interface UserUpdatePayload {
   name?: string
   password?: string

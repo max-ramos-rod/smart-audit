@@ -2,6 +2,7 @@ import type { ApiEnvelope, PaginatedEnvelope } from '@/types/api'
 import type {
   UserCreatePayload,
   UserDetail,
+  UserInvitePayload,
   UserListItem,
   UserRevokedItem,
   UserUpdatePayload,
@@ -23,6 +24,11 @@ export async function fetchUser(userId: string) {
 
 export async function createUser(payload: UserCreatePayload) {
   const response = await http.post<ApiEnvelope<UserDetail>>('/users', payload)
+  return response.data.data
+}
+
+export async function inviteUser(payload: UserInvitePayload) {
+  const response = await http.post<ApiEnvelope<UserDetail>>('/users/invite', payload)
   return response.data.data
 }
 

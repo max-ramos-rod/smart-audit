@@ -27,20 +27,32 @@ test.describe('Users', () => {
   })
 
   test('create form is visible', async ({ authed: page }) => {
-    await expect(page.getByRole('button', { name: /criar usuário/i })).toBeVisible()
+    // Modo padrão é convite por e-mail
+    await expect(page.getByRole('button', { name: /enviar convite/i })).toBeVisible()
   })
 
-  test('submits create form and shows success', async ({ authed: page }) => {
+  test('submits create form with password and shows success', async ({ authed: page }) => {
     const newUser = { id: 'u4', name: 'Dave New', email: 'dave@test.com', role: 'INSPECTOR', is_active: true }
     await page.route(`${API}/users`, (r) => {
       if (r.request().method() === 'POST') return r.fulfill({ json: envelope(newUser) })
       return r.fulfill({ json: paginated([...MOCK_USERS, newUser]) })
     })
 
+    await page.getByRole('button', { name: /definir senha/i }).click()
     await page.locator('.field').filter({ hasText: /nome completo/i }).locator('input').fill('Dave New')
     await page.locator('.field').filter({ hasText: /^E-mail$/i }).locator('input').fill('dave@test.com')
     await page.locator('.field').filter({ hasText: /senha inicial/i }).locator('input').fill('secret123')
     await page.getByRole('button', { name: /criar usuário/i }).click()
     await expect(page.getByText(/usuário salvo com sucesso/i)).toBeVisible()
+  })
+
+  test('sends invite and shows success', async ({ authed: page }) => {
+    const invited = { id: 'u5', name: 'Eve Invited', email: 'eve@test.com', role: 'INSPECTOR', is_active: true }
+    await page.route(`${API}/users/invite`, (r) => r.fulfill({ json: envelope(invited) }))
+
+    await page.locator('.field').filter({ hasText: /nome completo/i }).locator('input').fill('Eve Invited')
+    await page.locator('.field').filter({ hasText: /^E-mail$/i }).locator('input').fill('eve@test.com')
+    await page.getByRole('button', { name: /enviar convite/i }).click()
+    await expect(page.getByText(/convite enviado por e-mail/i)).toBeVisible()
   })
 })

@@ -5,16 +5,25 @@ import AppShell from '@/components/layout/AppShell.vue'
 import { extractProblemMessage } from '@/services/api/problem'
 import { useContextStore } from '@/stores/context/context.store'
 import { useUsersStore } from '@/stores/users/users.store'
-import type { UserCreatePayload, UserListItem, UserRevokedItem, UserUpdatePayload } from '@/types/users'
+import type {
+  UserCreatePayload,
+  UserInvitePayload,
+  UserListItem,
+  UserRevokedItem,
+  UserUpdatePayload,
+} from '@/types/users'
 
 const usersStore = useUsersStore()
 const contextStore = useContextStore()
 const tab = ref<'active' | 'revoked'>('active')
 const isEditing = ref(false)
+// Modo de criação: 'invite' envia link por email; 'password' define senha inicial.
+const createMode = ref<'invite' | 'password'>('invite')
 const revokeError = ref<string | null>(null)
 const reactivateError = ref<string | null>(null)
 const formError = ref<string | null>(null)
 const savedOnce = ref(false)
+const invitedOnce = ref(false)
 const form = reactive({
   id: '',
   name: '',
@@ -27,9 +36,11 @@ const form = reactive({
 const title = computed(() => (isEditing.value ? 'Editar usuário' : 'Novo usuário'))
 const submitLabel = computed(() => {
   if (usersStore.isSaving) {
-    return isEditing.value ? 'Salvando...' : 'Criando...'
+    if (isEditing.value) return 'Salvando...'
+    return createMode.value === 'invite' ? 'Enviando convite...' : 'Criando...'
   }
-  return isEditing.value ? 'Salvar alterações' : 'Criar usuário'
+  if (isEditing.value) return 'Salvar alterações'
+  return createMode.value === 'invite' ? 'Enviar convite' : 'Criar usuário'
 })
 
 onMounted(() => {
@@ -111,6 +122,17 @@ async function submit() {
       }
 
       await usersStore.update(form.id, payload)
+    } else if (createMode.value === 'invite') {
+      const payload: UserInvitePayload = {
+        name: form.name,
+        email: form.email,
+        role: form.role,
+      }
+      await usersStore.invite(payload)
+      invitedOnce.value = true
+      setTimeout(() => { invitedOnce.value = false }, 4000)
+      resetForm()
+      return
     } else {
       const payload: UserCreatePayload = {
         name: form.name,
@@ -178,6 +200,22 @@ async function submit() {
             </span>
           </div>
 
+          <!-- Modo de criação: convite por email vs senha inicial (só na criação) -->
+          <div v-if="!isEditing" class="filter-tabs" style="margin-bottom:14px;">
+            <button
+              type="button"
+              class="filter-tab"
+              :class="{ active: createMode === 'invite' }"
+              @click="createMode = 'invite'"
+            >Convidar por e-mail</button>
+            <button
+              type="button"
+              class="filter-tab"
+              :class="{ active: createMode === 'password' }"
+              @click="createMode = 'password'"
+            >Definir senha</button>
+          </div>
+
           <form style="display:grid;gap:12px;" @submit.prevent="submit">
             <div class="field">
               <label class="flabel">Nome completo</label>
@@ -194,14 +232,14 @@ async function submit() {
                 required
               />
             </div>
-            <div class="field">
+            <div v-if="isEditing || createMode === 'password'" class="field">
               <label class="flabel">{{ isEditing ? 'Nova senha (opcional)' : 'Senha inicial' }}</label>
               <input
                 v-model="form.password"
                 type="password"
                 minlength="8"
                 maxlength="128"
-                :required="!isEditing"
+                :required="!isEditing && createMode === 'password'"
                 :placeholder="isEditing ? 'Deixe em branco para manter' : ''"
               />
             </div>
@@ -216,7 +254,7 @@ async function submit() {
                   <option value="VIEWER">VIEWER</option>
                 </select>
               </div>
-              <div class="field">
+              <div v-if="isEditing || createMode === 'password'" class="field">
                 <label class="flabel">Status</label>
                 <select v-model="form.is_active">
                   <option :value="true">Ativo</option>
@@ -225,8 +263,18 @@ async function submit() {
               </div>
             </div>
 
+            <p
+              v-if="!isEditing && createMode === 'invite'"
+              style="font-size:12px;color:var(--sa-muted);line-height:1.5;"
+            >
+              O usuário receberá um e-mail com um link para definir a própria senha e acessar a plataforma.
+            </p>
+
             <p v-if="savedOnce" style="font-size:13px;font-weight:600;color:var(--sa-ok);padding:6px 0;">
               ✓ Usuário salvo com sucesso.
+            </p>
+            <p v-if="invitedOnce" style="font-size:13px;font-weight:600;color:var(--sa-ok);padding:6px 0;">
+              ✓ Convite enviado por e-mail.
             </p>
             <p v-if="formError" style="font-size:13px;font-weight:600;color:var(--sa-danger);">{{ formError }}</p>
 
