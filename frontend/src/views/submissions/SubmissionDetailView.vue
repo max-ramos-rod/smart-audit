@@ -136,7 +136,7 @@ const allAnswered = computed(() => progressStats.value.pending === 0 && progress
 const scoreRingStyle = computed(() => {
   if (liveScore.value === null) return { background: 'conic-gradient(#e2e8f0 100%, #e2e8f0 0)' }
   const pct   = liveScore.value
-  const color = pct >= 85 ? '#16a34a' : pct >= 65 ? '#d97706' : '#dc2626'
+  const color = scoreColorVar(pct)
   return { background: `conic-gradient(${color} ${pct}%, #e2e8f0 0)`, transition: 'background .5s' }
 })
 
