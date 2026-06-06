@@ -59,26 +59,20 @@ async function submit() {
             Informe seu e-mail para receber o link de redefinição.
           </p>
 
-          <form @submit.prevent="submit">
-            <div class="lf-field">
-              <label class="lf-label" for="email">E-mail</label>
+          <form class="lf-form" @submit.prevent="submit">
+            <label class="field">
+              <span class="flabel">E-mail</span>
               <input
                 id="email"
                 v-model="email"
                 type="email"
                 autocomplete="email"
                 placeholder="seu@email.com"
-                class="lf-input"
                 :disabled="isLoading"
               />
-            </div>
+            </label>
 
-            <p
-              v-if="error"
-              style="font-size:13px;color:var(--sa-danger);font-weight:600;margin-bottom:12px;"
-            >
-              {{ error }}
-            </p>
+            <p v-if="error" class="lf-err">{{ error }}</p>
 
             <button
               type="submit"

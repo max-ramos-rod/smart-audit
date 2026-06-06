@@ -63,7 +63,7 @@ class AuthService:
         await db.commit()
 
         settings = get_settings()
-        reset_url = f"{settings.frontend_url}/reset-password?token={token}"
+        reset_url = f"{settings.frontend_url}/app/reset-password?token={token}"
         self._deliver_reset_link(email, reset_url, settings)
 
     async def reset_password(self, db: AsyncSession, token: str, new_password: str) -> None:

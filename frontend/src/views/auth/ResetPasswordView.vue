@@ -74,29 +74,27 @@ async function submit() {
           <h1 class="lf-h">Redefinir senha</h1>
           <p class="lf-sub">Informe e confirme sua nova senha.</p>
 
-          <form @submit.prevent="submit">
-            <div class="lf-field">
-              <label class="lf-label" for="new-password">Nova senha</label>
+          <form class="lf-form" @submit.prevent="submit">
+            <label class="field">
+              <span class="flabel">Nova senha</span>
               <input
                 id="new-password"
                 v-model="newPassword"
                 type="password"
                 autocomplete="new-password"
                 placeholder="Mínimo 8 caracteres"
-                class="lf-input"
                 :disabled="isLoading"
               />
-            </div>
+            </label>
 
-            <div class="lf-field">
-              <label class="lf-label" for="confirm-password">Confirmar senha</label>
+            <label class="field">
+              <span class="flabel">Confirmar senha</span>
               <input
                 id="confirm-password"
                 v-model="confirmPassword"
                 type="password"
                 autocomplete="new-password"
                 placeholder="Repita a senha"
-                class="lf-input"
                 :disabled="isLoading"
                 :style="passwordMismatch ? 'border-color:var(--sa-danger)' : ''"
               />
@@ -106,14 +104,9 @@ async function submit() {
               >
                 As senhas não coincidem.
               </p>
-            </div>
+            </label>
 
-            <p
-              v-if="error"
-              style="font-size:13px;color:var(--sa-danger);font-weight:600;margin-bottom:12px;"
-            >
-              {{ error }}
-            </p>
+            <p v-if="error" class="lf-err">{{ error }}</p>
 
             <button
               type="submit"
