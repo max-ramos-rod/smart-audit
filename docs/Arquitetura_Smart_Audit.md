@@ -199,7 +199,7 @@ Capacidades ativas:
 - avaliacao de conformidade por campo: `PUT /submissions/{id}/conformity` registra `conforme` ou `nao_conforme` em `submission_conformities`
 - finalizacao com validacao de campos obrigatorios respondidos
 - calculo de score ponderado baseado em `submission_conformities` (campos N/A e sem conformidade sao excluidos)
-- score_breakdown: `conformes`, `nao_conformes`, `sem_resposta`, `na_count`, `total_boolean`
+- score_breakdown: `conformes`, `nao_conformes`, `sem_resposta`, `total_boolean`, `na_count` (hoje retorna sempre 0 — o calculo de N/A foi para o dominio de conformities; o campo permanece no contrato por compatibilidade)
 - exportacao PDF individual com score profissional e suporte a Unicode
 - exportacao CSV da lista (com filtro de status)
 
@@ -517,6 +517,7 @@ Rotas de interface existentes hoje:
 - `/submissions/:id/report` — relatorio com botoes "Visualizar PDF" e "Baixar PDF"
 - `/profile`
 - `/company-settings` — aba Geral, aba Plano, aba Utilizacao (contagens reais via API)
+- `/audit` — log de auditoria com filtro por acao e paginacao (requer ADMIN no backend via `get_admin_membership`)
 - `/notifications` — com dismiss persistido
 - `/search`
 - `/teams` — lista, cria, edita, desativa equipes; gerencia membros
@@ -626,7 +627,7 @@ Casos cobertos em `test_submissions_advanced.py`:
 
 - exportacao PDF: content-type, `?inline`, secoes + N/A, 404, auth guard
 - stats: `score_by_form` e `score_trend` presentes, filtro por periodo
-- N/A boolean: aceitacao, score_breakdown.na_count, exclusao do denominador do score
+- N/A boolean: aceitacao da resposta `"na"` e exclusao do denominador do score (campo `score_breakdown.na_count` retorna 0 por design atual)
 - score ponderado via conformities: peso 3:1 gera score 75%, pesos iguais geram 50%
 - isolamento multiempresa: inspector em empresa diferente ve stats zeradas
 
@@ -698,15 +699,17 @@ O valor N/A e armazenado como `value_text = "na"` com `value_boolean = NULL`. Is
 
 ### Score ponderado via conformities
 
-O score nao e uma media simples. Cada campo booleano tem `config_json.weight` (default 1.0). O score e calculado a partir de `submission_conformities`:
+O score nao e uma media simples. Qualquer campo respondivel (todos os tipos exceto `section`) pode receber avaliacao de conformidade e `config_json.weight` (default 1.0). O score e calculado a partir de `submission_conformities`:
 
 ```
 score = sum(weight_i para status='conforme') / sum(weight_i para avaliados) * 100
 ```
 
-onde `avaliados` inclui apenas campos com registro em `submission_conformities` cujo status seja `conforme` ou `nao_conforme`. Campos sem avaliacao e N/A nao entram no denominador.
+onde `avaliados` inclui todos os campos com registro em `submission_conformities` (o CHECK constraint garante `status IN ('conforme', 'nao_conforme')`). Campos sem registro de conformidade — incluindo respostas N/A em `submission_values`, que nao geram conformity — nao entram no denominador.
 
-A separacao entre resposta (booleana, em `submission_values`) e avaliacao de conformidade (em `submission_conformities`) permite que o inspetor responda campos e decida a conformidade em etapas distintas durante a inspecao.
+A separacao entre resposta (em `submission_values`) e avaliacao de conformidade (em `submission_conformities`) permite que o inspetor responda campos e decida a conformidade em etapas distintas durante a inspecao.
+
+Observacao: o campo `score_breakdown.total_boolean` mantem o nome por compatibilidade, mas conta todos os campos nao-section (nao apenas booleanos).
 
 ### Soft delete por tipo de entidade
 

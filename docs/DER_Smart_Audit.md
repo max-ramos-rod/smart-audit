@@ -92,6 +92,16 @@ Relacionamentos:
 - `teams 1:N team_members`
 - `users 1:N team_members`
 
+### Auditoria
+
+- `audit_logs`
+
+Relacionamentos:
+
+- `companies 1:N audit_logs`
+- `users 1:N audit_logs` (como `actor_id`)
+- `users 1:N audit_logs` (como `target_user_id`, opcional)
+
 ## DER textual
 
 ```text
@@ -101,16 +111,18 @@ users
   |-< password_         |-< forms
   |   reset_tokens      |    `-< form_versions
   |                     |         `-< form_fields
-  `-< notification_     |
-      reads             |-< submissions >- users
-                        |      |
-                        |      |- form_versions
-                        |      |-< submission_values >- form_fields
-                        |      |      `-< attachments
-                        |      `-< submission_conformities >- form_fields
+  |-< notification_     |
+  |   reads             |-< submissions >- users
+  |                     |      |
+  `-< audit_logs >------|      |- form_versions
+      (actor +          |      |-< submission_values >- form_fields
+       target,          |      |      `-< attachments
+       opt.)            |      `-< submission_conformities >- form_fields
                         |
-                        `-< teams
-                               `-< team_members >- users
+                        |-< teams
+                        |      `-< team_members >- users
+                        |
+                        `-< audit_logs
 ```
 
 ## DER em Mermaid
@@ -135,6 +147,9 @@ erDiagram
     COMPANIES ||--o{ TEAMS : owns
     TEAMS ||--o{ TEAM_MEMBERS : has
     USERS ||--o{ TEAM_MEMBERS : belongs_to
+    COMPANIES ||--o{ AUDIT_LOGS : owns
+    USERS ||--o{ AUDIT_LOGS : performs
+    USERS ||--o{ AUDIT_LOGS : targeted_by
 ```
 
 ## Tabelas
@@ -212,9 +227,8 @@ Observacoes:
 
 - `id UUID PK`
 - `user_id UUID FK -> users.id ON DELETE CASCADE`
-- `notification_key VARCHAR(120)`
-- `read BOOLEAN DEFAULT FALSE`
-- `dismissed BOOLEAN DEFAULT FALSE`
+- `notification_key VARCHAR(100)`
+- `dismissed BOOLEAN NOT NULL DEFAULT FALSE`
 - `created_at TIMESTAMPTZ`
 - `updated_at TIMESTAMPTZ`
 
@@ -225,7 +239,9 @@ Restricoes:
 Observacoes:
 
 - chave deterministica: `pending-{submission_id}`, `low-score-{submission_id}`, `excellent-{submission_id}`
-- a tabela armazena o estado de leitura (`read`) e de dismiss (`dismissed`)
+- nao existe coluna `read`: "lida" e derivada da existencia de uma linha com `dismissed = FALSE`
+  (ver `NotificationReadRepository.get_read_keys`); marcar como lida = INSERT com `dismissed=false`,
+  dispensar = UPSERT com `dismissed=true`
 - notificacoes com `dismissed = TRUE` sao filtradas antes de retornar ao cliente
 - upsert via `ON CONFLICT DO UPDATE SET dismissed = TRUE` ao dispensar
 
@@ -374,16 +390,21 @@ Restricoes:
 
 Observacoes:
 
-- registra a avaliacao de conformidade do inspetor para cada campo booleano
-- e a fonte primaria do calculo de score ponderado (substitui a leitura de `submission_values`)
-- `justification` armazena o motivo de nao conformidade (opcional)
-- N/A e representado pela ausencia de linha (sem registro em `submission_conformities`)
+- registra a avaliacao de conformidade do inspetor para qualquer campo
+  respondivel (todos os tipos exceto `section`); na pratica o uso predominante
+  e em campos booleanos, mas o schema e o backend nao restringem por tipo
+- e a fonte primaria do calculo de score ponderado (substitui a leitura de
+  `submission_values`)
+- `justification` armazena o motivo de nao conformidade (opcional; obrigatorio
+  na finalizacao para campos com `status='nao_conforme'`)
+- N/A em campo booleano e representado pela ausencia de linha nesta tabela
+  (sem registro em `submission_conformities`); a resposta N/A em si mora em
+  `submission_values.value_text = 'na'`
 
 ### `attachments`
 
 - `id UUID PK`
 - `submission_value_id UUID FK -> submission_values.id ON DELETE CASCADE`
-- `field_key VARCHAR(100)`
 - `file_url TEXT`
 - `thumbnail_url TEXT NULL`
 - `mime_type VARCHAR(120)`
@@ -397,7 +418,9 @@ Observacoes:
 - o arquivo fisico fica em disco em `settings.upload_dir/<company_id>/<uuid>.<ext>`
 - `attachments` armazena apenas metadados e a URL publica
 - vinculo e com `submission_value` (nao diretamente com a submission)
-- `field_key` facilita a busca de evidencias por campo sem JOIN em `form_fields`
+- `field_key` nao e coluna persistida: e resolvido em runtime via
+  `attachment.submission_value.form_field.key` e exposto apenas no payload
+  da `AttachmentResponse`
 - `uploaded_by` registra o usuario que fez o upload
 
 Tipos de arquivo permitidos: `image/jpeg`, `image/png`, `image/webp`, `video/mp4`, `video/quicktime`, `video/x-msvideo`, `audio/mpeg`, `audio/wav`, `audio/ogg`, `audio/mp4`, `application/pdf`
@@ -431,6 +454,34 @@ Observacoes:
 Restricoes:
 
 - `UNIQUE(team_id, user_id)`
+
+### `audit_logs`
+
+- `id UUID PK`
+- `company_id UUID FK -> companies.id`
+- `actor_id UUID FK -> users.id`
+- `target_user_id UUID NULL FK -> users.id`
+- `action VARCHAR(100)`
+- `meta JSON NULL`
+- `created_at TIMESTAMPTZ`
+
+Indices:
+
+- `ix_audit_logs_company_id`
+- `ix_audit_logs_created_at`
+
+Observacoes:
+
+- entidade imutavel: nao usa `TimestampMixin`, nao tem `updated_at`
+- `actor_id` e o usuario que executou a acao; `target_user_id` e o alvo opcional
+  (ex.: usuario revogado)
+- valores de `action` registrados pelo backend: `user.created`, `user.invited`,
+  `membership.revoked`, `membership.reactivated`, `team.deactivated`,
+  `company.deactivated`
+- `meta` armazena contexto adicional por acao (nome, role, etc.)
+- nao ha CASCADE em `company_id` nem em `actor_id`/`target_user_id`: a empresa
+  e desativada (soft delete via `is_active`), nunca excluida; usuarios revogados
+  preservam o historico
 
 ## Regras de consistencia
 
