@@ -1,0 +1,19 @@
+# https://editorconfig.org — estilo consistente entre editores e agentes de IA.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+# Python: 4 espacos; largura alinhada ao ruff (pyproject.toml: line-length = 100)
+[*.py]
+indent_size = 4
+max_line_length = 100
+
+# Markdown: preservar espacos finais (usados para quebras de linha)
+[*.md]
+trim_trailing_whitespace = false

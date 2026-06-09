@@ -1,0 +1,16 @@
+# Normaliza todo texto para LF (repo e working tree).
+# O projeto roda em Linux/Docker; LF e o fim de linha correto em todos os ambientes.
+# Isto torna o EOL deterministico independentemente do core.autocrlf de cada maquina/agente.
+* text=auto eol=lf
+
+# Binarios versionados — nunca aplicar conversao de fim de linha.
+*.ttf   binary
+*.otf   binary
+*.woff  binary
+*.woff2 binary
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.pdf   binary
