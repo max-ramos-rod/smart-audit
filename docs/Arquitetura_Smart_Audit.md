@@ -78,10 +78,10 @@ Entidades principais:
 
 Capacidades ativas:
 
-- `POST /api/v1/auth/login`
+- `POST /api/v1/auth/login` — rate limit `10/minute` (slowapi)
 - `GET /api/v1/auth/me`
-- `POST /api/v1/auth/forgot-password` — gera token com TTL 1h, entrega via SMTP ou log
-- `POST /api/v1/auth/reset-password` — valida token, troca senha, marca token como usado
+- `POST /api/v1/auth/forgot-password` — gera token com TTL 1h, entrega via SMTP ou log; rate limit `5/minute`
+- `POST /api/v1/auth/reset-password` — valida token, troca senha, marca token como usado; rate limit `10/minute`
 - `GET /api/v1/me/companies`
 - `GET /api/v1/me/context`
 - `PATCH /api/v1/me`
@@ -157,7 +157,7 @@ Configuracao de campo via `config_json`:
 
 | Propriedade | Tipo | Campo aplicavel | Descricao |
 |---|---|---|---|
-| `weight` | `float` | `boolean` | Peso no calculo do score ponderado (default 1.0) |
+| `weight` | `float` | qualquer campo (exceto `section`) | Peso no calculo do score ponderado (default 1.0); o motor de score le `weight` de qualquer campo com conformidade, mas o builder UI so expoe o ajuste em `boolean` |
 | `allow_na` | `bool` | `boolean` | Habilita resposta N/A |
 | `options` | `string[]` | `select` | Opcoes do dropdown |
 
@@ -202,7 +202,7 @@ Capacidades ativas:
 - calculo de score ponderado baseado em `submission_conformities` (campos N/A e sem conformidade sao excluidos)
 - score_breakdown: `conformes`, `nao_conformes`, `sem_resposta`, `total_boolean`, `na_count` (hoje retorna sempre 0 — o calculo de N/A foi para o dominio de conformities; o campo permanece no contrato por compatibilidade)
 - exportacao PDF individual com score profissional e suporte a Unicode
-- exportacao CSV da lista (com filtro de status)
+- exportacao CSV da lista (com filtro de status; teto de 5000 linhas, prefixo BOM UTF-8 para compatibilidade com Excel PT-BR)
 
 Calculo de score:
 
@@ -221,6 +221,8 @@ Entidade principal:
 - `attachments`
 
 Relacionamento: `attachments` vincula ao `submission_value` correspondente ao campo de evidencia.
+
+Efeito colateral na criacao: `AttachmentService.create_attachment` tambem grava `answers_json[field_key] = file_url` no snapshot da submission, de modo que o campo aparece como respondido no armazenamento denormalizado. O `submission_value` alvo e criado on-demand se ainda nao existir.
 
 ### Uploads
 
@@ -657,6 +659,8 @@ Cobertura atual:
 | `test_form_service.py` | unidade | validate_fields (todos os tipos) |
 | `test_submission_service.py` | unidade | normalize_value, calculate_score (ponderado via conformities), score_breakdown (N/A), extract_value, parse_period_start, PDF |
 | `test_form_importer.py` | unidade | parse_csv, parse_excel, parse_import_file (27 casos) |
+
+Sem cobertura dedicada: o modulo `audit-logs` (rota `GET /api/v1/audit-logs`) nao tem arquivo de teste proprio; a escrita de eventos e exercitada de forma indireta nos fluxos de usuarios, equipes e empresa.
 
 Casos cobertos em `test_submissions_advanced.py`:
 

@@ -55,7 +55,7 @@ Leitura de status:
 
 - arquitetura principal: [docs/Arquitetura_Smart_Audit.md](docs/Arquitetura_Smart_Audit.md)
 - modelo de dados: [docs/DER_Smart_Audit.md](docs/DER_Smart_Audit.md)
-- handoff visual: [redesign-handoff/README.md](redesign-handoff/README.md)
+- handoff visual: pasta [redesign-handoff/](redesign-handoff/) (mockups HTML de referência: Form Builder, Inspeção, Inspeção Lista, landing)
 
 ## Observação importante
 

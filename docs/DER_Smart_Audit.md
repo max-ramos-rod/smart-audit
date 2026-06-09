@@ -290,7 +290,7 @@ Restricoes:
 
 - `UNIQUE(form_version_id, key)`
 - `UNIQUE(form_version_id, position)`
-- `CHECK field_type IN ('boolean', 'text', 'number', 'select', 'date', 'section')`
+- `CHECK field_type IN ('boolean', 'text', 'number', 'select', 'date', 'section')` — esta constraint e a unica barreira de validacao do tipo: o schema Pydantic aceita `str` livre e o servico nao reenumera os tipos
 
 Tipos de campo e mapeamento de armazenamento:
 
@@ -320,7 +320,7 @@ Estrutura de `config_json` por tipo:
 }
 ```
 
-- `weight` (float, default 1.0): peso no calculo de score ponderado
+- `weight` (float, default 1.0): peso no calculo de score ponderado; o motor de score le `weight` de qualquer campo respondivel (todos exceto `section`) com conformidade — o builder UI so configura o ajuste em `boolean`
 - `allow_na` (bool, default false): habilita resposta N/A em campos booleanos
 - `options` (string[]): opcoes visiveis no select
 
@@ -417,7 +417,8 @@ Observacoes:
 
 - o arquivo fisico fica em disco em `settings.upload_dir/<company_id>/<uuid>.<ext>`
 - `attachments` armazena apenas metadados e a URL publica
-- vinculo e com `submission_value` (nao diretamente com a submission)
+- vinculo e com `submission_value` (nao diretamente com a submission); o `submission_value` alvo e criado on-demand na criacao do anexo se ainda nao existir
+- efeito colateral na criacao do anexo: grava `answers_json[field_key] = file_url` no snapshot da submission
 - `field_key` nao e coluna persistida: e resolvido em runtime via
   `attachment.submission_value.form_field.key` e exposto apenas no payload
   da `AttachmentResponse`
