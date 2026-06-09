@@ -1,0 +1,18 @@
+---
+description: Lembretes de regras do frontend (Vue 3 + Pinia). Detalhes em docs/ai/AI_RULES.md e CLAUDE.md.
+globs: frontend/**
+alwaysApply: false
+---
+
+# Frontend — ao editar `frontend/**`
+
+Consulte `docs/ai/AI_RULES.md` (seção "Frontend") e `CLAUDE.md` (seção Frontend). Pontos-chave
+(detalhes nos docs, não aqui):
+
+- HTTP só via `frontend/src/services/api/http.ts`; **nunca** `axios` direto em views/stores.
+- Base `/app/` em sincronia nos 3 pontos: `vite.config.ts`, `router/index.ts`, `nginx.conf`.
+- Lógica de score/threshold só em `frontend/src/utils/score.ts`.
+- Stores Pinia por domínio; tipos em `frontend/src/types/`.
+- Validar com `npm run build` (inclui `vue-tsc`) e `npm test` antes de concluir.
+
+Verifique o comportamento no código antes de implementar.

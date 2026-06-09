@@ -1,0 +1,23 @@
+---
+description: Smart Audit — entrada obrigatória para agentes. Aponta para a documentação canônica em docs/ai e ADRs. Não duplica conteúdo.
+alwaysApply: true
+---
+
+# Smart Audit — regra de projeto
+
+Este projeto mantém a documentação para IA em `docs/ai/` (fonte única da verdade). Esta regra
+**não** repete o conteúdo — apenas exige sua leitura.
+
+Antes de qualquer implementação, leia nesta ordem:
+
+1. `docs/ai/START_HERE.md` — orientação e fatos críticos.
+2. `docs/ai/AI_RULES.md` — regras invioláveis (camadas, async, RBAC, contratos, testes, git).
+3. ADRs relevantes em `docs/adr/` (índice em `docs/adr/README.md`).
+
+Apoio: `CLAUDE.md` (operacional), `docs/ai/AI_WORKFLOWS.md` (comandos),
+`docs/ai/AI_MODELS.md` (modelo de dados), `docs/ai/AI_DECISIONS.md` (decisões finas).
+
+**Fluxo obrigatório:** Documentação → Código → Implementação. Nunca assuma comportamento;
+verifique no código real (models, services, routers, migrations).
+
+Ao abrir PR, siga `.github/PULL_REQUEST_TEMPLATE.md` (checklist anti-drift).

@@ -1,0 +1,19 @@
+---
+description: Lembretes de regras do backend (FastAPI + SQLAlchemy async). Detalhes em docs/ai/AI_RULES.md e ADRs.
+globs: backend/**
+alwaysApply: false
+---
+
+# Backend — ao editar `backend/**`
+
+Consulte `docs/ai/AI_RULES.md` (seções "Arquitetura em camadas" e "Async SQLAlchemy") e os
+ADRs 0001, 0002, 0003, 0004, 0011. Pontos que mais quebram (detalhes nos docs, não aqui):
+
+- Fluxo `api → service → repository → db`; **service commita, repository dá flush**.
+- Async: `db.add`/`add_all` síncronos; o resto exige `await`. **Sem lazy loading** → `selectinload`.
+- Toda query de domínio filtra `company_id`; escolha o guard de papel correto.
+- Respostas via `success_response`/`paginated_response`; erros RFC 7807.
+- Request schemas com `Field(min_length/max_length)`. Migrations à mão, do repo root.
+- Testes: `python -m pytest` (nunca `pytest` puro), com Postgres migrado.
+
+Verifique o comportamento no código antes de implementar.
