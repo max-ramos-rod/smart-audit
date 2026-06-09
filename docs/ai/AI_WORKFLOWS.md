@@ -25,6 +25,7 @@ python -m pytest                          # suite completa
 python -m pytest backend/tests/integration/test_forms.py
 python -m pytest -k test_login_and_me
 python -m pytest backend/tests/unit/
+python -m pytest --cov=app --cov-report=term-missing      # com cobertura (gate fail_under=75 no CI)
 
 # Lint
 ruff check backend
@@ -65,6 +66,7 @@ npm install
 npm run dev        # Vite em 0.0.0.0:5174 (base /app/ só afeta build)
 npm run build      # vue-tsc --noEmit + vite build (type-check faz parte do build)
 npm test           # Vitest (run once)
+npm run test:coverage  # Vitest + cobertura v8 (thresholds checados no CI)
 npm run test:e2e   # Playwright (sobe dev server na 5200, API mockada)
 npm run lint       # ESLint (flat config) — .ts e .vue
 npm run lint:fix   # ESLint com --fix

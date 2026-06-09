@@ -57,8 +57,8 @@ jobs:
       - name: Run migrations
         run: alembic upgrade head
 
-      - name: Run tests
-        run: python -m pytest
+      - name: Run tests (with coverage)
+        run: python -m pytest --cov=app --cov-report=term-missing
 
   frontend:
     name: Frontend — typecheck + tests
@@ -94,8 +94,8 @@ jobs:
         run: npx vue-tsc --noEmit
         working-directory: frontend
 
-      - name: Run tests
-        run: npm test
+      - name: Run tests (with coverage)
+        run: npm run test:coverage
         working-directory: frontend
 
   e2e:

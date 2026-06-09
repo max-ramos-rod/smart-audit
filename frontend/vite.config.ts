@@ -21,5 +21,16 @@ export default defineConfig({
     globals: true,
     clearMocks: true,
     exclude: ['**/node_modules/**', '**/e2e/**'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'text-summary'],
+      // Pisos abaixo do atual (~81% linhas): barram regressao sem bloquear hoje.
+      thresholds: {
+        statements: 75,
+        branches: 65,
+        functions: 70,
+        lines: 75,
+      },
+    },
   },
 })
