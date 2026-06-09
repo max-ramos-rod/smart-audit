@@ -9,6 +9,10 @@ Ambiente: Windows PowerShell; virtualenv na raiz (`.venv`). Alembic roda do **re
 # Instalar (editável) com extras de dev
 pip install -e ".[dev]"
 
+# Opcional: hooks de pre-commit (ruff + eslint/prettier do frontend antes do commit;
+# mypy e testes ficam no CI). Config em .pre-commit-config.yaml
+pre-commit install
+
 # Rodar a API (lê .env da raiz)
 uvicorn app.main:app --reload --app-dir backend --port 8003
 

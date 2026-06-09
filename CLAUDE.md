@@ -25,6 +25,10 @@ All Python commands assume the repo-root virtualenv (`.venv`). On Windows PowerS
 # Install (editable) with dev extras
 pip install -e ".[dev]"
 
+# Optional: enable local pre-commit hooks (ruff + frontend eslint/prettier before commit;
+# mypy and tests stay in CI). See .pre-commit-config.yaml
+pre-commit install
+
 # Run the API (reads .env from repo root)
 uvicorn app.main:app --reload --app-dir backend --port 8003
 

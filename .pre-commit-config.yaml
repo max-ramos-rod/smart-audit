@@ -1,0 +1,26 @@
+# Hooks de feedback local (rapido) antes do commit. Setup:
+#   pip install -e ".[dev]"
+#   pre-commit install
+# mypy e os testes ficam no CI (mais pesados). Aqui rodam ruff (backend) e
+# lint/format do frontend usando o tooling do proprio projeto (node_modules).
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.12.0
+    hooks:
+      - id: ruff # lint do backend (config em pyproject.toml)
+
+  - repo: local
+    hooks:
+      - id: frontend-eslint
+        name: frontend eslint
+        language: system
+        entry: npm --prefix frontend run lint
+        pass_filenames: false
+        files: ^frontend/.*\.(ts|vue|js)$
+
+      - id: frontend-prettier
+        name: frontend prettier (check)
+        language: system
+        entry: npm --prefix frontend run format:check
+        pass_filenames: false
+        files: ^frontend/.*\.ts$
