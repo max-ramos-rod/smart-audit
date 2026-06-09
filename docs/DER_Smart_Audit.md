@@ -521,9 +521,11 @@ Isso vale para:
 
 Nao existe tabela `notifications`. O endpoint `GET /me/notifications` deriva alertas em tempo real a partir de `submissions`:
 
-- `in_progress` ha mais de 24h → alerta `pending`
-- `completed` com score < 80% → alerta `low_score`
-- `completed` com score >= 90% → alerta `excellent`
+- `in_progress` ha mais de 24h → alerta `pending` (sem piso de data)
+- `completed` finalizada nos ultimos 30 dias com score < 80% → alerta `low_score`
+- `completed` finalizada nos ultimos 30 dias com score >= 90% → alerta `excellent`
+
+A query lê no maximo 50 submissions e a resposta e limitada as 20 notificacoes mais recentes.
 
 O estado de leitura e dismiss por usuario e persistido em `notification_reads`. Upsert via `ON CONFLICT DO UPDATE` na constraint `uq_notification_reads_user_key`. Notificacoes com `dismissed = TRUE` sao excluidas da resposta antes de retornar ao cliente.
 

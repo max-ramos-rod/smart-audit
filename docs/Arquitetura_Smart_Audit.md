@@ -87,7 +87,7 @@ Capacidades ativas:
 - `PATCH /api/v1/me`
 - `GET /api/v1/me/stats` — retorna metricas por periodo com `score_by_form` e `score_trend`
 - `GET /api/v1/me/usage` — contagens reais de uso vs limites do plano (`users`, `forms`, `submissions_this_month`)
-- `GET /api/v1/me/notifications` — derivadas de submissions; retorna `read: bool` e `dismissed: bool` persistidos
+- `GET /api/v1/me/notifications` — derivadas de submissions; retorna `read: bool` (derivado da existencia de linha nao-dispensada em `notification_reads`); notificacoes dispensadas sao omitidas da resposta
 - `POST /api/v1/me/notifications/read` — marca uma notificacao como lida
 - `POST /api/v1/me/notifications/read-all` — marca todas as notificacoes fornecidas como lidas
 - `POST /api/v1/me/notifications/dismiss` — descarta uma notificacao (persistido em `notification_reads.dismissed`)
@@ -110,6 +110,7 @@ Responsavel por gerenciar membros da empresa.
 Capacidades ativas:
 
 - `GET /api/v1/users` — lista memberships ativos (`revoked_at IS NULL`)
+- `GET /api/v1/users/revoked` — lista memberships revogados (`revoked_at IS NOT NULL`)
 - `GET /api/v1/users/{id}`
 - `POST /api/v1/users` — cria usuario com senha inicial e vincula via membership
 - `POST /api/v1/users/invite` — convida usuario por e-mail (sem senha): cria usuario com senha aleatoria inutilizavel, vincula via membership, gera token e envia link
@@ -284,10 +285,11 @@ Capacidades ativas:
 - `score_by_form`: media de score por formulario (ultimos 10, ordem crescente — piores primeiro)
 - `score_trend`: media diaria de score dos ultimos 30 dias
 - notificacoes em `/api/v1/me/notifications`: derivadas em tempo real das submissions
-  - inspecoes `in_progress` ha mais de 24h geram alerta `pending`
-  - `completed` com score < 80% geram alerta `low_score`
-  - `completed` com score >= 90% geram alerta `excellent`
-- estado de leitura persistido em `notification_reads.read = TRUE`
+  - inspecoes `in_progress` ha mais de 24h geram alerta `pending` (sem piso de data)
+  - `completed` finalizadas nos ultimos 30 dias com score < 80% geram alerta `low_score`
+  - `completed` finalizadas nos ultimos 30 dias com score >= 90% geram alerta `excellent`
+  - a query lê no maximo 50 submissions e a resposta e limitada as 20 notificacoes mais recentes
+- estado de leitura derivado da existencia de linha em `notification_reads` com `dismissed = FALSE` (nao ha coluna `read`)
 - estado de dismiss persistido em `notification_reads.dismissed = TRUE`; notificacoes dispensadas nao aparecem na listagem
 
 ### Relatorio e exportacao PDF
@@ -365,6 +367,38 @@ Padrao principal:
 - envelopes: [backend/app/core/responses.py](/c:/Projetos/smart-audit/backend/app/core/responses.py)
 - router principal: [backend/app/api/v1/router.py](/c:/Projetos/smart-audit/backend/app/api/v1/router.py)
 - gerador PDF: [backend/app/modules/submissions/pdf.py](/c:/Projetos/smart-audit/backend/app/modules/submissions/pdf.py)
+
+### Controle de acesso por papel (RBAC)
+
+As rotas sao protegidas por quatro dependencias em [backend/app/modules/memberships/permissions.py](/c:/Projetos/smart-audit/backend/app/modules/memberships/permissions.py), cada uma exigindo um conjunto de papeis (alem de membership ativo na empresa, `revoked_at IS NULL`):
+
+| Guard | Papeis permitidos |
+|---|---|
+| `get_current_membership` | qualquer membro ativo (OWNER, ADMIN, MANAGER, INSPECTOR, VIEWER) |
+| `get_operator_membership` | OWNER, ADMIN, MANAGER, INSPECTOR |
+| `get_manager_membership` | OWNER, ADMIN, MANAGER |
+| `get_admin_membership` | OWNER, ADMIN |
+| `get_owner_membership` | OWNER |
+
+Aplicacao por recurso:
+
+| Recurso | Leitura | Escrita | Guard de escrita |
+|---|---|---|---|
+| `companies` | qualquer membro | `PATCH` admin / `DELETE` owner | `get_admin_membership` / `get_owner_membership` |
+| `users` (incl. `revoked`, `invite`, `reactivate`) | ADMIN+ | ADMIN+ | `get_admin_membership` |
+| `audit-logs` | ADMIN+ | — | `get_admin_membership` |
+| `forms` | qualquer membro | criar / importar / publicar versao | `get_manager_membership` |
+| `teams` | qualquer membro | criar / editar / desativar / membros | `get_manager_membership` |
+| `submissions` | qualquer membro | criar / answers / conformity / finish | `get_operator_membership` |
+| `attachments` | qualquer membro | criar / deletar | `get_current_membership` |
+| `uploads` | — | enviar arquivo | `get_current_membership` |
+| `search` | qualquer membro | — | — |
+| `me` (stats, usage, notifications) | qualquer membro / usuario autenticado | marcar lida / dispensar | usuario autenticado |
+
+Notas:
+
+- **VIEWER e somente leitura no fluxo de inspecao** (nao cria nem responde submissions — `get_operator_membership` o exclui), mas **pode enviar uploads e criar/remover anexos**, pois `uploads` e `attachments` exigem apenas membership ativo.
+- `auth` (`login`, `forgot-password`, `reset-password`) e publico; `auth/me` exige apenas usuario autenticado.
 
 ## 5. Arquitetura frontend
 
@@ -491,13 +525,14 @@ Rotas agregadas hoje:
 - `auth` (login, me, forgot-password, reset-password)
 - `companies`
 - `me` (context, companies, stats com score_by_form/score_trend, usage, notifications com read/dismiss)
-- `users` (CRUD + convite via `POST /users/invite` + revogacao via `DELETE /users/{id}` + reativacao)
+- `users` (CRUD + listagem de revogados via `GET /users/revoked` + convite via `POST /users/invite` + revogacao via `DELETE /users/{id}` + reativacao)
 - `forms` (CRUD, versoes, importacao via CSV/Excel)
 - `submissions` (CRUD, answers, conformity, finish, export CSV, export PDF com `?inline`)
 - `search`
 - `teams`
 - `attachments`
 - `uploads`
+- `audit-logs` (`GET /api/v1/audit-logs` — lista de eventos de auditoria com filtro por acao e paginacao; requer ADMIN)
 
 ### Frontend
 
@@ -725,7 +760,7 @@ Dados historicos (inspecoes, respostas, evidencias, membros de equipe) sao prese
 
 As notificacoes sao derivadas do estado das submissions em tempo real. Nao existe tabela `notifications` no banco.
 
-O estado de leitura e dismiss e persistido em `notification_reads` (campos `read: bool` e `dismissed: bool`, chave composta `user_id + notification_key`). A chave e deterministica — ex.: `excellent-{submission_id}` — o que permite upsert sem conflito. Notificacoes dispensadas sao filtradas antes de retornar ao cliente.
+O estado de leitura e dismiss e persistido em `notification_reads` (coluna `dismissed: bool`; nao ha coluna `read` — "lida" e derivada da existencia de uma linha com `dismissed = FALSE`; chave composta `user_id + notification_key`). A chave e deterministica — ex.: `excellent-{submission_id}` — o que permite upsert sem conflito. Notificacoes dispensadas sao filtradas antes de retornar ao cliente.
 
 ### PDF com fonte DejaVu Sans TTF
 
