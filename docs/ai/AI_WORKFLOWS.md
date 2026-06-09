@@ -31,6 +31,25 @@ python backend/scripts/create_user.py --name "Admin" --email admin@smartaudit.lo
 python backend/scripts/link_user_company.py --email admin@smartaudit.local --company-name "Acme" --company-slug acme --role OWNER
 ```
 
+## Contrato de API (OpenAPI)
+
+O FastAPI gera o contrato em runtime (`backend/app/main.py`, com os defaults). Nao ha snapshot
+versionado — obtenha sob demanda:
+
+- **Interativo (dev/local):** com a API no ar (`uvicorn app.main:app --app-dir backend --port 8003`):
+  - Swagger UI: `http://127.0.0.1:8003/docs`
+  - ReDoc: `http://127.0.0.1:8003/redoc`
+  - JSON: `http://127.0.0.1:8003/openapi.json`
+
+  As rotas aparecem com o prefixo real `/api/v1/...`. Em **producao** esses caminhos de raiz
+  **nao** sao expostos pelo proxy (so `/api/` e `/uploads/` vao ao backend — ver Deploy); use dev/local.
+- **Offline (sem subir o servidor):** importa o app e serializa `app.openapi()`:
+  ```powershell
+  python backend/scripts/export_openapi.py             # stdout
+  python backend/scripts/export_openapi.py -o openapi.json
+  ```
+  Requer venv ativo + `.env` (nao acessa o banco). Schema atual: OpenAPI 3.1.0, ~43 paths.
+
 ## Frontend
 
 ```powershell

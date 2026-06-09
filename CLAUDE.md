@@ -48,6 +48,9 @@ ruff check --fix backend
 # Seed scripts (require DB up + .env configured)
 python backend/scripts/create_user.py --name "Admin" --email admin@smartaudit.local --password admin123456
 python backend/scripts/link_user_company.py --email admin@smartaudit.local --company-name "Acme" --company-slug acme --role OWNER
+
+# Export the OpenAPI contract (no DB needed; venv + .env). Live docs at /docs, /openapi.json (root, dev only).
+python backend/scripts/export_openapi.py -o openapi.json
 ```
 
 ### Frontend
