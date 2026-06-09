@@ -3,7 +3,11 @@
 > Documento gerado por análise comparativa entre documentação e implementação real.
 > **Data:** 2026-06-08 · **Escopo:** backend, frontend, migrations e testes × `README.md`,
 > `CLAUDE.md`, `docs/Arquitetura_Smart_Audit.md`, `docs/DER_Smart_Audit.md`, `docs/Deploy_Smart_Audit.md`.
-> **Regra:** somente leitura — nenhum arquivo de código ou documentação foi alterado por este relatório.
+> **Regra (geração original):** somente leitura — nenhum arquivo foi alterado pela auditoria.
+>
+> **Atualização 2026-06-09:** os achados acionáveis foram resolvidos em commits posteriores.
+> As seções originais abaixo são preservadas para rastreabilidade e cada uma recebeu um marcador
+> de status. Resumo em "Status de resolução".
 
 ## Método e observações de escopo
 
@@ -14,6 +18,25 @@
   O Vitest foi reexecutado nesta análise: **119 passed** (confirmado). Backend e E2E não foram
   reexecutados; os números são tratados como baseline declarado.
 - Estrutura real de testes: 13 integração + 3 unidade (backend), 19 arquivos Vitest, 8 specs E2E.
+
+---
+
+## Status de resolução (2026-06-09)
+
+Pós-auditoria, os itens acionáveis foram corrigidos:
+
+| Item | Status | Onde foi resolvido |
+|---|---|---|
+| §2.1 escopo de `weight` (contradição interna) | ✅ Resolvido | tabelas de `config_json` na Arquitetura e DER alinhadas (commit `1b19c0c`) |
+| §2.2 inventário não citava lacuna de teste | ✅ Resolvido (doc) | nota em Arquitetura §9 (`1b19c0c`); o teste de `audit-logs` em si continua ausente |
+| §3 rate limits, teto CSV, teto de 50 na query, BOM, efeito do anexo | ✅ Resolvido | documentados em Arquitetura/DER (`1b19c0c`) |
+| §3 RBAC (`GET /companies/me`, VIEWER) | ✅ Resolvido | matriz de RBAC na Arquitetura §4 (`2e8e33c`) |
+| §4 link quebrado `redesign-handoff/README.md` | ✅ Resolvido | README aponta para a pasta (`1b19c0c`) |
+| §4 `PROMPT.md` ausente | ◻️ N/A | nunca foi afirmado por documento; segue inexistente |
+| §5 decisões implícitas | ✅ Resolvido | catalogadas em `docs/ai/AI_DECISIONS.md` e promovidas a ADRs em `docs/adr/` (`1ff79a5`) |
+
+> Lacuna remanescente (não é de documentação): o módulo `audit-logs` segue **sem teste dedicado**
+> (`test_audit_logs.py` / `audit.service.test.ts` inexistentes).
 
 ---
 
@@ -48,7 +71,7 @@ Itens em que documentação e código estão alinhados e foram verificados nesta
 
 ## 2. Documentação desatualizada / divergente
 
-### 2.1 `config_json.weight` descrito como exclusivo de `boolean` (contradição interna)
+### 2.1 `config_json.weight` descrito como exclusivo de `boolean` (contradição interna) — ✅ Resolvido
 
 - **Código:** `calculate_score` (`submissions/service.py`) lê `field.config_json.get("weight")` para
   **qualquer** campo com registro de conformidade (todos exceto `section`), não só `boolean`.
@@ -59,13 +82,17 @@ Itens em que documentação e código estão alinhados e foram verificados nesta
   se contradizem entre si.
 - **Severidade:** baixa. Na prática a UI (`FormFieldEditor.vue`) só expõe `weight` em `boolean`, então
   o efeito visível coincide com a tabela — mas o backend é mais permissivo do que as tabelas declaram.
+- **Status (2026-06-09):** ✅ as tabelas de `config_json` na Arquitetura e no DER foram alinhadas
+  (peso aplicável a qualquer campo exceto `section`; UI ajusta só em `boolean`).
 
-### 2.2 Inventário de testes não cita lacunas de cobertura
+### 2.2 Inventário de testes não cita lacunas de cobertura — ✅ Resolvido (documentação)
 
 - A seção 9 da Arquitetura lista 16 arquivos de teste backend (confere com o disco), mas o módulo
   `audit-logs` **não possui teste dedicado** (`test_audit_logs.py` inexistente) e o serviço de
   auditoria do frontend (`audit.service.ts`) **não possui** `audit.service.test.ts`. A documentação
   apresenta a auditoria como consolidada sem registrar essa lacuna de cobertura.
+- **Status (2026-06-09):** ✅ a Arquitetura §9 passou a registrar a ausência de teste dedicado para
+  `audit-logs`. A **cobertura de teste em si permanece ausente** — é uma lacuna de teste (não de doc).
 
 > Observação: divergências factuais anteriores (coluna `notification_reads.read`, ausência de
 > `audit-logs`/`GET /users/revoked` nas listas de rota) **já foram corrigidas** na documentação nesta
@@ -73,7 +100,12 @@ Itens em que documentação e código estão alinhados e foram verificados nesta
 
 ---
 
-## 3. Funcionalidades implementadas sem documentação
+## 3. Funcionalidades implementadas sem documentação — ✅ Resolvido
+
+> **Status (2026-06-09):** todos os itens abaixo foram documentados (rate limits, teto de 5000 no
+> CSV, teto de 50 na query de notificações, BOM, efeito do anexo em `answers_json` na Arquitetura/DER)
+> ou cobertos pela matriz de RBAC da Arquitetura §4 (`GET /companies/me`, VIEWER). A coluna
+> "Situação na doc" reflete o estado **na época da auditoria**.
 
 | Funcionalidade | Evidência | Situação na doc |
 |---|---|---|
@@ -87,7 +119,11 @@ Itens em que documentação e código estão alinhados e foram verificados nesta
 
 ---
 
-## 4. Documentação que descreve funcionalidades inexistentes
+## 4. Documentação que descreve funcionalidades inexistentes — ✅ Resolvido
+
+> **Status (2026-06-09):** ✅ o link do `README` foi corrigido para apontar para a pasta
+> `redesign-handoff/` (que existe). `PROMPT.md` segue inexistente, mas nunca foi afirmado por
+> nenhum documento — não é acionável.
 
 | Afirmação na documentação | Realidade | Arquivo |
 |---|---|---|
@@ -103,7 +139,11 @@ e o botão "Falar com o comercial" sem ação está corretamente registrado como
 
 ---
 
-## 5. Decisões arquiteturais implícitas encontradas no código
+## 5. Decisões arquiteturais implícitas encontradas no código — ✅ Resolvido
+
+> **Status (2026-06-09):** ✅ estas decisões foram tornadas explícitas — todas catalogadas em
+> `docs/ai/AI_DECISIONS.md` e as estruturais registradas como ADRs em `docs/adr/`. O `field_type`
+> validado pela CHECK também foi anotado no DER.
 
 Decisões reais embutidas na implementação, não declaradas explicitamente como decisão na documentação
 (ou apenas tangenciadas).
@@ -149,11 +189,10 @@ Decisões reais embutidas na implementação, não declaradas explicitamente com
 
 ## Síntese
 
-- **Aderência geral alta.** A maior parte da documentação reflete o código, sobretudo após as correções
-  recentes (`notification_reads`, RBAC, `audit-logs`, `GET /users/revoked`, janela de notificações).
-- **Divergências remanescentes são de baixa severidade:** contradição interna sobre escopo de `weight`
-  (§2.1) e link quebrado para `redesign-handoff/README.md` (§4).
-- **Lacunas de documentação** concentram-se em detalhes operacionais (rate limits, tetos de CSV/query,
-  BOM) e em cobertura de teste do módulo de auditoria (§2.2, §3).
-- **Decisões implícitas** (§5) merecem promoção a documentação explícita para reduzir surpresa futura,
-  com destaque para a validação de `field_type` no banco e o caráter latente de `weight`.
+- **Aderência geral alta**, agora ainda maior: todos os achados de documentação foram resolvidos.
+- **Divergências (§2.1, §4):** ✅ resolvidas — tabelas de `weight` alinhadas e link do README corrigido.
+- **Lacunas de documentação (§2.2, §3):** ✅ resolvidas — detalhes operacionais (rate limits, tetos de
+  CSV/query, BOM, efeito do anexo) e RBAC documentados.
+- **Decisões implícitas (§5):** ✅ promovidas a explícitas em `docs/ai/AI_DECISIONS.md` e `docs/adr/`.
+- **Único item ainda aberto** (e fora do escopo de documentação): ausência de teste dedicado para o
+  módulo `audit-logs` — lacuna de cobertura, a ser endereçada por um teste futuro.
