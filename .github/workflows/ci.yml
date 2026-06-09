@@ -69,6 +69,14 @@ jobs:
         run: npm ci
         working-directory: frontend
 
+      - name: Lint (ESLint)
+        run: npm run lint
+        working-directory: frontend
+
+      - name: Format check (Prettier)
+        run: npm run format:check
+        working-directory: frontend
+
       - name: Type check
         run: npx vue-tsc --noEmit
         working-directory: frontend

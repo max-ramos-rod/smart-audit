@@ -22,7 +22,10 @@ describe('auth.service', () => {
     it('posts to /auth/login and returns token response', async () => {
       vi.mocked(http.post).mockResolvedValue({ data: { data: mockTokenResponse } })
       const result = await login({ email: 'alice@test.com', password: 'secret' })
-      expect(http.post).toHaveBeenCalledWith('/auth/login', { email: 'alice@test.com', password: 'secret' })
+      expect(http.post).toHaveBeenCalledWith('/auth/login', {
+        email: 'alice@test.com',
+        password: 'secret',
+      })
       expect(result).toEqual(mockTokenResponse)
     })
   })

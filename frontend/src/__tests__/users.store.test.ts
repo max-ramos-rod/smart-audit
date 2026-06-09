@@ -109,7 +109,13 @@ describe('users.store', () => {
       vi.mocked(fetchUsers).mockResolvedValue(mockPaginatedResponse)
       const store = useUsersStore()
 
-      const payload = { name: 'Alice', email: 'alice@test.com', password: 'senha123', role: 'INSPECTOR', is_active: true }
+      const payload = {
+        name: 'Alice',
+        email: 'alice@test.com',
+        password: 'senha123',
+        role: 'INSPECTOR',
+        is_active: true,
+      }
       const result = await store.create(payload)
 
       expect(createUser).toHaveBeenCalledWith(payload)
@@ -125,7 +131,15 @@ describe('users.store', () => {
       vi.mocked(fetchUsers).mockResolvedValue(mockPaginatedResponse)
       const store = useUsersStore()
 
-      await expect(store.create({ name: 'X', email: 'x@x.com', password: '12345678', role: 'VIEWER', is_active: true })).rejects.toBe(err)
+      await expect(
+        store.create({
+          name: 'X',
+          email: 'x@x.com',
+          password: '12345678',
+          role: 'VIEWER',
+          is_active: true,
+        }),
+      ).rejects.toBe(err)
       expect(store.error).toBe('Email ja cadastrado.')
       expect(store.isSaving).toBe(false)
     })

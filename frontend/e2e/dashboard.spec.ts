@@ -6,7 +6,13 @@ test.describe('Dashboard (Home)', () => {
     await page.route(`${API}/forms**`, (r) =>
       r.fulfill({
         json: paginated([
-          { id: 'f1', name: 'Safety Check', current_version_number: 1, is_active: true, published_at: '2024-01-01T00:00:00Z' },
+          {
+            id: 'f1',
+            name: 'Safety Check',
+            current_version_number: 1,
+            is_active: true,
+            published_at: '2024-01-01T00:00:00Z',
+          },
         ]),
       }),
     )

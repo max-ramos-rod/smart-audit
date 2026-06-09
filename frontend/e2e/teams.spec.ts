@@ -8,9 +8,7 @@ const MOCK_TEAMS = [
 const MOCK_TEAM_DETAIL = {
   id: 't1',
   name: 'Alpha Team',
-  members: [
-    { user_id: 'u2', name: 'Bob Inspector', email: 'bob@test.com', role: 'INSPECTOR' },
-  ],
+  members: [{ user_id: 'u2', name: 'Bob Inspector', email: 'bob@test.com', role: 'INSPECTOR' }],
   created_at: '2024-01-01T00:00:00Z',
 }
 
@@ -44,7 +42,10 @@ test.describe('Teams', () => {
 
   test('opens member panel on Membros click', async ({ authed: page }) => {
     await page.route(`${API}/teams/t1**`, (r) => r.fulfill({ json: envelope(MOCK_TEAM_DETAIL) }))
-    await page.getByRole('button', { name: /membros/i }).first().click()
+    await page
+      .getByRole('button', { name: /membros/i })
+      .first()
+      .click()
     await expect(page.getByText('Bob Inspector')).toBeVisible()
   })
 

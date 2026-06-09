@@ -106,7 +106,7 @@ export const useTeamsStore = defineStore('teams', () => {
     try {
       const updated = await addTeamMember(teamId, userId)
       selectedTeam.value = updated
-      const idx = items.value.findIndex(t => t.id === teamId)
+      const idx = items.value.findIndex((t) => t.id === teamId)
       if (idx !== -1) items.value[idx].member_count = updated.members.length
       return updated
     } catch (err: any) {
@@ -123,7 +123,7 @@ export const useTeamsStore = defineStore('teams', () => {
     try {
       const updated = await removeTeamMember(teamId, userId)
       selectedTeam.value = updated
-      const idx = items.value.findIndex(t => t.id === teamId)
+      const idx = items.value.findIndex((t) => t.id === teamId)
       if (idx !== -1) items.value[idx].member_count = updated.members.length
       return updated
     } catch (err: any) {

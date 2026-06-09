@@ -109,7 +109,11 @@ describe('submissions.service', () => {
       const appendSpy = vi.spyOn(document.body, 'appendChild').mockImplementation((el) => el)
       const removeSpy = vi.spyOn(document.body, 'removeChild').mockImplementation((el) => el)
       const clickSpy = vi.fn()
-      vi.spyOn(document, 'createElement').mockReturnValue({ href: '', download: '', click: clickSpy } as any)
+      vi.spyOn(document, 'createElement').mockReturnValue({
+        href: '',
+        download: '',
+        click: clickSpy,
+      } as any)
 
       await exportSubmissionsCSV()
 
@@ -130,7 +134,11 @@ describe('submissions.service', () => {
       vi.mocked(http.get).mockResolvedValue({ data: mockBlob })
       vi.spyOn(document.body, 'appendChild').mockImplementation((el) => el)
       vi.spyOn(document.body, 'removeChild').mockImplementation((el) => el)
-      vi.spyOn(document, 'createElement').mockReturnValue({ href: '', download: '', click: vi.fn() } as any)
+      vi.spyOn(document, 'createElement').mockReturnValue({
+        href: '',
+        download: '',
+        click: vi.fn(),
+      } as any)
 
       await exportSubmissionsCSV('completed', 'f1')
 

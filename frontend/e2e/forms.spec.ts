@@ -21,14 +21,34 @@ const MOCK_FORM_DETAIL = {
     status: 'published',
     published_at: '2024-02-01T00:00:00Z',
     fields: [
-      { id: 'ff1', key: 'item_ok', label: 'Item OK?', field_type: 'boolean', required: true, position: 1, config_json: {} },
+      {
+        id: 'ff1',
+        key: 'item_ok',
+        label: 'Item OK?',
+        field_type: 'boolean',
+        required: true,
+        position: 1,
+        config_json: {},
+      },
     ],
   },
 }
 
 const MOCK_VERSIONS = [
-  { id: 'v2', version: 2, status: 'published', published_at: '2024-02-01T00:00:00Z', fields_count: 1 },
-  { id: 'v1', version: 1, status: 'archived', published_at: '2024-01-01T00:00:00Z', fields_count: 1 },
+  {
+    id: 'v2',
+    version: 2,
+    status: 'published',
+    published_at: '2024-02-01T00:00:00Z',
+    fields_count: 1,
+  },
+  {
+    id: 'v1',
+    version: 1,
+    status: 'archived',
+    published_at: '2024-01-01T00:00:00Z',
+    fields_count: 1,
+  },
 ]
 
 test.describe('Forms list', () => {

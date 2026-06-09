@@ -40,7 +40,21 @@ npm run dev        # Vite em 0.0.0.0:5174 (base /app/ só afeta build)
 npm run build      # vue-tsc --noEmit + vite build (type-check faz parte do build)
 npm test           # Vitest (run once)
 npm run test:e2e   # Playwright (sobe dev server na 5200, API mockada)
+npm run lint       # ESLint (flat config) — .ts e .vue
+npm run lint:fix   # ESLint com --fix
+npm run format     # Prettier (escopo: src/**/*.ts e e2e/**/*.ts)
+npm run format:check  # Prettier em modo verificacao (usado no CI)
 ```
+
+Lint/format (verificados no CI, job `frontend`):
+
+- **ESLint** cobre `.ts` e `.vue` (flat config em `frontend/eslint.config.js`; formatacao desligada via `@vue/eslint-config-prettier`). As regras `@typescript-eslint/no-explicit-any` e
+  `no-unused-vars` estao como **`warn`** (divida pre-existente; nao bloqueiam o CI). Codigo novo deve evitar ambos.
+- **Prettier** (`frontend/.prettierrc.json`: `semi:false`, `singleQuote:true`, `printWidth:100`) tem
+  escopo **apenas `.ts`**. `.vue` esta **fora** de proposito: com `semi:false`, o Prettier remove o `;`
+  separador de handlers inline com multiplos statements (ex.: `@click="a; b()"`), gerando template
+  invalido. `.css` tambem esta fora (evita churn grande no design system). Formatacao de `.vue`/`.css`
+  fica a cargo do editor (`.editorconfig`).
 
 ## Infra de teste (backend)
 

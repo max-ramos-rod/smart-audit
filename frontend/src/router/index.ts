@@ -163,10 +163,7 @@ router.beforeEach(async (to) => {
       authStore.setUser(contextStore.context.user)
     }
 
-    if (
-      contextStore.context?.requires_company_selection &&
-      to.name !== 'select-company'
-    ) {
+    if (contextStore.context?.requires_company_selection && to.name !== 'select-company') {
       return { name: 'select-company' }
     }
   }

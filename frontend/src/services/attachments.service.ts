@@ -22,9 +22,6 @@ export async function createAttachment(
   return response.data.data
 }
 
-export async function deleteAttachment(
-  submissionId: string,
-  attachmentId: string,
-): Promise<void> {
+export async function deleteAttachment(submissionId: string, attachmentId: string): Promise<void> {
   await http.delete(`/submissions/${submissionId}/attachments/${attachmentId}`)
 }

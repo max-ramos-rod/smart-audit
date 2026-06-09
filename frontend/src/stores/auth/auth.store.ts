@@ -2,7 +2,12 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 
 import { login as loginRequest } from '@/services/auth.service'
-import { clearAccessToken, readAccessToken, writeAccessToken, clearCompanyId } from '@/services/api/storage'
+import {
+  clearAccessToken,
+  readAccessToken,
+  writeAccessToken,
+  clearCompanyId,
+} from '@/services/api/storage'
 import type { AuthenticatedUser, LoginPayload } from '@/types/auth'
 
 export const useAuthStore = defineStore('auth', () => {

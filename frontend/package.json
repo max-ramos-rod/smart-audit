@@ -10,7 +10,11 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e:ui": "playwright test --ui",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write \"src/**/*.ts\" \"e2e/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\" \"e2e/**/*.ts\""
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.2.4",
@@ -25,7 +29,12 @@
     "@playwright/test": "^1.60.0",
     "@vitejs/plugin-vue": "^5.2.3",
     "@vitest/coverage-v8": "^4.1.7",
+    "@vue/eslint-config-prettier": "^10.2.0",
+    "@vue/eslint-config-typescript": "^14.8.0",
+    "eslint": "^9.39.4",
+    "eslint-plugin-vue": "^9.33.0",
     "jsdom": "^29.1.1",
+    "prettier": "^3.8.3",
     "typescript": "^5.8.3",
     "vite": "^6.3.5",
     "vitest": "^4.1.7",

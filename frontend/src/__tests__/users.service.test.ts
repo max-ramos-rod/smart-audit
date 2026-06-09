@@ -47,7 +47,12 @@ describe('users.service', () => {
   describe('createUser', () => {
     it('posts to /users with payload and returns user detail', async () => {
       vi.mocked(http.post).mockResolvedValue({ data: { data: mockDetail } })
-      const payload = { name: 'Alice', email: 'alice@test.com', password: 'pass1234', role: 'INSPECTOR' }
+      const payload = {
+        name: 'Alice',
+        email: 'alice@test.com',
+        password: 'pass1234',
+        role: 'INSPECTOR',
+      }
       const result = await createUser(payload as any)
       expect(http.post).toHaveBeenCalledWith('/users', payload)
       expect(result).toEqual(mockDetail)

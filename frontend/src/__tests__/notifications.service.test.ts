@@ -42,7 +42,9 @@ describe('notifications.service', () => {
 
   describe('markNotificationRead', () => {
     it('posts to /me/notifications/read with the key', async () => {
-      vi.mocked(http.post).mockResolvedValue({ data: { data: { key: 'excellent-s1', read: true } } })
+      vi.mocked(http.post).mockResolvedValue({
+        data: { data: { key: 'excellent-s1', read: true } },
+      })
       await markNotificationRead('excellent-s1')
       expect(http.post).toHaveBeenCalledWith('/me/notifications/read', { key: 'excellent-s1' })
     })

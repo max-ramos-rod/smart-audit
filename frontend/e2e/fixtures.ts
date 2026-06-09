@@ -3,7 +3,13 @@ import { test as base, type Page } from '@playwright/test'
 export const API = '**/api/v1'
 
 export const MOCK_USER = { id: 'u1', name: 'Alice Tester', email: 'alice@test.com' }
-export const MOCK_COMPANY = { id: 'c1', name: 'Acme Corp', slug: 'acme', role: 'OWNER', plan: 'starter' }
+export const MOCK_COMPANY = {
+  id: 'c1',
+  name: 'Acme Corp',
+  slug: 'acme',
+  role: 'OWNER',
+  plan: 'starter',
+}
 export const MOCK_CONTEXT = {
   user: MOCK_USER,
   active_company: MOCK_COMPANY,
@@ -24,7 +30,13 @@ export function envelope(data: unknown) {
 export function paginated(data: unknown[]) {
   return {
     data,
-    meta: { page: 1, page_size: 20, total: (data as unknown[]).length, total_pages: 1, has_next: false },
+    meta: {
+      page: 1,
+      page_size: 20,
+      total: (data as unknown[]).length,
+      total_pages: 1,
+      has_next: false,
+    },
   }
 }
 

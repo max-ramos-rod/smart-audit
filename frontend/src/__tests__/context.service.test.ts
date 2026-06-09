@@ -5,7 +5,12 @@ vi.mock('@/services/api/http', () => ({
 }))
 
 import { http } from '@/services/api/http'
-import { fetchMyCompanies, fetchMyContext, fetchMyStats, updateMe } from '@/services/context.service'
+import {
+  fetchMyCompanies,
+  fetchMyContext,
+  fetchMyStats,
+  updateMe,
+} from '@/services/context.service'
 
 const mockCompany = { id: 'c1', name: 'Acme', slug: 'acme', role: 'OWNER' }
 const mockContext = { user: { id: 'u1', name: 'Alice', email: 'a@test.com' }, company: mockCompany }

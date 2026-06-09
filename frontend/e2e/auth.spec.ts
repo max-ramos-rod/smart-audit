@@ -53,11 +53,18 @@ base.describe('Login', () => {
     )
     await page.route(`${API}/me/stats**`, (r) =>
       r.fulfill({
-        json: { data: { total_submissions: 0, completed: 0, in_progress: 0, avg_score: null, recent: [] } },
+        json: {
+          data: { total_submissions: 0, completed: 0, in_progress: 0, avg_score: null, recent: [] },
+        },
       }),
     )
     await page.route(`${API}/forms**`, (r) =>
-      r.fulfill({ json: { data: [], meta: { page: 1, page_size: 20, total: 0, total_pages: 1, has_next: false } } }),
+      r.fulfill({
+        json: {
+          data: [],
+          meta: { page: 1, page_size: 20, total: 0, total_pages: 1, has_next: false },
+        },
+      }),
     )
 
     await page.getByPlaceholder('seu@email.com').fill('alice@test.com')

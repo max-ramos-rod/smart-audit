@@ -105,5 +105,20 @@ export const useSubmissionsStore = defineStore('submissions', () => {
     error.value = null
   }
 
-  return { items, current, meta, isLoading, isSaving, error, load, loadOne, create, updateAnswers, finish, reset, status, formId }
+  return {
+    items,
+    current,
+    meta,
+    isLoading,
+    isSaving,
+    error,
+    load,
+    loadOne,
+    create,
+    updateAnswers,
+    finish,
+    reset,
+    status,
+    formId,
+  }
 })

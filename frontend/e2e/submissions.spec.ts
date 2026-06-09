@@ -29,13 +29,23 @@ const MOCK_VERSION = {
   status: 'published',
   published_at: null,
   fields: [
-    { id: 'ff1', key: 'item_ok', label: 'Item OK?', field_type: 'boolean', required: true, position: 1, config_json: {} },
+    {
+      id: 'ff1',
+      key: 'item_ok',
+      label: 'Item OK?',
+      field_type: 'boolean',
+      required: true,
+      position: 1,
+      config_json: {},
+    },
   ],
 }
 
 test.describe('Submissions list', () => {
   test.beforeEach(async ({ authed: page }) => {
-    await page.route(`${API}/submissions**`, (r) => r.fulfill({ json: paginated([MOCK_LIST_ITEM]) }))
+    await page.route(`${API}/submissions**`, (r) =>
+      r.fulfill({ json: paginated([MOCK_LIST_ITEM]) }),
+    )
     await page.goto('/app/submissions')
   })
 
@@ -65,7 +75,9 @@ test.describe('Create submission', () => {
   test('opens composer with form select after clicking Nova inspeção', async ({ authed: page }) => {
     await page.route(`${API}/submissions**`, (r) => r.fulfill({ json: paginated([]) }))
     await page.route(`${API}/forms**`, (r) =>
-      r.fulfill({ json: paginated([{ id: 'f1', name: 'Safety Check', current_version_number: 1 }]) }),
+      r.fulfill({
+        json: paginated([{ id: 'f1', name: 'Safety Check', current_version_number: 1 }]),
+      }),
     )
     await page.goto('/app/submissions')
     await page.getByRole('button', { name: /nova inspeção/i }).click()
@@ -74,9 +86,13 @@ test.describe('Create submission', () => {
   })
 
   test('creates submission and navigates to detail', async ({ authed: page }) => {
-    await page.route(`${API}/forms/f1/versions/v1**`, (r) => r.fulfill({ json: envelope(MOCK_VERSION) }))
+    await page.route(`${API}/forms/f1/versions/v1**`, (r) =>
+      r.fulfill({ json: envelope(MOCK_VERSION) }),
+    )
     await page.route(`${API}/forms**`, (r) =>
-      r.fulfill({ json: paginated([{ id: 'f1', name: 'Safety Check', current_version_number: 1 }]) }),
+      r.fulfill({
+        json: paginated([{ id: 'f1', name: 'Safety Check', current_version_number: 1 }]),
+      }),
     )
     await page.route(`${API}/submissions/s1**`, (r) => r.fulfill({ json: envelope(MOCK_DETAIL) }))
     await page.route(`${API}/submissions**`, (r) => {
@@ -94,7 +110,9 @@ test.describe('Create submission', () => {
 
 test.describe('Submission detail', () => {
   test.beforeEach(async ({ authed: page }) => {
-    await page.route(`${API}/forms/f1/versions/v1**`, (r) => r.fulfill({ json: envelope(MOCK_VERSION) }))
+    await page.route(`${API}/forms/f1/versions/v1**`, (r) =>
+      r.fulfill({ json: envelope(MOCK_VERSION) }),
+    )
     await page.route(`${API}/submissions/s1**`, (r) => r.fulfill({ json: envelope(MOCK_DETAIL) }))
     await page.goto('/app/submissions/s1')
   })
@@ -115,8 +133,15 @@ test.describe('Submission detail', () => {
 
 test.describe('Submission report', () => {
   test('shows completed submission report', async ({ authed: page }) => {
-    const completed = { ...MOCK_DETAIL, status: 'completed', score: 100, finished_at: '2024-01-10T11:00:00Z' }
-    await page.route(`${API}/forms/f1/versions/v1**`, (r) => r.fulfill({ json: envelope(MOCK_VERSION) }))
+    const completed = {
+      ...MOCK_DETAIL,
+      status: 'completed',
+      score: 100,
+      finished_at: '2024-01-10T11:00:00Z',
+    }
+    await page.route(`${API}/forms/f1/versions/v1**`, (r) =>
+      r.fulfill({ json: envelope(MOCK_VERSION) }),
+    )
     await page.route(`${API}/submissions/s1**`, (r) => r.fulfill({ json: envelope(completed) }))
     await page.goto('/app/submissions/s1/report')
     await expect(page.getByText('100').first()).toBeVisible()

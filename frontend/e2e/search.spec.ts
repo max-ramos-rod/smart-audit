@@ -2,10 +2,23 @@ import { API, envelope, test, expect } from './fixtures'
 
 const MOCK_RESULTS = {
   forms: [
-    { id: 'f1', name: 'Safety Check', current_version_number: 1, status: 'published', created_at: '' },
+    {
+      id: 'f1',
+      name: 'Safety Check',
+      current_version_number: 1,
+      status: 'published',
+      created_at: '',
+    },
   ],
   submissions: [
-    { id: 's1', form_name: 'Safety Check', status: 'completed', score: 95, started_at: '2024-01-10T10:00:00Z', finished_at: '2024-01-10T11:00:00Z' },
+    {
+      id: 's1',
+      form_name: 'Safety Check',
+      status: 'completed',
+      score: 95,
+      started_at: '2024-01-10T10:00:00Z',
+      finished_at: '2024-01-10T11:00:00Z',
+    },
   ],
 }
 

@@ -10,7 +10,10 @@ export function extractProblemMessage(error: any, fallback: string): string {
     return fallback
   }
 
-  if (typeof payload.detail === 'string' && payload.detail !== 'A requisicao contem dados invalidos.') {
+  if (
+    typeof payload.detail === 'string' &&
+    payload.detail !== 'A requisicao contem dados invalidos.'
+  ) {
     return payload.detail
   }
 

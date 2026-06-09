@@ -7,11 +7,7 @@ vi.mock('@/services/context.service', () => ({
   fetchMyStats: vi.fn(),
 }))
 
-import {
-  fetchMyCompanies,
-  fetchMyContext,
-  fetchMyStats,
-} from '@/services/context.service'
+import { fetchMyCompanies, fetchMyContext, fetchMyStats } from '@/services/context.service'
 import { useContextStore } from '@/stores/context/context.store'
 import type { UserCompany, UserContext } from '@/types/context'
 

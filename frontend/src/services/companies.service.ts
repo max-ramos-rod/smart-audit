@@ -33,13 +33,13 @@ export async function updateMyCompany(payload: CompanyUpdatePayload): Promise<Co
 }
 
 export interface UsageStat {
-  used:  number
+  used: number
   limit: number
 }
 
 export interface UsageData {
-  users:                 UsageStat
-  forms:                 UsageStat
+  users: UsageStat
+  forms: UsageStat
   submissions_this_month: UsageStat
 }
 

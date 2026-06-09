@@ -2,9 +2,19 @@ import { ref } from 'vue'
 import { defineStore } from 'pinia'
 
 import { extractProblemMessage } from '@/services/api/problem'
-import { createForm, fetchForms, fetchFormVersions, publishNewVersion } from '@/services/forms.service'
+import {
+  createForm,
+  fetchForms,
+  fetchFormVersions,
+  publishNewVersion,
+} from '@/services/forms.service'
 import type { PaginationMeta } from '@/types/api'
-import type { FormCreatePayload, FormListItem, FormVersionListItem, FormVersionPublishPayload } from '@/types/forms'
+import type {
+  FormCreatePayload,
+  FormListItem,
+  FormVersionListItem,
+  FormVersionPublishPayload,
+} from '@/types/forms'
 
 export const useFormsStore = defineStore('forms', () => {
   const items = ref<FormListItem[]>([])
@@ -76,5 +86,18 @@ export const useFormsStore = defineStore('forms', () => {
     versions.value = []
   }
 
-  return { items, meta, isLoading, isSaving, error, load, create, publishVersion, versions, isLoadingVersions, loadVersions, clearVersions }
+  return {
+    items,
+    meta,
+    isLoading,
+    isSaving,
+    error,
+    load,
+    create,
+    publishVersion,
+    versions,
+    isLoadingVersions,
+    loadVersions,
+    clearVersions,
+  }
 })

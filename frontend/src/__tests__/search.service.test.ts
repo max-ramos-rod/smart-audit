@@ -8,7 +8,15 @@ import { http } from '@/services/api/http'
 import { fetchSearch } from '@/services/search.service'
 
 const mockResult = {
-  forms: [{ id: 'f1', name: 'Safety Check', current_version_number: 1, status: 'published', created_at: '' }],
+  forms: [
+    {
+      id: 'f1',
+      name: 'Safety Check',
+      current_version_number: 1,
+      status: 'published',
+      created_at: '',
+    },
+  ],
   submissions: [],
 }
 
