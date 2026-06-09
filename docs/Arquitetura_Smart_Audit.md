@@ -24,9 +24,9 @@ Stack atual:
 - Deploy: Docker Compose (db + backend + frontend) atras de proxy reverso Nginx e Cloudflare Tunnel — ver `docs/Deploy_Smart_Audit.md`
 - CI: GitHub Actions com jobs separados para backend, frontend (Vitest) e E2E (Playwright)
 
-Baseline validado em `2026-06-06`:
+Baseline validado em `2026-06-09`:
 
-- backend: `216 passed`
+- backend: `220 passed`
 - frontend Vitest: `119 passed`
 - frontend build: `npm run build` OK
 - E2E Playwright: `54 testes` (todos mockados, sem backend necessario)
@@ -635,9 +635,9 @@ Observacao: mensagens de erro do backend nao usam acentos para evitar problemas 
 
 ### Backend
 
-Estado validado em `2026-06-06`:
+Estado validado em `2026-06-09`:
 
-- `216 passed`
+- `220 passed`
 
 Cobertura atual:
 
@@ -656,11 +656,12 @@ Cobertura atual:
 | `test_me.py` | integracao | context, stats, notificacoes, usage |
 | `test_uploads.py` | integracao | upload, validacao de tipo e tamanho |
 | `test_attachments.py` | integracao | evidencias |
+| `test_audit_logs.py` | integracao | auditoria: registro de evento, filtro por acao, guard ADMIN, isolamento |
 | `test_form_service.py` | unidade | validate_fields (todos os tipos) |
 | `test_submission_service.py` | unidade | normalize_value, calculate_score (ponderado via conformities), score_breakdown (N/A), extract_value, parse_period_start, PDF |
 | `test_form_importer.py` | unidade | parse_csv, parse_excel, parse_import_file (27 casos) |
 
-Sem cobertura dedicada: o modulo `audit-logs` (rota `GET /api/v1/audit-logs`) nao tem arquivo de teste proprio; a escrita de eventos e exercitada de forma indireta nos fluxos de usuarios, equipes e empresa.
+Cobertura de auditoria: `test_audit_logs.py` cobre a rota `GET /api/v1/audit-logs` (registro de evento, filtro por acao, guard ADMIN, isolamento por empresa). O servico de auditoria do frontend (`audit.service.ts`) ainda nao tem teste Vitest dedicado.
 
 Casos cobertos em `test_submissions_advanced.py`:
 

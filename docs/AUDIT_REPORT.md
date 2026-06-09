@@ -28,15 +28,15 @@ Pós-auditoria, os itens acionáveis foram corrigidos:
 | Item | Status | Onde foi resolvido |
 |---|---|---|
 | §2.1 escopo de `weight` (contradição interna) | ✅ Resolvido | tabelas de `config_json` na Arquitetura e DER alinhadas (commit `1b19c0c`) |
-| §2.2 inventário não citava lacuna de teste | ✅ Resolvido (doc) | nota em Arquitetura §9 (`1b19c0c`); o teste de `audit-logs` em si continua ausente |
+| §2.2 inventário não citava lacuna de teste | ✅ Resolvido | nota em Arquitetura §9 + `backend/tests/integration/test_audit_logs.py` criado (4 testes); resta o teste Vitest do `audit.service.ts` |
 | §3 rate limits, teto CSV, teto de 50 na query, BOM, efeito do anexo | ✅ Resolvido | documentados em Arquitetura/DER (`1b19c0c`) |
 | §3 RBAC (`GET /companies/me`, VIEWER) | ✅ Resolvido | matriz de RBAC na Arquitetura §4 (`2e8e33c`) |
 | §4 link quebrado `redesign-handoff/README.md` | ✅ Resolvido | README aponta para a pasta (`1b19c0c`) |
 | §4 `PROMPT.md` ausente | ◻️ N/A | nunca foi afirmado por documento; segue inexistente |
 | §5 decisões implícitas | ✅ Resolvido | catalogadas em `docs/ai/AI_DECISIONS.md` e promovidas a ADRs em `docs/adr/` (`1ff79a5`) |
 
-> Lacuna remanescente (não é de documentação): o módulo `audit-logs` segue **sem teste dedicado**
-> (`test_audit_logs.py` / `audit.service.test.ts` inexistentes).
+> Lacuna remanescente (não é de documentação): o backend já tem `test_audit_logs.py` (4 testes,
+> backend total 220 passed); resta apenas o teste Vitest do `audit.service.ts` no frontend.
 
 ---
 
@@ -91,8 +91,9 @@ Itens em que documentação e código estão alinhados e foram verificados nesta
   `audit-logs` **não possui teste dedicado** (`test_audit_logs.py` inexistente) e o serviço de
   auditoria do frontend (`audit.service.ts`) **não possui** `audit.service.test.ts`. A documentação
   apresenta a auditoria como consolidada sem registrar essa lacuna de cobertura.
-- **Status (2026-06-09):** ✅ a Arquitetura §9 passou a registrar a ausência de teste dedicado para
-  `audit-logs`. A **cobertura de teste em si permanece ausente** — é uma lacuna de teste (não de doc).
+- **Status (2026-06-09):** ✅ a Arquitetura §9 foi atualizada e a cobertura backend foi criada:
+  `backend/tests/integration/test_audit_logs.py` (4 testes; backend total 220 passed). Resta apenas
+  o teste Vitest do `audit.service.ts` no frontend.
 
 > Observação: divergências factuais anteriores (coluna `notification_reads.read`, ausência de
 > `audit-logs`/`GET /users/revoked` nas listas de rota) **já foram corrigidas** na documentação nesta
@@ -194,5 +195,5 @@ Decisões reais embutidas na implementação, não declaradas explicitamente com
 - **Lacunas de documentação (§2.2, §3):** ✅ resolvidas — detalhes operacionais (rate limits, tetos de
   CSV/query, BOM, efeito do anexo) e RBAC documentados.
 - **Decisões implícitas (§5):** ✅ promovidas a explícitas em `docs/ai/AI_DECISIONS.md` e `docs/adr/`.
-- **Único item ainda aberto** (e fora do escopo de documentação): ausência de teste dedicado para o
-  módulo `audit-logs` — lacuna de cobertura, a ser endereçada por um teste futuro.
+- **Cobertura de teste do `audit-logs`:** backend coberto por `test_audit_logs.py` (4 testes); resta
+  apenas o teste Vitest do `audit.service.ts` no frontend — único item ainda aberto (cobertura, não doc).
