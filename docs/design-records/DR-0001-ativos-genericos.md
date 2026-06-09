@@ -1,0 +1,322 @@
+# DR-0001 — Ativos Genéricos
+
+**Status:** Proposta · **Data:** 2026-06-08 · **Depende de:** — · **Toca o core:** Não (aditivo)
+**ADRs relacionadas:** 0003 (multi-tenancy), 0007 (config_json) · **Habilita:** DR-0002, DR-0005
+
+---
+
+## 1. Resumo Executivo
+
+**O que é.** Um modelo único e genérico para representar **qualquer objeto inspecionável** —
+veículo, apartamento, máquina de produção, ponte rolante, contrato — como uma **árvore de
+componentes tipados**, sem criar uma tabela por domínio. Inclui a noção de **dono do ativo**
+(`owner`) para servir, com o mesmo modelo, tanto inspeção patrimonial (objeto próprio) quanto
+empresa de inspeção (objeto de cliente externo).
+
+**Problema que resolve.** Hoje o formulário é "plano": não há entidade que represente o objeto
+inspecionado nem suas partes. Para inspecionar um carro com 4 rodas, o autor precisa criar 4
+campos manuais (rígido) ou 1 campo "rodas" (perde granularidade). Não há histórico por objeto,
+nem como distinguir "patrimônio próprio" de "ativo de cliente".
+
+**Quem se beneficia.** Os dois mercados, com o mesmo motor: inspeção interna/patrimonial
+(`owner = self`) e empresa de inspeção que emite laudo para terceiros (`owner = client`).
+
+> Este DR entrega **apenas o cadastro e a árvore de ativos + o vínculo da inspeção a um ativo**.
+> A *repetição de campo por componente* (enumerar 4 rodas no checklist) é o DR-0002, que toca o
+> core e vem depois.
+
+---
+
+## 2. Contexto Atual
+
+> Fatos verificados (ver `docs/Arquitetura_Smart_Audit.md`, `docs/DER_Smart_Audit.md`, ADRs).
+
+- **Multi-tenant** por `company_id`, empresa ativa via `X-Company-Id` (ADR 0003). Toda entidade
+  de domínio filtra por empresa.
+- **Formulários versionados** (`forms`/`form_versions`/`form_fields`) e **inspeções**
+  (`submissions`/`submission_values`/`submission_conformities`) existem e funcionam.
+- **`config_json` (JSONB)** já é o padrão para configuração flexível de campo (ADR 0007) — prova
+  de que o projeto adota "estrutura flexível em JSONB validada no service".
+- **Não existe** nenhuma entidade de "objeto"/"ativo"/"componente". A inspeção (`submissions`)
+  referencia apenas `form_version_id` e `company_id`.
+- Padrão de módulo: `service`/`repository`/`schemas` por bounded context (ADR 0001); PK UUID +
+  `TimestampMixin`; envelope `{data, meta}` + RFC 7807 (ADR 0011).
+
+**Dores:** inspeção sem objeto associado; granularidade por componente impossível sem editar o
+formulário; sem histórico por objeto; impossível separar patrimônio de ativo de cliente.
+
+---
+
+## 3. Objetivos
+
+### Funcionais
+
+- **OF1.** Definir **tipos de ativo** (molde): atributos esperados e blueprint de componentes.
+- **OF2.** Cadastrar **instâncias de ativo** com atributos livres (JSONB) e **árvore de
+  componentes** (cardinalidade decidida na instância).
+- **OF3.** Expandir, opcionalmente, o blueprint do tipo ao criar a instância (Veículo → 4 Rodas,
+  2 Portas), permitindo ajuste (caminhão → 6 Rodas).
+- **OF4.** Representar o **dono** do ativo: próprio (`self`) ou cliente externo (`client`).
+- **OF5.** Cadastrar **clientes** (entidade leve) para o caso "serviço a terceiros".
+- **OF6.** **Vincular uma inspeção a um ativo** (referência), sem ainda repetir campo por
+  componente.
+- **OF7.** Listar/consultar ativos por tipo, por cliente e por hierarquia.
+
+### Não Funcionais
+
+- **ONF1.** Aditivo ao core: nenhuma entidade existente é alterada nesta fase (apenas
+  `submissions` ganha referência **opcional** a ativo).
+- **ONF2.** Genérico por construção: adicionar um novo domínio (hospital, ponte) **não** exige
+  migração de schema.
+- **ONF3.** Isolamento por `company_id` em todas as entidades novas (ADR 0003).
+- **ONF4.** Escala por tenant; estrutura de árvore que não exija reescrita para indexar/
+  particionar depois.
+
+---
+
+## 4. Não Objetivos
+
+- **NÃO** repetir campo por componente no checklist (isso é o **DR-0002**).
+- **NÃO** modelar domínios específicos como classes (`Vehicle`, `Apartment`).
+- **NÃO** implementar recorrência/agendamento de inspeção por ativo (evolução futura).
+- **NÃO** construir portal de acesso do cliente externo (o laudo é entregue como arquivo).
+- **NÃO** validar schema de atributos no banco — validação fica no service (como `config_json`).
+
+---
+
+## 5. Alternativas Consideradas
+
+### 5.1 Representação do objeto
+
+**A) Tabela por domínio (`vehicles`, `apartments`, …).**
+- *Vantagens:* schema forte, queries diretas.
+- *Desvantagens:* explosão de tabelas/migrações; intratável como produto genérico.
+- *Rejeição:* contradiz o posicionamento de motor genérico.
+
+**B) Ativo genérico + `attributes_json` + árvore via `parent_asset_id` (adjacency list).** ✅
+- *Vantagens:* um modelo serve qualquer objeto; reusa a filosofia do `config_json` (ADR 0007);
+  cardinalidade por instância; aditivo.
+- *Desvantagens:* sem validação de schema no banco; queries recursivas mais complexas.
+- *Escolha:* recomendada. É o mesmo movimento template→instância já validado em forms.
+
+**C) Closure table / materialized path / `ltree` desde o início.**
+- *Vantagens:* leitura recursiva profunda eficiente.
+- *Desvantagens:* complexidade de escrita; otimização prematura.
+- *Rejeição (por ora):* adotar só se consultas recursivas profundas virarem gargalo medido.
+
+### 5.2 Modelagem do "componente"
+
+**A) Tabela `asset_components` separada de `assets`.**
+- *Desvantagens:* duplica conceito; um componente tem as mesmas propriedades de um ativo
+  (tipo, atributos, pode ter sub-componentes).
+- *Rejeição:* viola DRY; dificulta sub-árvores (amortecedor dentro da suspensão).
+
+**B) Componente **é** um `asset` com `parent_asset_id`.** ✅
+- *Escolha:* colapsa ativo e componente numa estrutura recursiva única — representa qualquer
+  objeto e qualquer profundidade.
+
+### 5.3 Cliente (owner externo)
+
+**A) Atributo de texto livre no ativo (`owner_name`).**
+- *Vantagens:* zero modelagem.
+- *Desvantagens:* sem consultas por cliente, sem reuso, sem dados de contato para laudo.
+- *Rejeição:* insuficiente para empresa de inspeção, que organiza por cliente.
+
+**B) Entidade `clients` leve + FK opcional no ativo.** ✅
+- *Escolha:* permite listar ativos por cliente e enriquecer o laudo. Continua opcional
+  (`owner = self` não usa).
+
+---
+
+## 6. Solução Recomendada
+
+### Modelo conceitual (três camadas)
+
+- **AssetType (molde, por empresa)** — define a forma de um tipo: `attributes_schema` (hints de
+  atributos) e o blueprint de componentes. Análogo a `form_versions` para campos.
+- **AssetTypeComponent (blueprint / BOM)** — relação de composição entre tipos: "Veículo é
+  composto de N Rodas, M Portas". Cada linha: tipo-pai, tipo-filho, label, `default_quantity`.
+- **Asset (instância, árvore)** — objeto concreto: `asset_type_id`, `attributes_json` (valores),
+  `parent_asset_id` (NULL = raiz; preenchido = componente), `owner_kind` (`self`|`client`),
+  `client_id` (opcional), `identifier`, `status`.
+- **Client (leve)** — destinatário do laudo no caso "serviço a terceiros".
+
+### Comportamento
+
+- Criar um `Asset` raiz de um tipo pode **expandir** o blueprint em componentes-instância
+  (`Asset` filhos), mas a instância pode divergir (mais/menos componentes).
+- Um componente é apenas um `Asset` cujo `parent_asset_id` aponta para outro `Asset`; a árvore
+  pode ter qualquer profundidade (suspensão → amortecedor).
+- Uma `Submission` ganha referência **opcional** a um `Asset` alvo (`asset_id` nullable).
+
+### Regras de negócio
+
+- **RN1.** Todo `Asset` pertence a uma empresa; um componente herda o `company_id` da raiz.
+- **RN2.** Cardinalidade de componentes é decidida na **instância**, não no tipo.
+- **RN3.** `owner_kind = self` → `client_id` nulo (patrimônio próprio). `owner_kind = client`
+  → `client_id` obrigatório.
+- **RN4.** A árvore não tem ciclos (um ativo não pode ser ancestral de si mesmo).
+- **RN5.** Soft delete por `status`/`is_active` segue a semântica da entidade (ADR 0009).
+
+---
+
+## 7. Impacto Arquitetural
+
+- **Banco.** Novas tabelas: `asset_types`, `asset_type_components`, `assets`, `clients`. Única
+  alteração no existente: `submissions.asset_id` (FK nullable). Índices: `(company_id,
+  parent_asset_id)`, `(company_id, asset_type_id)`, `(company_id, client_id)`.
+- **Backend.** Novos bounded contexts `assets` e `clients` (`service`/`repository`/`schemas`,
+  ADR 0001). Validação de `attributes_json`/blueprint no service (ADR 0007).
+- **Frontend.** Telas: tipos de ativo (blueprint), cadastro/edição de ativo com árvore de
+  componentes, seleção de ativo ao iniciar inspeção, cadastro de clientes. Base `/app/`.
+- **APIs.** Recursos REST sob `/api/v1` (`asset-types`, `assets`, `clients`); envelope + RFC
+  7807 (ADR 0011). Schemas de request com `Field(min/max)` (regra do projeto).
+- **Auth/Autorização.** Reusa guards de papel (ADR 0004): leitura para qualquer membro; escrita
+  de ativos/tipos para MANAGER+ (a definir na spec). **Acesso do cliente externo a "apenas seus
+  ativos" é row-level scoping** — fora deste DR.
+- **Multi-tenancy.** Todas as entidades carregam `company_id` (ADR 0003).
+- **Observabilidade/Auditoria.** `audit_logs` ganha eventos `asset.created`, `asset.updated`,
+  `client.created` (seguindo o padrão existente).
+
+---
+
+## 8. Impacto em ADRs
+
+- **Reusa** ADR 0003 (multi-tenancy), 0007 (filosofia JSONB), 0009 (soft delete), 0001
+  (camadas), 0011 (contrato HTTP) — sem alterá-los.
+- **Nova ADR necessária:** *"Modelo de ativos genéricos"* — registra a decisão de árvore
+  adjacency list + JSONB + componente-é-ativo + dualidade owner. Deve citar o ponto do código
+  quando implementada.
+
+---
+
+## 9. Modelo de Domínio
+
+### Entidades
+
+- **AssetType** — tipo/molde de objeto (por empresa).
+- **AssetTypeComponent** — composição entre tipos (blueprint/BOM).
+- **Asset** — instância concreta; raiz da árvore ou componente (via `parent_asset_id`).
+- **Client** — dono externo (opcional).
+
+### Relacionamentos
+
+```
+Company 1─N AssetType 1─N AssetTypeComponent (parent_type_id / child_type_id)
+Company 1─N Asset
+AssetType 1─N Asset
+Asset   1─N Asset            (parent_asset_id — árvore de componentes, profundidade livre)
+Company 1─N Client 1─N Asset (quando owner_kind = client)
+Asset   0─N Submission        (asset_id opcional em submissions)
+```
+
+### Atributos conceituais (sem DDL)
+
+```
+AssetType:  id, company_id, name, slug, description, attributes_schema(JSONB), is_active, ts
+AssetTypeComponent: id, parent_type_id, child_type_id, label, default_quantity, position
+Asset:      id, company_id, asset_type_id, parent_asset_id?, identifier,
+            attributes_json(JSONB), owner_kind('self'|'client'), client_id?, status, ts
+Client:     id, company_id, name, document?, contact_email?, ts
+```
+
+### Agregados e invariantes
+
+- **Agregado Ativo** — raiz `Asset` + subárvore de componentes; manipulada pela raiz.
+- **INV1.** `Asset`/`AssetType`/`Client` visíveis só na própria empresa (ADR 0003).
+- **INV2.** Componente tem o mesmo `company_id` da raiz.
+- **INV3.** Árvore sem ciclos.
+- **INV4.** `owner_kind=client` ⇒ `client_id` presente; `owner_kind=self` ⇒ `client_id` nulo.
+- **INV5.** `default_quantity ≥ 0`; cardinalidade real é da instância.
+
+---
+
+## 10. Fluxos
+
+### Principal — cadastrar ativo e vincular à inspeção
+
+1. Define-se (ou reusa-se) o `AssetType` "Veículo" com blueprint [4× Roda, 2× Porta, 1×
+   Suspensão].
+2. Cadastra-se o `Asset` "Veículo placa ABC" → o sistema expande o blueprint em componentes.
+3. (Opcional) ajusta-se a árvore (remove/adiciona componentes; caminhão → 6 Rodas).
+4. Ao iniciar uma inspeção, seleciona-se o ativo alvo (`submissions.asset_id`).
+5. A inspeção corre normalmente (campos do formulário); o vínculo dá histórico por objeto.
+
+### Alternativo — serviço a terceiros
+
+- Cadastra-se o `Client` "Transportadora Y"; o `Asset` recebe `owner_kind=client`,
+  `client_id=Y`. O restante é igual.
+
+### Cenários de erro
+
+- **Ciclo na árvore** (definir um ativo como filho de seu descendente) → rejeitado (INV3).
+- **`owner_kind=client` sem `client_id`** → rejeitado (INV4).
+- **Componente de empresa diferente da raiz** → rejeitado (INV2).
+- **Excluir tipo em uso por instâncias** → bloqueado/soft delete (a definir na spec).
+
+---
+
+## 11. Riscos
+
+### Técnicos
+- **R-T1. Modelagem da árvore.** Adjacency list é simples mas consultas recursivas profundas
+  (toda a subárvore) exigem CTE recursiva. *Mitigação:* CTE recursiva no repositório; closure
+  table só se medido como gargalo.
+- **R-T2. Atributos sem schema forte.** Configs inconsistentes. *Mitigação:* validar
+  `attributes_json` contra `attributes_schema` no service (padrão ADR 0007).
+
+### Negócio
+- **R-N1. Complexidade de UX da árvore.** Usuário se perde montando componentes. *Mitigação:*
+  blueprint do tipo gera a árvore pronta; edição é exceção.
+
+### Operacionais
+- **R-O1. Crescimento de linhas** (muitos componentes por ativo). *Mitigação:* índices por
+  tenant; medir antes de otimizar.
+
+---
+
+## 12. Estratégia de Implementação
+
+- **Fase 1.** `asset_types` + `assets` (árvore, sem blueprint automático) + CRUD + telas.
+- **Fase 2.** `asset_type_components` (blueprint) + expansão automática ao criar instância.
+- **Fase 3.** `clients` + `owner_kind`/`client_id` + listagem por cliente.
+- **Fase 4.** `submissions.asset_id` (vínculo da inspeção ao ativo) + histórico por objeto.
+
+> Cada fase é aditiva e independente; o vínculo da inspeção (Fase 4) é pré-requisito do DR-0002.
+
+---
+
+## 13. Critérios de Aceitação
+
+- **CA1.** É possível criar dois tipos de ativo de domínios diferentes (ex.: Veículo e
+  Apartamento) **sem** mudança de schema.
+- **CA2.** Um ativo pode ter componentes em árvore de profundidade ≥ 2 (ex.: Veículo → Suspensão
+  → Amortecedor).
+- **CA3.** A cardinalidade de componentes da instância pode divergir do blueprint do tipo.
+- **CA4.** Um ativo com `owner_kind=client` exige `client_id`; com `self`, recusa `client_id`.
+- **CA5.** Uma inspeção pode ser criada com e sem `asset_id` (retrocompatível).
+- **CA6.** Nenhum ativo/tipo/cliente vaza entre empresas (consultas filtram `company_id`).
+- **CA7.** Tentar criar ciclo na árvore é rejeitado com erro RFC 7807.
+
+---
+
+## 14. Questões em Aberto
+
+- **Q1.** Blueprint: `default_quantity` numérico (gera Roda 1..4) ou slots nomeados (Roda DD/DE)?
+- **Q2.** `Client` como entidade desde já, ou atributo no ativo até haver volume de serviço a
+  terceiros? (Recomendação: entidade, pois habilita laudo e listagem.)
+- **Q3.** Papel mínimo para criar/editar tipos de ativo (MANAGER+? ADMIN+?).
+- **Q4.** Excluir tipo/ativo: soft delete (`status`) ou bloqueio quando em uso?
+- **Q5.** `attributes_schema` é obrigatório no tipo ou opcional (atributos totalmente livres)?
+
+---
+
+## 15. Evoluções Futuras
+
+> Fora do escopo deste DR.
+
+- **Inspeção por componente** — enumerar componentes no checklist (**DR-0002**).
+- **Recorrência por ativo** — agendamento de inspeção, alerta de vencimento, histórico.
+- **Portal do cliente externo** — login do cliente para ver seus ativos/laudos.
+- **Importação de ativos em massa** (CSV/planilha de frota).
+- **Geolocalização/QR por ativo** — identificar o objeto físico em campo.

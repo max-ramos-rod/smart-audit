@@ -1,18 +1,29 @@
 # Design Record Evolutivo — Smart Audit como Plataforma de Inspeção e Conformidade de Ativos
 
-> **Natureza deste documento.** Registro arquitetural durável (não é spec, não é tarefa).
-> Captura decisões, contexto e intenção da evolução do produto. Serve de fonte para gerar,
-> depois, ADRs, user stories, product/technical specs, tasks, test plans e roadmaps — sem
-> rediscutir a arquitetura.
+> **Papel deste documento: ÍNDICE ESTRATÉGICO / VISÃO CONSOLIDADA.** É o mapa que liga a
+> tese de produto, o roadmap e os riscos de escala internacional. O **detalhamento por
+> iniciativa** vive em registros focados e independentes em
+> [`docs/design-records/`](design-records/README.md) — cada um com as 15 seções completas,
+> pronto para originar ADRs/specs/tasks sem rediscutir arquitetura.
 >
-> **Status:** Proposta · **Data:** 2026-06-08 · **Autoria:** arquitetura
-> **Escopo:** evolução estratégica de médio/longo prazo. Nada aqui está implementado, salvo
-> onde explicitamente marcado como "já existe".
+> | Iniciativa | Design Record focado |
+> |---|---|
+> | Ativos genéricos (árvore de componentes, owner próprio×cliente) | [DR-0001](design-records/DR-0001-ativos-genericos.md) |
+> | Inspeção por componente (toca o core — ADR 0006) | [DR-0002](design-records/DR-0002-inspecao-por-componente.md) |
+> | Geração de checklist por IA | [DR-0003](design-records/DR-0003-geracao-checklist-ia.md) |
+> | Score regulado (item crítico/knockout + threshold) | [DR-0004](design-records/DR-0004-score-regulado.md) |
+> | Ações corretivas + re-inspeção + laudo | [DR-0005](design-records/DR-0005-acoes-corretivas-laudo.md) |
+> | Abstração de relatório (`ReportRenderer`) | [DR-0006](design-records/DR-0006-abstracao-relatorio.md) |
 >
-> **Como ler junto do resto:** este documento referencia `docs/Arquitetura_Smart_Audit.md`,
-> `docs/DER_Smart_Audit.md`, `docs/Deploy_Smart_Audit.md` e os ADRs em `docs/adr/`. As
-> decisões já vigentes (ADR 0001–0014) são tratadas como **invariantes do core** e não são
-> rediscutidas aqui.
+> **Natureza.** Registro arquitetural durável (não é spec, não é tarefa). Captura decisões,
+> contexto e intenção. **Status:** Proposta · **Data:** 2026-06-08 · nada implementado salvo
+> onde marcado "já existe".
+>
+> **Como ler junto do resto:** referencia `docs/Arquitetura_Smart_Audit.md`,
+> `docs/DER_Smart_Audit.md`, `docs/Deploy_Smart_Audit.md` e os ADRs em `docs/adr/`. As decisões
+> vigentes (ADR 0001–0014) são **invariantes do core** e não são rediscutidas aqui. As seções
+> abaixo são a visão consolidada; para profundidade e critérios de aceitação por iniciativa,
+> use os DRs focados.
 
 ---
 
