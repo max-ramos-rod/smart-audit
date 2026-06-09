@@ -31,6 +31,11 @@ operacionais, com formulários versionados, score ponderado por conformidade, ev
    - **`AI_WORKFLOWS.md`** — comandos e receitas (rodar, testar, adicionar coisas).
    - **`AI_DECISIONS.md`** — decisões arquiteturais (explícitas e implícitas).
 
+> **Forward-looking (NÃO é estado atual):** `docs/Design_Record_Evolutivo.md` é um registro
+> de design **Proposta** (ativos genéricos, geração de checklist por IA, ações corretivas,
+> maturidade internacional). Use-o como fonte para gerar ADRs/specs/tasks — **não** o trate
+> como implementado. O estado real do código está nos itens 1–5 acima e nos ADRs `Aceita`.
+
 ## Stack verificada
 
 | Camada | Tecnologias |
