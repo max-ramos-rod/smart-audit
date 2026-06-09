@@ -5,9 +5,10 @@
 > `CLAUDE.md`, `docs/Arquitetura_Smart_Audit.md`, `docs/DER_Smart_Audit.md`, `docs/Deploy_Smart_Audit.md`.
 > **Regra (geração original):** somente leitura — nenhum arquivo foi alterado pela auditoria.
 >
-> **Atualização 2026-06-09:** os achados acionáveis foram resolvidos em commits posteriores.
-> As seções originais abaixo são preservadas para rastreabilidade e cada uma recebeu um marcador
-> de status. Resumo em "Status de resolução".
+> **✅ Auditoria encerrada (2026-06-09) — sem lacunas remanescentes.** Todos os achados acionáveis
+> foram resolvidos e verificados em commits posteriores (docs alinhados, cobertura de teste criada,
+> qualidade de código). As seções originais abaixo são preservadas para rastreabilidade e cada uma
+> recebeu um marcador de status. Resumo em "Status de resolução".
 
 ## Método e observações de escopo
 
@@ -22,6 +23,8 @@
 ---
 
 ## Status de resolução (2026-06-09)
+
+**Situação: ✅ ENCERRADA — todos os itens resolvidos, nenhuma lacuna remanescente.**
 
 Pós-auditoria, os itens acionáveis foram corrigidos:
 
