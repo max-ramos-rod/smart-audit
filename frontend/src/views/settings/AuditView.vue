@@ -15,6 +15,7 @@ const ACTION_LABELS: Record<string, string> = {
   'membership.revoked':     'Acesso revogado',
   'membership.reactivated': 'Acesso reativado',
   'user.created':           'Usuário criado',
+  'user.invited':           'Usuário convidado',
   'team.deactivated':       'Equipe desativada',
   'company.deactivated':    'Empresa desativada',
 }
@@ -23,6 +24,7 @@ const ACTION_CLASSES: Record<string, string> = {
   'membership.revoked':     'status-chip--inactive',
   'membership.reactivated': '',
   'user.created':           '',
+  'user.invited':           '',
   'team.deactivated':       'status-chip--inactive',
   'company.deactivated':    'status-chip--inactive',
 }
@@ -90,6 +92,7 @@ onMounted(() => load())
           <option value="membership.revoked">Acesso revogado</option>
           <option value="membership.reactivated">Acesso reativado</option>
           <option value="user.created">Usuário criado</option>
+          <option value="user.invited">Usuário convidado</option>
           <option value="team.deactivated">Equipe desativada</option>
           <option value="company.deactivated">Empresa desativada</option>
         </select>
