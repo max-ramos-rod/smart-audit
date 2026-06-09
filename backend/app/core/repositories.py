@@ -15,26 +15,22 @@ EntityT = TypeVar("EntityT")
 class SQLAlchemyRepository(Generic[ModelT], ABC):
     model: type[ModelT]
 
-    async def list(self, db: AsyncSession, *, order_by: Any | None = None) -> list[ModelT]:
-        statement = select(self.model)
-        if order_by is not None:
-            statement = statement.order_by(order_by)
-        return await self._list_from_stmt(db, statement)
-
     async def get(self, db: AsyncSession, entity_id: Any) -> ModelT | None:
         return await db.get(self.model, entity_id)
 
     async def create(self, db: AsyncSession, entity: ModelT) -> ModelT:
         return await self._save(db, entity)
 
-    async def update_fields(self, db: AsyncSession, entity: ModelT, data: dict[str, Any]) -> ModelT:
+    async def update_fields(
+        self, db: AsyncSession, entity: EntityT, data: dict[str, Any]
+    ) -> EntityT:
         for key, value in data.items():
             setattr(entity, key, value)
         db.add(entity)
         await db.flush()
         return entity
 
-    async def delete(self, db: AsyncSession, entity: ModelT) -> None:
+    async def delete(self, db: AsyncSession, entity: EntityT) -> None:
         await db.delete(entity)
         await db.flush()
 

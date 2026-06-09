@@ -204,6 +204,7 @@ class SubmissionService:
         created = await self.repository.get_submission(
             db, str(membership.company_id), str(submission.id)
         )
+        assert created is not None
         return self.serialize_submission(created)
 
     async def get_submission(
@@ -291,6 +292,7 @@ class SubmissionService:
         updated = await self.repository.get_submission(
             db, str(membership.company_id), submission_id
         )
+        assert updated is not None
         return self.serialize_submission(updated)
 
     async def save_conformity(
@@ -341,6 +343,7 @@ class SubmissionService:
         updated = await self.repository.get_submission(
             db, str(membership.company_id), submission_id
         )
+        assert updated is not None
         return self.serialize_submission(updated)
 
     async def finish_submission(
@@ -394,6 +397,7 @@ class SubmissionService:
         updated = await self.repository.get_submission(
             db, str(membership.company_id), submission_id
         )
+        assert updated is not None
         return self.serialize_submission(updated)
 
     async def export_pdf(

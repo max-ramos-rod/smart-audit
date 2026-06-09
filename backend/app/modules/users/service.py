@@ -107,6 +107,7 @@ class UserService:
         target_membership = await self.repository.get_company_user(
             db, str(membership.company_id), str(user.id)
         )
+        assert target_membership is not None
         return self.serialize_user(target_membership)
 
     async def invite_user(
@@ -169,6 +170,7 @@ class UserService:
         target_membership = await self.repository.get_company_user(
             db, str(membership.company_id), str(user.id)
         )
+        assert target_membership is not None
         return self.serialize_user(target_membership)
 
     async def update_user(
@@ -204,6 +206,7 @@ class UserService:
         updated_membership = await self.repository.get_company_user(
             db, str(membership.company_id), user_id
         )
+        assert updated_membership is not None
         return self.serialize_user(updated_membership)
 
     async def list_revoked_users(
@@ -278,7 +281,7 @@ class UserService:
             name=membership.user.name,
             email=membership.user.email,
             role=membership.role,
-            revoked_at=membership.revoked_at.isoformat(),
+            revoked_at=membership.revoked_at.isoformat() if membership.revoked_at else "",
         )
 
     @staticmethod

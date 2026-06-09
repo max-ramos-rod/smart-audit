@@ -51,6 +51,8 @@ class SmtpEmailSender:
 
     def _send_sync(self, message: EmailMessage) -> None:
         s = self._settings
+        # SmtpEmailSender so e instanciado quando smtp_host esta definido (ver get_email_sender).
+        assert s.smtp_host is not None
         msg: MIMEText | MIMEMultipart
         if message.html_body:
             msg = MIMEMultipart("alternative")

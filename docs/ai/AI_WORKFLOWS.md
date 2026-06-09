@@ -26,6 +26,9 @@ python -m pytest backend/tests/unit/
 ruff check backend
 ruff check --fix backend
 
+# Type check (mypy; config em pyproject.toml, cobre backend/app) — gate no CI
+mypy
+
 # Seed (precisa do DB no ar + .env)
 python backend/scripts/create_user.py --name "Admin" --email admin@smartaudit.local --password admin123456
 python backend/scripts/link_user_company.py --email admin@smartaudit.local --company-name "Acme" --company-slug acme --role OWNER

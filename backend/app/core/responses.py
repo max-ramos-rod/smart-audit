@@ -13,7 +13,8 @@ class ResponseEnvelope(BaseModel, Generic[T]):
 
 
 class PaginatedResponseEnvelope(ResponseEnvelope[T], Generic[T]):
-    meta: PageMeta
+    # Override intencional do tipo de `meta` do envelope base (dict -> PageMeta).
+    meta: PageMeta  # type: ignore[assignment]
 
 
 def success_response(data: Any, meta: dict[str, Any] | None = None) -> dict[str, Any]:

@@ -63,8 +63,11 @@ class TeamService:
         )
         await self.repository.create_team(db, team)
         await db.commit()
-        team = await self.repository.get_with_members(db, str(team.id), str(membership.company_id))
-        return self._serialize(team)
+        loaded = await self.repository.get_with_members(
+            db, str(team.id), str(membership.company_id)
+        )
+        assert loaded is not None
+        return self._serialize(loaded)
 
     async def update_team(
         self,
@@ -81,6 +84,7 @@ class TeamService:
         await self.repository.update_fields(db, team, {"name": payload.name})
         await db.commit()
         team = await self.repository.get_with_members(db, team_id, str(membership.company_id))
+        assert team is not None
         return self._serialize(team)
 
     async def deactivate_team(
@@ -134,6 +138,7 @@ class TeamService:
         await self.repository.create_member(db, member)
         await db.commit()
         team = await self.repository.get_with_members(db, team_id, str(membership.company_id))
+        assert team is not None
         return self._serialize(team)
 
     async def remove_member(
@@ -159,6 +164,7 @@ class TeamService:
         await self.repository.delete(db, member)
         await db.commit()
         team = await self.repository.get_with_members(db, team_id, str(membership.company_id))
+        assert team is not None
         return self._serialize(team)
 
     @staticmethod

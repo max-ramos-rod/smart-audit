@@ -35,9 +35,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
-app.add_exception_handler(HTTPException, http_exception_handler)
-app.add_exception_handler(RequestValidationError, validation_exception_handler)
+# Friccao conhecida do Starlette: os handlers abaixo sao tipados com subtipos especificos
+# de Exception (nao a base), por isso o ignore de arg-type em cada linha.
+app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)  # type: ignore[arg-type]
+app.add_exception_handler(HTTPException, http_exception_handler)  # type: ignore[arg-type]
+app.add_exception_handler(RequestValidationError, validation_exception_handler)  # type: ignore[arg-type]
 app.add_exception_handler(Exception, unhandled_exception_handler)
 
 app.include_router(api_router, prefix="/api/v1")

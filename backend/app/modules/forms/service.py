@@ -130,6 +130,7 @@ class FormService:
         created_form = await self.repository.get_form_by_id(
             db, str(membership.company_id), str(form.id)
         )
+        assert created_form is not None
         return self.serialize_form(created_form)
 
     async def publish_new_version(
@@ -176,6 +177,7 @@ class FormService:
         updated_form = await self.repository.get_form_by_id(
             db, str(membership.company_id), form_id
         )
+        assert updated_form is not None
         return self.serialize_form(updated_form)
 
     @staticmethod

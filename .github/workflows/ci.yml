@@ -45,6 +45,15 @@ jobs:
       - name: Lint (ruff)
         run: ruff check backend
 
+      - name: Type check (mypy)
+        run: mypy
+
+      - name: Dependency audit (pip-audit, advisory)
+        run: |
+          pip install pip-audit
+          pip-audit
+        continue-on-error: true
+
       - name: Run migrations
         run: alembic upgrade head
 
@@ -67,6 +76,10 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+        working-directory: frontend
+
+      - name: Dependency audit (npm)
+        run: npm audit --audit-level=high
         working-directory: frontend
 
       - name: Lint (ESLint)
