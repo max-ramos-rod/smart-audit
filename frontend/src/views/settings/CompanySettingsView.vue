@@ -10,6 +10,7 @@ import {
   updateMyCompany,
   type UsageData,
 } from '@/services/companies.service'
+import { extractProblemMessage } from '@/services/api/problem'
 import { useAuthStore } from '@/stores/auth/auth.store'
 import { useContextStore } from '@/stores/context/context.store'
 
@@ -19,7 +20,6 @@ const contextStore = useContextStore()
 
 const tab = ref<'general' | 'plan' | 'usage'>('general')
 const company = computed(() => contextStore.activeCompany)
-const stats = computed(() => contextStore.stats)
 
 const canEdit = computed(() =>
   ['OWNER', 'ADMIN'].includes(contextStore.context?.membership?.role ?? ''),
@@ -75,8 +75,8 @@ async function handleSave() {
     })
     savedOnce.value = true
     setTimeout(() => { savedOnce.value = false }, 3000)
-  } catch (err: any) {
-    saveError.value = err.response?.data?.detail ?? 'Erro ao salvar configurações.'
+  } catch (err) {
+    saveError.value = extractProblemMessage(err, 'Erro ao salvar configurações.')
   } finally {
     isSaving.value = false
   }
@@ -141,8 +141,8 @@ async function confirmDeactivate() {
     await deactivateCompany()
     authStore.logout()
     router.replace('/login')
-  } catch (err: any) {
-    deactivateError.value = err.response?.data?.detail ?? 'Erro ao desativar empresa.'
+  } catch (err) {
+    deactivateError.value = extractProblemMessage(err, 'Erro ao desativar empresa.')
     isDeactivating.value = false
   }
 }

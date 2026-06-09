@@ -73,7 +73,7 @@ async function handleCreate() {
     closeComposer()
     await loadPage(1)
     router.push({ name: 'submission-detail', params: { id: created.id } })
-  } catch (err: any) {
+  } catch (err) {
     createError.value = extractProblemMessage(err, 'Não foi possível criar a inspeção.')
   }
 }

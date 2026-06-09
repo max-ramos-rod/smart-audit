@@ -39,7 +39,7 @@ export const useUsersStore = defineStore('users', () => {
       const response = await fetchUsers(page, pageSize)
       items.value = response.data
       meta.value = response.meta
-    } catch (err: any) {
+    } catch (err) {
       error.value = extractProblemMessage(err, 'Nao foi possivel carregar usuarios.')
       throw err
     } finally {
@@ -53,7 +53,7 @@ export const useUsersStore = defineStore('users', () => {
     try {
       selectedUser.value = await fetchUser(userId)
       return selectedUser.value
-    } catch (err: any) {
+    } catch (err) {
       error.value = extractProblemMessage(err, 'Nao foi possivel carregar o usuario.')
       throw err
     } finally {
@@ -69,7 +69,7 @@ export const useUsersStore = defineStore('users', () => {
       await load(meta.value?.page ?? 1, meta.value?.page_size ?? 20)
       selectedUser.value = created
       return created
-    } catch (err: any) {
+    } catch (err) {
       error.value = extractProblemMessage(err, 'Nao foi possivel criar o usuario.')
       throw err
     } finally {
@@ -84,7 +84,7 @@ export const useUsersStore = defineStore('users', () => {
       const invited = await inviteUser(payload)
       await load(meta.value?.page ?? 1, meta.value?.page_size ?? 20)
       return invited
-    } catch (err: any) {
+    } catch (err) {
       error.value = extractProblemMessage(err, 'Nao foi possivel enviar o convite.')
       throw err
     } finally {
@@ -100,7 +100,7 @@ export const useUsersStore = defineStore('users', () => {
       await load(meta.value?.page ?? 1, meta.value?.page_size ?? 20)
       selectedUser.value = updated
       return updated
-    } catch (err: any) {
+    } catch (err) {
       error.value = extractProblemMessage(err, 'Nao foi possivel atualizar o usuario.')
       throw err
     } finally {
@@ -117,7 +117,7 @@ export const useUsersStore = defineStore('users', () => {
       if (selectedUser.value?.id === userId) {
         selectedUser.value = null
       }
-    } catch (err: any) {
+    } catch (err) {
       error.value = extractProblemMessage(err, 'Nao foi possivel revogar o acesso do usuario.')
       throw err
     } finally {
@@ -132,7 +132,7 @@ export const useUsersStore = defineStore('users', () => {
       const response = await fetchRevokedUsers(page, pageSize)
       revokedItems.value = response.data
       revokedMeta.value = response.meta
-    } catch (err: any) {
+    } catch (err) {
       error.value = extractProblemMessage(err, 'Nao foi possivel carregar usuarios revogados.')
       throw err
     } finally {
@@ -146,7 +146,7 @@ export const useUsersStore = defineStore('users', () => {
     try {
       await reactivateUser(userId)
       await loadRevoked(revokedMeta.value?.page ?? 1, revokedMeta.value?.page_size ?? 20)
-    } catch (err: any) {
+    } catch (err) {
       error.value = extractProblemMessage(err, 'Nao foi possivel reativar o usuario.')
       throw err
     } finally {

@@ -17,12 +17,11 @@ export default defineConfigWithVueTs(
   vueTsConfigs.recommended,
   skipFormatting,
   {
-    name: 'app/relaxed-rules',
+    // Testes usam `any` para mocks e payloads parciais — aceitavel apenas aqui.
+    name: 'app/test-overrides',
+    files: ['src/__tests__/**', 'e2e/**'],
     rules: {
-      // Divida pre-existente nesta base madura: mantidas como aviso (nao bloqueiam o CI)
-      // para limpeza incremental. Codigo novo deve evitar `any` e variaveis nao usadas.
-      '@typescript-eslint/no-explicit-any': 'warn',
-      '@typescript-eslint/no-unused-vars': 'warn',
+      '@typescript-eslint/no-explicit-any': 'off',
     },
   },
 )

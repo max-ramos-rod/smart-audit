@@ -70,7 +70,7 @@ npm run format      # Prettier (scope: src/**/*.ts + e2e/**/*.ts); .vue/.css exc
 npm run format:check # Prettier check (CI gate)
 ```
 
-ESLint config is `frontend/eslint.config.js` (flat, ESLint 9; formatting delegated to Prettier via `@vue/eslint-config-prettier`). `no-explicit-any`/`no-unused-vars` are **warnings** (pre-existing debt; do not add new ones). Prettier (`.prettierrc.json`: no semicolons, single quotes, width 100) is scoped to `.ts` only — `.vue` is excluded because `semi:false` strips the `;` separating multi-statement inline handlers (e.g. `@click="a; b()"`), producing invalid templates.
+ESLint config is `frontend/eslint.config.js` (flat, ESLint 9; formatting delegated to Prettier via `@vue/eslint-config-prettier`). `no-explicit-any`/`no-unused-vars` are **enforced as errors** (test files are exempt from `no-explicit-any` for mocks). API errors are handled via `extractProblemMessage` (`src/services/api/problem.ts`), not `catch (e: any)`. Prettier (`.prettierrc.json`: no semicolons, single quotes, width 100) is scoped to `.ts` only — `.vue` is excluded because `semi:false` strips the `;` separating multi-statement inline handlers (e.g. `@click="a; b()"`), producing invalid templates.
 
 The frontend expects the backend at `VITE_API_BASE_URL` (defaults to `http://127.0.0.1:8003/api/v1`). Copy `frontend/.env.example` to `frontend/.env.local` to override locally.
 

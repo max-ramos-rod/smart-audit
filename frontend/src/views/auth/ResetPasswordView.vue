@@ -27,7 +27,7 @@ async function submit() {
   try {
     await resetPassword(token.value, newPassword.value)
     done.value = true
-  } catch (err: any) {
+  } catch (err) {
     error.value = extractProblemMessage(err, 'Não foi possível redefinir a senha.')
   } finally {
     isLoading.value = false

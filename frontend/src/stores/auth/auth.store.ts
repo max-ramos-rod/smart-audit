@@ -2,6 +2,7 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 
 import { login as loginRequest } from '@/services/auth.service'
+import { extractProblemMessage } from '@/services/api/problem'
 import {
   clearAccessToken,
   readAccessToken,
@@ -27,8 +28,8 @@ export const useAuthStore = defineStore('auth', () => {
       user.value = response.user
       writeAccessToken(response.access_token)
       return response
-    } catch (err: any) {
-      error.value = err.response?.data?.detail ?? 'Nao foi possivel autenticar.'
+    } catch (err) {
+      error.value = extractProblemMessage(err, 'Nao foi possivel autenticar.')
       throw err
     } finally {
       isLoading.value = false

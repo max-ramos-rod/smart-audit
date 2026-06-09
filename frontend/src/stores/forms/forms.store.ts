@@ -32,7 +32,7 @@ export const useFormsStore = defineStore('forms', () => {
       const response = await fetchForms(page, pageSize)
       items.value = response.data
       meta.value = response.meta
-    } catch (err: any) {
+    } catch (err) {
       error.value = extractProblemMessage(err, 'Nao foi possivel carregar formularios.')
       throw err
     } finally {
@@ -47,7 +47,7 @@ export const useFormsStore = defineStore('forms', () => {
       const created = await createForm(payload)
       await load(1, meta.value?.page_size ?? 20)
       return created
-    } catch (err: any) {
+    } catch (err) {
       error.value = extractProblemMessage(err, 'Nao foi possivel criar o formulario.')
       throw err
     } finally {
@@ -62,7 +62,7 @@ export const useFormsStore = defineStore('forms', () => {
       const updated = await publishNewVersion(formId, payload)
       await load(1, meta.value?.page_size ?? 20)
       return updated
-    } catch (err: any) {
+    } catch (err) {
       error.value = extractProblemMessage(err, 'Nao foi possivel publicar a nova versao.')
       throw err
     } finally {
@@ -74,7 +74,7 @@ export const useFormsStore = defineStore('forms', () => {
     isLoadingVersions.value = true
     try {
       versions.value = await fetchFormVersions(formId)
-    } catch (err: any) {
+    } catch (err) {
       error.value = extractProblemMessage(err, 'Nao foi possivel carregar versoes.')
       throw err
     } finally {

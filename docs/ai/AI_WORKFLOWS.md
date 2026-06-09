@@ -68,7 +68,9 @@ npm run format:check  # Prettier em modo verificacao (usado no CI)
 Lint/format (verificados no CI, job `frontend`):
 
 - **ESLint** cobre `.ts` e `.vue` (flat config em `frontend/eslint.config.js`; formatacao desligada via `@vue/eslint-config-prettier`). As regras `@typescript-eslint/no-explicit-any` e
-  `no-unused-vars` estao como **`warn`** (divida pre-existente; nao bloqueiam o CI). Codigo novo deve evitar ambos.
+  `no-unused-vars` sao **erros** (barram o CI); arquivos de teste sao isentos de `no-explicit-any`
+  (mocks). Erros de API sao tratados via `extractProblemMessage` (`src/services/api/problem.ts`),
+  nao `catch (e: any)`.
 - **Prettier** (`frontend/.prettierrc.json`: `semi:false`, `singleQuote:true`, `printWidth:100`) tem
   escopo **apenas `.ts`**. `.vue` esta **fora** de proposito: com `semi:false`, o Prettier remove o `;`
   separador de handlers inline com multiplos statements (ex.: `@click="a; b()"`), gerando template

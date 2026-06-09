@@ -29,7 +29,7 @@ export const useTeamsStore = defineStore('teams', () => {
       const response = await fetchTeams(page, pageSize)
       items.value = response.data
       meta.value = response.meta
-    } catch (err: any) {
+    } catch (err) {
       error.value = extractProblemMessage(err, 'Nao foi possivel carregar equipes.')
       throw err
     } finally {
@@ -43,7 +43,7 @@ export const useTeamsStore = defineStore('teams', () => {
     try {
       selectedTeam.value = await fetchTeam(teamId)
       return selectedTeam.value
-    } catch (err: any) {
+    } catch (err) {
       error.value = extractProblemMessage(err, 'Nao foi possivel carregar a equipe.')
       throw err
     } finally {
@@ -59,7 +59,7 @@ export const useTeamsStore = defineStore('teams', () => {
       await load(meta.value?.page ?? 1, meta.value?.page_size ?? 20)
       selectedTeam.value = created
       return created
-    } catch (err: any) {
+    } catch (err) {
       error.value = extractProblemMessage(err, 'Nao foi possivel criar a equipe.')
       throw err
     } finally {
@@ -75,7 +75,7 @@ export const useTeamsStore = defineStore('teams', () => {
       await load(meta.value?.page ?? 1, meta.value?.page_size ?? 20)
       selectedTeam.value = updated
       return updated
-    } catch (err: any) {
+    } catch (err) {
       error.value = extractProblemMessage(err, 'Nao foi possivel atualizar a equipe.')
       throw err
     } finally {
@@ -92,7 +92,7 @@ export const useTeamsStore = defineStore('teams', () => {
       if (selectedTeam.value?.id === teamId) {
         selectedTeam.value = null
       }
-    } catch (err: any) {
+    } catch (err) {
       error.value = extractProblemMessage(err, 'Nao foi possivel excluir a equipe.')
       throw err
     } finally {
@@ -109,7 +109,7 @@ export const useTeamsStore = defineStore('teams', () => {
       const idx = items.value.findIndex((t) => t.id === teamId)
       if (idx !== -1) items.value[idx].member_count = updated.members.length
       return updated
-    } catch (err: any) {
+    } catch (err) {
       error.value = extractProblemMessage(err, 'Nao foi possivel adicionar membro.')
       throw err
     } finally {
@@ -126,7 +126,7 @@ export const useTeamsStore = defineStore('teams', () => {
       const idx = items.value.findIndex((t) => t.id === teamId)
       if (idx !== -1) items.value[idx].member_count = updated.members.length
       return updated
-    } catch (err: any) {
+    } catch (err) {
       error.value = extractProblemMessage(err, 'Nao foi possivel remover membro.')
       throw err
     } finally {

@@ -35,8 +35,8 @@ export const useContextStore = defineStore('context', () => {
         selectedCompanyId.value = context.value.active_company.id
         writeCompanyId(context.value.active_company.id)
       }
-    } catch (err: any) {
-      error.value = err.response?.data?.detail ?? 'Nao foi possivel carregar o contexto.'
+    } catch (err) {
+      error.value = extractProblemMessage(err, 'Nao foi possivel carregar o contexto.')
       throw err
     } finally {
       isLoading.value = false
@@ -71,7 +71,7 @@ export const useContextStore = defineStore('context', () => {
         context.value = { ...context.value, user: { ...context.value.user, name: updated.name } }
       }
       return updated
-    } catch (err: any) {
+    } catch (err) {
       updateProfileError.value = extractProblemMessage(err, 'Não foi possível atualizar o perfil.')
       throw err
     } finally {

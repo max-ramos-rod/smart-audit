@@ -18,7 +18,7 @@ async function submit() {
   try {
     await requestPasswordReset(email.value.trim())
     sent.value = true
-  } catch (err: any) {
+  } catch (err) {
     error.value = extractProblemMessage(err, 'Não foi possível enviar o link. Tente novamente.')
   } finally {
     isLoading.value = false

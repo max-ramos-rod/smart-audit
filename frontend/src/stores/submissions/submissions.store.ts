@@ -36,7 +36,7 @@ export const useSubmissionsStore = defineStore('submissions', () => {
       const response = await fetchSubmissions(page, pageSize, statusFilter, formIdFilter)
       items.value = response.data
       meta.value = response.meta
-    } catch (err: any) {
+    } catch (err) {
       error.value = extractProblemMessage(err, 'Nao foi possivel carregar inspecoes.')
       throw err
     } finally {
@@ -49,7 +49,7 @@ export const useSubmissionsStore = defineStore('submissions', () => {
     error.value = null
     try {
       current.value = await fetchSubmission(submissionId)
-    } catch (err: any) {
+    } catch (err) {
       error.value = extractProblemMessage(err, 'Nao foi possivel carregar a inspecao.')
       throw err
     } finally {
@@ -64,7 +64,7 @@ export const useSubmissionsStore = defineStore('submissions', () => {
       const created = await createSubmission(payload)
       current.value = created
       return created
-    } catch (err: any) {
+    } catch (err) {
       error.value = extractProblemMessage(err, 'Nao foi possivel criar a inspecao.')
       throw err
     } finally {
@@ -77,7 +77,7 @@ export const useSubmissionsStore = defineStore('submissions', () => {
     error.value = null
     try {
       current.value = await saveAnswers(submissionId, payload)
-    } catch (err: any) {
+    } catch (err) {
       error.value = extractProblemMessage(err, 'Nao foi possivel salvar as respostas.')
       throw err
     } finally {
@@ -90,7 +90,7 @@ export const useSubmissionsStore = defineStore('submissions', () => {
     error.value = null
     try {
       current.value = await finishSubmission(submissionId)
-    } catch (err: any) {
+    } catch (err) {
       error.value = extractProblemMessage(err, 'Nao foi possivel finalizar a inspecao.')
       throw err
     } finally {

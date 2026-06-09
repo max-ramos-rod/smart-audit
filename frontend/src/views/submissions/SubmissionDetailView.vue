@@ -214,12 +214,6 @@ const currentFieldStatus = computed(() => {
 
 // ── Navigation ────────────────────────────────────────────────────────────────
 
-function enterInspectionMode() {
-  inspectionIndex.value = 0
-  viewMode.value = 'card'
-  inspectionMode.value = true
-}
-
 function inspectionNext() {
   if (inspectionIndex.value < answerableFields.value.length - 1) {
     swipeExiting.value = 'right'
@@ -370,8 +364,6 @@ const TYPE_LABEL: Record<string, string> = {
   boolean: 'Sim/Não', text: 'Texto', number: 'Número', date: 'Data', select: 'Seleção',
 }
 
-const ALLOWED_MIMES = 'image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/x-msvideo,audio/mpeg,audio/wav,audio/ogg,audio/mp4,application/pdf'
-
 function evidenceMaxFiles(configJson: Record<string, unknown>): number {
   const v = configJson.max_files
   return typeof v === 'number' ? v : 20
@@ -383,12 +375,6 @@ function evidenceCanAddMore(fieldKey: string, configJson: Record<string, unknown
 
 function selectOptions(configJson: Record<string, unknown>): string[] {
   return Array.isArray(configJson.options) ? (configJson.options as string[]) : []
-}
-
-function mimeCategory(mimeType: string): 'image' | 'pdf' | 'file' {
-  if (mimeType.startsWith('image/')) return 'image'
-  if (mimeType === 'application/pdf') return 'pdf'
-  return 'file'
 }
 
 function fieldWeight(configJson: Record<string, unknown>): number {
@@ -477,7 +463,7 @@ async function handleEvidenceUpload(fieldKey: string, configJson: Record<string,
     const att    = await createAttachment(submissionId.value, { field_key: fieldKey, file_url: result.url, mime_type: result.mime_type, file_size: result.file_size })
     if (!evidenceAttachments[fieldKey]) evidenceAttachments[fieldKey] = []
     evidenceAttachments[fieldKey].push(att)
-  } catch (err: any) {
+  } catch (err) {
     evidenceErrors[fieldKey] = extractProblemMessage(err, 'Erro ao enviar evidência.')
   } finally {
     evidenceUploading[fieldKey] = false
@@ -491,7 +477,7 @@ async function handleEvidenceDelete(fieldKey: string, attachmentId: string) {
     if (evidenceAttachments[fieldKey]) {
       evidenceAttachments[fieldKey] = evidenceAttachments[fieldKey].filter((a) => a.id !== attachmentId)
     }
-  } catch (err: any) {
+  } catch (err) {
     evidenceErrors[fieldKey] = extractProblemMessage(err, 'Erro ao remover evidência.')
   }
 }
@@ -548,7 +534,7 @@ async function handleSave() {
     await submissionsStore.updateAnswers(submissionId.value, { answers: buildPayload() })
     savedOnce.value = true
     pendingRequiredFields.value = []
-  } catch (err: any) {
+  } catch (err) {
     saveError.value = extractProblemMessage(err, 'Não foi possível salvar as respostas.')
   }
 }
@@ -574,7 +560,7 @@ async function handleFinish() {
     }
     await submissionsStore.finish(submissionId.value)
     inspectionMode.value = false
-  } catch (err: any) {
+  } catch (err) {
     finishError.value = extractProblemMessage(err, 'Não foi possível finalizar a inspeção.')
   }
 }
@@ -645,18 +631,6 @@ function toggleListRow(key: string) {
       if (el && container) container.scrollTo({ top: el.offsetTop - 64, behavior: 'smooth' })
     })
   }
-}
-
-function jumpFirstPending() {
-  const first = answerableFields.value.find(f => !conformityStatus[f.key])
-  if (!first) return
-  listFilter.value = 'all'
-  expandedListKey.value = first.key
-  nextTick(() => {
-    const el = document.getElementById(`list-row-${first.key}`)
-    const container = document.getElementById('list-scroll-container')
-    if (el && container) container.scrollTo({ top: el.offsetTop - 64, behavior: 'smooth' })
-  })
 }
 
 function jumpNextPending(afterKey: string) {

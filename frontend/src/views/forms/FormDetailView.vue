@@ -349,7 +349,7 @@ async function submitVersion() {
     collapsedSectionsDetail.clear()
     // Reload fields after publish
     openVersionComposer()
-  } catch (err: any) {
+  } catch (err) {
     versionError.value = extractProblemMessage(err, 'Não foi possível publicar a nova versão.')
   }
 }

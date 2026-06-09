@@ -74,7 +74,7 @@ async function confirmReactivate(user: UserRevokedItem) {
   reactivateError.value = null
   try {
     await usersStore.reactivate(user.id)
-  } catch (err: any) {
+  } catch (err) {
     reactivateError.value = extractProblemMessage(err, 'Não foi possível reativar o acesso.')
   }
 }
@@ -85,7 +85,7 @@ async function confirmRevoke(user: UserListItem) {
   try {
     await usersStore.revoke(user.id)
     if (isEditing.value && form.id === user.id) resetForm()
-  } catch (err: any) {
+  } catch (err) {
     revokeError.value = extractProblemMessage(err, 'Não foi possível revogar o acesso.')
   }
 }
@@ -147,7 +147,7 @@ async function submit() {
     savedOnce.value = true
     setTimeout(() => { savedOnce.value = false }, 3000)
     resetForm()
-  } catch (err: any) {
+  } catch (err) {
     formError.value = extractProblemMessage(err, 'Não foi possível salvar o usuário.')
   }
 }

@@ -270,7 +270,7 @@ async function submitCreate() {
       })),
     })
     closeCreateComposer()
-  } catch (err: any) {
+  } catch (err) {
     createError.value = extractProblemMessage(err, 'Não foi possível criar o formulário.')
   }
 }
@@ -362,7 +362,7 @@ async function submitVersion() {
       fields: versionFields.value.map((f, i) => ({ ...f, position: i + 1 })),
     })
     closeVersionComposer()
-  } catch (err: any) {
+  } catch (err) {
     versionError.value = extractProblemMessage(err, 'Não foi possível publicar a nova versão.')
   }
 }
@@ -385,7 +385,7 @@ async function handleImportFile(event: Event) {
     const created = await importForm(file)
     await formsStore.load(1)
     router.push({ name: 'form-detail', params: { formId: created.id } })
-  } catch (err: any) {
+  } catch (err) {
     importError.value = extractProblemMessage(err, 'Não foi possível importar o formulário.')
   } finally {
     importLoading.value = false
