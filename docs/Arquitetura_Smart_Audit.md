@@ -27,7 +27,7 @@ Stack atual:
 Baseline validado em `2026-06-09`:
 
 - backend: `220 passed`
-- frontend Vitest: `119 passed`
+- frontend Vitest: `122 passed`
 - frontend build: `npm run build` OK
 - E2E Playwright: `54 testes` (todos mockados, sem backend necessario)
 
@@ -661,7 +661,7 @@ Cobertura atual:
 | `test_submission_service.py` | unidade | normalize_value, calculate_score (ponderado via conformities), score_breakdown (N/A), extract_value, parse_period_start, PDF |
 | `test_form_importer.py` | unidade | parse_csv, parse_excel, parse_import_file (27 casos) |
 
-Cobertura de auditoria: `test_audit_logs.py` cobre a rota `GET /api/v1/audit-logs` (registro de evento, filtro por acao, guard ADMIN, isolamento por empresa). O servico de auditoria do frontend (`audit.service.ts`) ainda nao tem teste Vitest dedicado.
+Cobertura de auditoria: `test_audit_logs.py` cobre a rota `GET /api/v1/audit-logs` (registro de evento, filtro por acao, guard ADMIN, isolamento por empresa). O servico de auditoria do frontend tem teste em `audit.service.test.ts`.
 
 Casos cobertos em `test_submissions_advanced.py`:
 
@@ -673,9 +673,9 @@ Casos cobertos em `test_submissions_advanced.py`:
 
 ### Frontend — Vitest (unitario e de servico)
 
-Estado validado em `2026-05-31`:
+Estado validado em `2026-06-09`:
 
-- `119 passed`
+- `122 passed`
 
 Cobertura atual:
 
@@ -699,6 +699,7 @@ Cobertura atual:
 | `users.service.test.ts` | service |
 | `uploads.service.test.ts` | service |
 | `attachments.service.test.ts` | service |
+| `audit.service.test.ts` | service |
 
 ### E2E — Playwright
 

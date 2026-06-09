@@ -23,7 +23,7 @@ O projeto já passou da fundação inicial. Hoje ele possui:
 Baseline validado em `2026-06-09`:
 
 - backend: `220 passed`
-- frontend Vitest: `119 passed`
+- frontend Vitest: `122 passed`
 - frontend build: `npm run build` OK
 - E2E Playwright: `54 testes` (mockados)
 
