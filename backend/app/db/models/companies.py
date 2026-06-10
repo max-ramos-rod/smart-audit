@@ -27,3 +27,4 @@ class Company(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     forms = relationship("Form", back_populates="company")
     submissions = relationship("Submission", back_populates="company")
     teams = relationship("Team", back_populates="company")
+    clients = relationship("Client", back_populates="company")
