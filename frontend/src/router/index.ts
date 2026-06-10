@@ -4,6 +4,7 @@ import { readAccessToken } from '@/services/api/storage'
 import { useAuthStore } from '@/stores/auth/auth.store'
 import { useContextStore } from '@/stores/context/context.store'
 import AssetTypesView from '@/views/asset-types/AssetTypesView.vue'
+import AssetsView from '@/views/assets/AssetsView.vue'
 import ClientsView from '@/views/clients/ClientsView.vue'
 import CompanySelectView from '@/views/auth/CompanySelectView.vue'
 import ForgotPasswordView from '@/views/auth/ForgotPasswordView.vue'
@@ -145,6 +146,12 @@ const router = createRouter({
       path: '/asset-types',
       name: 'asset-types',
       component: AssetTypesView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/assets',
+      name: 'assets',
+      component: AssetsView,
       meta: { requiresAuth: true },
     },
   ],
