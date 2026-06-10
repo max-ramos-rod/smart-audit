@@ -29,8 +29,8 @@ Questões em Aberto · Evoluções Futuras.
 
 | DR | Iniciativa | Status | Depende de | Toca o core? | ADRs relacionadas |
 |---|---|---|---|---|---|
-| [DR-0001](DR-0001-ativos-genericos.md) | Ativos genéricos (árvore de componentes, owner próprio×cliente) | Proposta | — | Não (aditivo) | 0003, 0007 |
-| [DR-0002](DR-0002-inspecao-por-componente.md) | Inspeção por componente (dimensão de componente nas respostas) | Proposta | DR-0001 | **Sim** | **0006**, 0008 |
+| [DR-0001](DR-0001-ativos-genericos.md) | Ativos genéricos (árvore de componentes, owner próprio×cliente) | Implementado (Fase 1) | — | Não (aditivo) | 0003, 0007 |
+| [DR-0002](DR-0002-inspecao-por-componente.md) | Inspeção por componente (dimensão de componente nas respostas) | Em andamento (vínculo `asset_id` feito; core pendente) | DR-0001 | **Sim** | **0006**, 0008 |
 | [DR-0003](DR-0003-geracao-checklist-ia.md) | Geração de checklist por IA (pipeline assíncrono) | Proposta | — | Não | 0005, 0007 |
 | [DR-0004](DR-0004-score-regulado.md) | Score regulado (item crítico/knockout + threshold) | Proposta | — | Estende score | **0008** |
 | [DR-0005](DR-0005-acoes-corretivas-laudo.md) | Ações corretivas + re-inspeção + laudo | Proposta | DR-0004 (laudo) | Não (aditivo) | 0008, 0011 |

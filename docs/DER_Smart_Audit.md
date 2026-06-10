@@ -109,6 +109,7 @@ Relacionamentos:
 - `asset_types 1:N assets`
 - `clients 1:N assets` (apenas em ativo raiz; componente herda o cliente da raiz)
 - `assets 1:N assets` (auto-relacionamento `parent_asset_id` — árvore de componentes)
+- `assets 1:N submissions` (vínculo opcional `submissions.asset_id` — DR-0002 Fase 1)
 
 ### Auditoria
 
@@ -178,6 +179,7 @@ erDiagram
     ASSET_TYPES ||--o{ ASSETS : classifies
     CLIENTS ||--o{ ASSETS : owns_root
     ASSETS ||--o{ ASSETS : composed_of
+    ASSETS ||--o{ SUBMISSIONS : inspected_in
 ```
 
 ## Tabelas
@@ -358,6 +360,7 @@ Estrutura de `config_json` por tipo:
 - `company_id UUID FK -> companies.id`
 - `form_version_id UUID FK -> form_versions.id`
 - `created_by UUID FK -> users.id`
+- `asset_id UUID NULL FK -> assets.id` — vínculo opcional ao ativo inspecionado (DR-0002 Fase 1); sem CASCADE
 - `status VARCHAR(20)`
 - `score NUMERIC(5,2) NULL`
 - `started_at TIMESTAMPTZ`
@@ -370,12 +373,19 @@ Restricoes:
 
 - `CHECK status IN ('draft', 'in_progress', 'completed', 'cancelled')`
 
+Indices:
+
+- `ix_submissions_company_asset` (`company_id, asset_id`)
+
 Observacoes:
 
 - `score` e calculado no momento da finalizacao com formula ponderada baseada em `submission_conformities`:
   `score = sum(weight_i para status='conforme') / sum(weight_i para avaliados em submission_conformities) * 100`
   (campos sem avaliacao de conformidade e N/A nao entram no denominador)
 - `answers_json` e um snapshot de `{ field_key: serialized_value }` gravado em `save_answers`
+- `asset_id` NULL = inspecao sem ativo (comportamento legado, retrocompativel). Definido apenas na
+  criacao; nao apaga inspecoes ao desativar o ativo (soft delete). A dimensao de componente nas
+  respostas (DR-0002 Fases 2-4) ainda nao existe — apenas o vinculo da inspecao ao ativo
 
 ### `submission_values`
 
@@ -658,6 +668,7 @@ Duas estrategias conforme a semântica:
 | `a9b0c1d2e3f4` | add is_active BOOLEAN em teams |
 | `b0c1d2e3f4a5` | create audit_logs |
 | `c1d2e3f4a5b6` | create clients, asset_types e assets (DR-0001 Fase 1) |
+| `d2e3f4a5b6c7` | add submissions.asset_id (vinculo inspecao->ativo, DR-0002 Fase 1) |
 
 ## Evolucao futura prevista
 
