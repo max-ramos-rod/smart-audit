@@ -3,6 +3,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { readAccessToken } from '@/services/api/storage'
 import { useAuthStore } from '@/stores/auth/auth.store'
 import { useContextStore } from '@/stores/context/context.store'
+import ClientsView from '@/views/clients/ClientsView.vue'
 import CompanySelectView from '@/views/auth/CompanySelectView.vue'
 import ForgotPasswordView from '@/views/auth/ForgotPasswordView.vue'
 import LoginView from '@/views/auth/LoginView.vue'
@@ -131,6 +132,12 @@ const router = createRouter({
       path: '/teams',
       name: 'teams',
       component: TeamsView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/clients',
+      name: 'clients',
+      component: ClientsView,
       meta: { requiresAuth: true },
     },
   ],
