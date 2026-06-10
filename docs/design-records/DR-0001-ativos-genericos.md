@@ -180,10 +180,10 @@ formulário; sem histórico por objeto; impossível separar patrimônio de ativo
 - **APIs.** Recursos REST sob `/api/v1` (`asset-types`, `assets`, `clients`); envelope + RFC
   7807 (ADR 0011). Schemas de request com `Field(min/max)` (regra do projeto).
 - **Auth/Autorização.** Reusa guards de papel (ADR 0004): leitura para qualquer membro; escrita
-  de ativos/tipos para MANAGER+ (a definir na spec). **Gestão de `clients` = MANAGER+** (no
-  beachhead de empresa de inspeção, cliente é dado **operacional**, não comercial — ver Q3).
-  **Acesso do cliente externo a "apenas seus ativos" é row-level scoping** (portal externo) —
-  fora deste DR.
+  de `asset_types`, `assets` e `clients` = **MANAGER+** (`get_manager_membership`, hierárquico —
+  inclui ADMIN e OWNER). No beachhead de empresa de inspeção, cliente é dado **operacional**,
+  não comercial (ver Q3). **Acesso do cliente externo a "apenas seus ativos" é row-level
+  scoping** (portal externo) — fora deste DR.
 - **Multi-tenancy.** Todas as entidades carregam `company_id` (ADR 0003).
 - **Observabilidade/Auditoria.** `audit_logs` ganha eventos `asset.created`, `asset.updated`,
   `client.created` (seguindo o padrão existente).
@@ -340,9 +340,10 @@ Client:     id, company_id, name, is_active, ts
   patrimônio próprio; preenchido = ativo de cliente externo), **eliminando o `owner_kind`**.
   Atributos ricos do cliente (CNPJ, contato) entram quando o laudo exigir (DR-0005). Ver nota
   de faseamento na seção 12.
-- **Q3.** Papel mínimo: tipos de ativo e ativos = MANAGER+ (escrita), leitura = qualquer membro.
-  **`clients` = MANAGER+** (decidido junto de Q2 — no beachhead, cliente é operacional). *Em
-  aberto:* permitir INSPECTOR cadastrar ativo em campo?
+- **Q3. DECIDIDO (2026-06-08).** Escrita de `asset_types`, `assets` e `clients` = **MANAGER+**;
+  leitura = qualquer membro. Como os guards são **hierárquicos** (ADR 0004,
+  `ALLOWED_MANAGER_ROLES = {OWNER, ADMIN, MANAGER}`), MANAGER+ **já inclui ADMIN e OWNER** com
+  permissão de escrita — não é preciso um guard separado para ADMIN.
 - **Q4. DECIDIDO (2026-06-08).** **Soft delete**, nunca hard delete (ADR 0009): `assets.status`
   (`active`/`inactive`/`retired`) e `asset_types.is_active`. Tipo arquivado bloqueia **novas**
   instâncias; instâncias e histórico de inspeções permanecem intactos. Hard delete não é opção
@@ -352,8 +353,9 @@ Client:     id, company_id, name, is_active, ts
   inputs tipados; se ausente, atributos são chave-valor livres. Segue a filosofia do `config_json`
   (ADR 0007): flexível, validado quando definido; começa permissivo, endurece sob demanda.
 
-*Em aberto (refinamentos para a spec):* (a) permitir INSPECTOR cadastrar ativo em campo? (Q3);
-(b) excluir tipo em uso — soft delete simples vs aviso de impacto.
+*Em aberto (refinamentos menores para a spec, não bloqueiam o ADR):* (a) relaxar futuramente
+para INSPECTOR cadastrar ativo em campo (hoje MANAGER+); (b) excluir tipo em uso — soft delete
+simples vs aviso de impacto.
 
 ---
 
