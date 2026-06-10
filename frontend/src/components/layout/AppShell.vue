@@ -46,6 +46,7 @@ function logout() {
         <RouterLink to="/forms" class="nav-btn" active-class="active"><SvgIcon name="forms" />Formulários</RouterLink>
         <RouterLink to="/submissions" class="nav-btn" active-class="active"><SvgIcon name="submissions" />Inspeções</RouterLink>
         <RouterLink to="/teams" class="nav-btn" active-class="active"><SvgIcon name="teams" />Equipes</RouterLink>
+        <RouterLink to="/clients" class="nav-btn" active-class="active"><SvgIcon name="users" />Clientes</RouterLink>
         <RouterLink to="/users" class="nav-btn" active-class="active"><SvgIcon name="users" />Usuários</RouterLink>
 
         <div class="sb-sec" style="margin-top: 8px">Ferramentas</div>
