@@ -117,7 +117,12 @@ describe('assets.store', () => {
       const store = useAssetsStore()
 
       await expect(
-        store.create({ asset_type_id: 'at1', identifier: 'X', parent_asset_id: 'a1', client_id: 'cl1' }),
+        store.create({
+          asset_type_id: 'at1',
+          identifier: 'X',
+          parent_asset_id: 'a1',
+          client_id: 'cl1',
+        }),
       ).rejects.toBe(err)
       expect(store.error).toBe('client_id so e permitido em ativo raiz.')
     })
