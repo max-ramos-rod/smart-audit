@@ -325,7 +325,14 @@ Client:     id, company_id, name, is_active, ts
 
 ## 14. Questões em Aberto
 
-- **Q1.** Blueprint: `default_quantity` numérico (gera Roda 1..4) ou slots nomeados (Roda DD/DE)?
+> **Todas as questões fundamentais (Q1–Q5) foram decididas em 2026-06-08.** O que resta são
+> refinamentos de menor risco, marcados *Em aberto*, a resolver na spec técnica.
+
+- **Q1. DECIDIDO (2026-06-08).** Abordagem **híbrida**: `asset_type_components` carrega
+  `(label, default_quantity, position)`. Default de UX = quantidade ("Roda" ×4 → gera Roda 1..4);
+  slots nomeados = múltiplas linhas com `default_quantity = 1` ("Roda DD", "Roda DE"…). O nome
+  final fica no `assets.identifier` (livre). Cardinalidade real é da **instância** (RN2) —
+  caminhão → 6 rodas sem criar tipo novo. O modelo acomoda os dois sem escolher um.
 - **Q2. DECIDIDO (2026-06-08).** `Client` é entidade **mínima desde a Fase 1**
   (`id, company_id, name, is_active`) — porque o primeiro cliente esperado é uma **empresa de
   inspeção**, cujo fluxo primário é `cliente externo → ativos → inspeções → laudo`. O vínculo
@@ -336,8 +343,17 @@ Client:     id, company_id, name, is_active, ts
 - **Q3.** Papel mínimo: tipos de ativo e ativos = MANAGER+ (escrita), leitura = qualquer membro.
   **`clients` = MANAGER+** (decidido junto de Q2 — no beachhead, cliente é operacional). *Em
   aberto:* permitir INSPECTOR cadastrar ativo em campo?
-- **Q4.** Excluir tipo/ativo: soft delete (`status`) ou bloqueio quando em uso?
-- **Q5.** `attributes_schema` é obrigatório no tipo ou opcional (atributos totalmente livres)?
+- **Q4. DECIDIDO (2026-06-08).** **Soft delete**, nunca hard delete (ADR 0009): `assets.status`
+  (`active`/`inactive`/`retired`) e `asset_types.is_active`. Tipo arquivado bloqueia **novas**
+  instâncias; instâncias e histórico de inspeções permanecem intactos. Hard delete não é opção
+  para ativo de negócio (preserva Submissions, relatórios e auditoria).
+- **Q5. DECIDIDO (2026-06-08).** `attributes_schema` **opcional** (`asset_types.attributes_schema`
+  JSONB nullable). Se presente, o service valida `attributes_json` contra ele e a UI renderiza
+  inputs tipados; se ausente, atributos são chave-valor livres. Segue a filosofia do `config_json`
+  (ADR 0007): flexível, validado quando definido; começa permissivo, endurece sob demanda.
+
+*Em aberto (refinamentos para a spec):* (a) permitir INSPECTOR cadastrar ativo em campo? (Q3);
+(b) excluir tipo em uso — soft delete simples vs aviso de impacto.
 
 ---
 
