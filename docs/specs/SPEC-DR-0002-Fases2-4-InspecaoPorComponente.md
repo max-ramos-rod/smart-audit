@@ -43,6 +43,13 @@ Originadas das questões abertas do DR-0002. **Q1 é bloqueante** (exige a nova 
   — campo geral continua escalar; campo escopado vira `{ <asset_id>: valor }`.
   `answers_json = { "placa": "ABC", "pressao_pneu": { "<roda1>": 32, "<roda2>": 30 } }`.
   *Alternativa rejeitada:* chave composta plana (`"pressao_pneu::<roda1>"`).
+- **Q1.1 — chave do mapa escopado: `asset_id` (UUID) vs. rótulo. REAVALIAR ANTES DE IMPLEMENTAR.**
+  A ADR-0016 fixa o UUID como chave. Decisão **mantida para o mercado inicial (veicular, 4–12
+  componentes)** — análise abaixo confirma que ali a chave UUID é a correta (o `identifier` **não**
+  é único nem imutável, logo inviável como chave). Pendente reavaliar, **na Fase 2c**, **enriquecer
+  o valor com um rótulo congelado** (`{ "<asset_id>": { "v": 32, "label": "Roda DD" } }`) para
+  legibilidade/exportação/auditoria — sem trocar a chave. **Não altera a ADR-0016**; é detalhe de
+  formato do valor a ratificar na implementação. Ver §14 (Performance e escala).
 - **Q2 — campo escopado sem componentes** do tipo no ativo: omitir vs. sinalizar inconsistência.
   *(Proposta de esboço: omitir da execução e exibir aviso não-bloqueante no builder/inspeção.)*
 - **Q3 — campo escopado em inspeção sem `asset_id`:** erro de configuração vs. ignorar.
@@ -191,8 +198,75 @@ submission_conformities
 
 ---
 
-## 13. Próximo passo
+## 13. Performance e escala (projeção)
 
-Antes de qualquer código: **abrir a nova ADR que revisa o ADR-0006** (formato do snapshot +
-`UNIQUE` com `asset_id`), ratificando Q1. Aprovada a ADR, derivar o **PLANO-DR-0002-Fases2-4** com
-as tarefas das Fases 2–4 acima.
+> Estimativas de engenharia a partir do schema proposto — **não medidas**. Premissa de formulário
+> representativo: **10 campos gerais** (6 booleanos) + **5 campos escopados por componente** (4
+> booleanos). Linhas por inspeção: `submission_values = G + S×C`; `submission_conformities =
+> Gb + Sb×C`.
+
+### Crescimento por inspeção
+
+| Cenário | Componentes (C) | `submission_values` | `submission_conformities` | Folhas no `answers_json` | Disco/inspeção (heap+índices+snapshot) |
+|---|---|---|---|---|---|
+| Caminhão | 6 | 40 | 30 | 40 | ~23 KB |
+| Ônibus | 12 | 70 | 54 | 70 | ~41 KB |
+| Industrial | 300 | 1.510 | 1.206 | 1.510 | ~0,9 MB |
+
+(Os componentes são linhas em `assets`, criadas **uma vez** no cadastro: ~7 / ~13 / ~301.)
+Em volume (100 inspeções/mês de cada): caminhão ~48 mil linhas SV/ano; ônibus ~84 mil; industrial
+**~1,8 milhão/ano**. O total não é o problema (Postgres lida bem) — o custo é **por requisição**.
+
+### Impacto nos índices
+
+- A troca para **`UNIQUE(submission_id, form_field_id, asset_id)`** aumenta a chave em ~50% (3
+  UUIDs) → entradas maiores e mais manutenção.
+- **Escrita amplificada no `save_answers`**: a inspeção grava todas as linhas numa transação;
+  industrial ≈ **~2.700 linhas + ~10 mil atualizações de índice** numa transação (trivial no
+  veicular).
+- `ix_*_submission_id` segue sendo o índice quente (carrega o detalhe); `ix_*_form_field_id` vira o
+  gargalo de **relatórios cross-inspeção** por campo escopado.
+- `asset_id NULL` distinto no Postgres → histórico permanece único por campo, **sem backfill**.
+
+### Consultas mais pesadas
+
+1. **`get_submission` (detalhe/render — hot path):** `selectinload(values)` + `selectinload(conformities)`
+   materializa **todas** as linhas da inspeção. Veicular = 70–124 objetos (irrelevante);
+   **industrial ≈ 2.700 objetos ORM + montagem de mapas em Python a cada abertura** — o ponto mais
+   quente.
+2. **`answers_json`:** coluna única, mas industrial ≈ **80–120 KB TOAST** (lido/descomprimido por
+   leitura), agravado por chaves UUID de 36 chars.
+3. **`calculate_score` / finalização:** O(linhas) em Python (industrial = 1.206 conformidades +
+   validação por instância).
+4. **Relatórios agregados** por `form_field_id` escopado: varrem muitas linhas conforme a adoção.
+
+### Veredito
+
+- **Veicular (4–12 componentes) — confortável.** Dezenas de linhas, KBs de disco, render trivial.
+  O design da ADR-0016 escala sem ressalvas no mercado inicial.
+- **Alta cardinalidade (industrial, 300) — caso de estresse**, concentrado em três pressões:
+  (a) ~2.700 objetos por render, (b) `answers_json` de ~100 KB, (c) transação de escrita pesada.
+
+### Limites e estratégias futuras (alta cardinalidade)
+
+Fora do escopo do mercado inicial; registrar como evolução quando surgir demanda industrial real:
+
+- **Não carregar a inspeção inteira para render:** paginar/segmentar `values`/`conformities` por
+  componente (lazy por grupo) em vez de `selectinload` total.
+- **Snapshot enxuto:** para ativos com C alto, avaliar não snapshotar campos escopados (o relacional
+  basta) ou usar rótulo curto; reavaliar a chave do mapa (Q1.1).
+- **Score incremental** em vez de recomputar O(linhas) a cada chamada.
+- **Teto/aviso de cardinalidade** (ex.: alertar acima de ~100 componentes escopados por inspeção).
+- **Índice parcial/particionamento por tenant** se relatórios cross-inspeção virarem gargalo medido.
+
+> Nenhuma dessas estratégias é necessária para o veicular; são gatilhadas por **medição**, não
+> antecipadamente (evitar otimização prematura — coerente com o ADR-0015).
+
+---
+
+## 14. Próximo passo
+
+A nova ADR já existe: **[ADR-0016](../adr/0016-inspecao-por-componente-revisao-modelo-hibrido.md)**
+(Proposta) — revisa o ADR-0006 (formato do snapshot + `UNIQUE` com `asset_id`), ratificando Q1.
+Aprovada/mergeada a ADR, derivar o **PLANO-DR-0002-Fases2-4** com as tarefas das Fases 2–4. Antes da
+**Fase 2c**, ratificar a Q1.1 (rótulo congelado no valor do mapa escopado — sem trocar a chave).
