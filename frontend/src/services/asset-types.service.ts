@@ -1,9 +1,5 @@
 import type { ApiEnvelope, PaginatedEnvelope } from '@/types/api'
-import type {
-  AssetType,
-  AssetTypeCreatePayload,
-  AssetTypeUpdatePayload,
-} from '@/types/asset-types'
+import type { AssetType, AssetTypeCreatePayload, AssetTypeUpdatePayload } from '@/types/asset-types'
 
 import { http } from './api/http'
 
@@ -25,10 +21,7 @@ export async function createAssetType(payload: AssetTypeCreatePayload) {
 }
 
 export async function updateAssetType(assetTypeId: string, payload: AssetTypeUpdatePayload) {
-  const response = await http.patch<ApiEnvelope<AssetType>>(
-    `/asset-types/${assetTypeId}`,
-    payload,
-  )
+  const response = await http.patch<ApiEnvelope<AssetType>>(`/asset-types/${assetTypeId}`, payload)
   return response.data.data
 }
 

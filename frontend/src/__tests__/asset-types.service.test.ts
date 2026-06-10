@@ -56,7 +56,11 @@ describe('asset-types.service', () => {
   describe('createAssetType', () => {
     it('posts to /asset-types with payload and returns the type', async () => {
       vi.mocked(http.post).mockResolvedValue({ data: { data: mockType } })
-      const payload = { name: 'Veículo', description: 'Frota', attributes_schema: { placa: 'string' } }
+      const payload = {
+        name: 'Veículo',
+        description: 'Frota',
+        attributes_schema: { placa: 'string' },
+      }
       const result = await createAssetType(payload)
       expect(http.post).toHaveBeenCalledWith('/asset-types', payload)
       expect(result).toEqual(mockType)

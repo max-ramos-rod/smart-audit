@@ -9,11 +9,7 @@ import {
   updateAssetType,
 } from '@/services/asset-types.service'
 import type { PaginationMeta } from '@/types/api'
-import type {
-  AssetType,
-  AssetTypeCreatePayload,
-  AssetTypeUpdatePayload,
-} from '@/types/asset-types'
+import type { AssetType, AssetTypeCreatePayload, AssetTypeUpdatePayload } from '@/types/asset-types'
 
 export const useAssetTypesStore = defineStore('asset-types', () => {
   const items = ref<AssetType[]>([])
