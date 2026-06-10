@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from app.api.v1.routers.asset_types import router as asset_types_router
+from app.api.v1.routers.assets import router as assets_router
 from app.api.v1.routers.attachments import router as attachments_router
 from app.api.v1.routers.audit_logs import router as audit_logs_router
 from app.api.v1.routers.auth import router as auth_router
@@ -21,6 +22,7 @@ api_router.include_router(auth_router)
 api_router.include_router(companies_router)
 api_router.include_router(clients_router)
 api_router.include_router(asset_types_router)
+api_router.include_router(assets_router)
 api_router.include_router(me_router)
 api_router.include_router(users_router)
 api_router.include_router(forms_router)
