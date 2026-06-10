@@ -48,6 +48,7 @@ function logout() {
         <RouterLink to="/teams" class="nav-btn" active-class="active"><SvgIcon name="teams" />Equipes</RouterLink>
         <RouterLink to="/clients" class="nav-btn" active-class="active"><SvgIcon name="users" />Clientes</RouterLink>
         <RouterLink to="/asset-types" class="nav-btn" active-class="active"><SvgIcon name="forms" />Tipos de ativo</RouterLink>
+        <RouterLink to="/assets" class="nav-btn" active-class="active"><SvgIcon name="submissions" />Ativos</RouterLink>
         <RouterLink to="/users" class="nav-btn" active-class="active"><SvgIcon name="users" />Usuários</RouterLink>
 
         <div class="sb-sec" style="margin-top: 8px">Ferramentas</div>
