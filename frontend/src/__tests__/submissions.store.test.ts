@@ -23,6 +23,8 @@ const mockListItem: SubmissionListItem = {
   id: 's1',
   form_id: 'f1',
   form_name: 'Checklist Segurança',
+  asset_id: null,
+  asset_identifier: null,
   status: 'in_progress',
   score: null,
   started_at: '2026-01-01T10:00:00Z',

@@ -720,6 +720,7 @@ const currentFieldEvidenceCount = computed(() =>
               {{ submission.form_name }}
             </h1>
             <div v-if="!inspectionMode" style="font-size:12px;color:var(--sa-muted);margin-top:2px;">
+              <span v-if="submission.asset_identifier">🏷 {{ submission.asset_identifier }} · </span>
               Iniciada {{ new Date(submission.started_at).toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit' }) }}
             </div>
           </div>

@@ -15,11 +15,13 @@ export async function fetchSubmissions(
   status?: string,
   formId?: string,
   createdBy?: string,
+  assetId?: string,
 ) {
   const params: Record<string, unknown> = { page, page_size: pageSize }
   if (status) params.status = status
   if (formId) params.form_id = formId
   if (createdBy) params.created_by = createdBy
+  if (assetId) params.asset_id = assetId
   const response = await http.get<PaginatedEnvelope<SubmissionListItem>>('/submissions', { params })
   return response.data
 }

@@ -6,15 +6,18 @@ import AppShell from '@/components/layout/AppShell.vue'
 import { extractProblemMessage } from '@/services/api/problem'
 import { exportSubmissionsCSV } from '@/services/submissions.service'
 import { scoreClass } from '@/utils/score'
+import { useAssetsStore } from '@/stores/assets/assets.store'
 import { useFormsStore } from '@/stores/forms/forms.store'
 import { useSubmissionsStore } from '@/stores/submissions/submissions.store'
 
 const router = useRouter()
 const submissionsStore = useSubmissionsStore()
 const formsStore = useFormsStore()
+const assetsStore = useAssetsStore()
 
 const showComposer = ref(false)
 const selectedFormId = ref('')
+const selectedAssetId = ref('')
 const createError = ref<string | null>(null)
 
 const currentPage = ref(1)
@@ -53,15 +56,19 @@ onMounted(() => {
 async function openComposer() {
   createError.value = null
   selectedFormId.value = ''
-  if (!formsStore.items.length) {
-    await formsStore.load()
-  }
+  selectedAssetId.value = ''
+  await Promise.all([
+    formsStore.items.length ? Promise.resolve() : formsStore.load(),
+    // Ativos ativos para o vínculo opcional (DR-0002).
+    assetsStore.load(1, 100, { status: 'active' }),
+  ])
   showComposer.value = true
 }
 
 function closeComposer() {
   showComposer.value = false
   selectedFormId.value = ''
+  selectedAssetId.value = ''
   createError.value = null
 }
 
@@ -69,7 +76,10 @@ async function handleCreate() {
   if (!selectedFormId.value) return
   createError.value = null
   try {
-    const created = await submissionsStore.create({ form_id: selectedFormId.value })
+    const created = await submissionsStore.create({
+      form_id: selectedFormId.value,
+      asset_id: selectedAssetId.value || null,
+    })
     closeComposer()
     await loadPage(1)
     router.push({ name: 'submission-detail', params: { id: created.id } })
@@ -139,6 +149,15 @@ function statusLabel(status: string) {
                 </option>
               </select>
             </label>
+            <label style="display:grid;gap:6px;">
+              <span>Ativo (opcional)</span>
+              <select v-model="selectedAssetId">
+                <option value="">Sem ativo vinculado</option>
+                <option v-for="asset in assetsStore.items" :key="asset.id" :value="asset.id">
+                  {{ asset.identifier }}
+                </option>
+              </select>
+            </label>
             <div>
               <button
                 type="submit"
@@ -186,6 +205,7 @@ function statusLabel(status: string) {
           <div class="lrow-main">
             <div class="lrow-title">{{ submission.form_name }}</div>
             <div class="lrow-sub">
+              <span v-if="submission.asset_identifier">🏷 {{ submission.asset_identifier }} · </span>
               {{ submission.finished_at
                 ? 'Concluída ' + new Date(submission.finished_at).toLocaleString('pt-BR')
                 : 'Início ' + new Date(submission.started_at).toLocaleString('pt-BR') }}
