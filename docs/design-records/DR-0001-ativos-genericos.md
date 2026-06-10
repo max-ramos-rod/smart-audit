@@ -18,8 +18,11 @@ inspecionado nem suas partes. Para inspecionar um carro com 4 rodas, o autor pre
 campos manuais (rígido) ou 1 campo "rodas" (perde granularidade). Não há histórico por objeto,
 nem como distinguir "patrimônio próprio" de "ativo de cliente".
 
-**Quem se beneficia.** Os dois mercados, com o mesmo motor: inspeção interna/patrimonial
-(`owner = self`) e empresa de inspeção que emite laudo para terceiros (`owner = client`).
+**Quem se beneficia.** Os dois mercados, com o mesmo motor, discriminados por `assets.client_id`
+(nullable): inspeção interna/patrimonial (`client_id` nulo) e empresa de inspeção que emite
+laudo para terceiros (`client_id` preenchido). **Beachhead (2026-06-08):** o primeiro cliente
+esperado é uma **empresa de inspeção** — por isso `Client` é entidade desde a Fase 1 (ver Q2 e
+nota de faseamento).
 
 > Este DR entrega **apenas o cadastro e a árvore de ativos + o vínculo da inspeção a um ativo**.
 > A *repetição de campo por componente* (enumerar 4 rodas no checklist) é o DR-0002, que toca o
@@ -56,8 +59,10 @@ formulário; sem histórico por objeto; impossível separar patrimônio de ativo
   componentes** (cardinalidade decidida na instância).
 - **OF3.** Expandir, opcionalmente, o blueprint do tipo ao criar a instância (Veículo → 4 Rodas,
   2 Portas), permitindo ajuste (caminhão → 6 Rodas).
-- **OF4.** Representar o **dono** do ativo: próprio (`self`) ou cliente externo (`client`).
-- **OF5.** Cadastrar **clientes** (entidade leve) para o caso "serviço a terceiros".
+- **OF4.** Representar o **dono** do ativo via `client_id` nullable: nulo = patrimônio próprio;
+  preenchido = ativo de cliente externo (sem `owner_kind`).
+- **OF5.** Cadastrar **clientes** (entidade mínima: id, company_id, name, is_active) — fluxo
+  primário do beachhead (empresa de inspeção).
 - **OF6.** **Vincular uma inspeção a um ativo** (referência), sem ainda repetir campo por
   componente.
 - **OF7.** Listar/consultar ativos por tipo, por cliente e por hierarquia.
@@ -122,9 +127,10 @@ formulário; sem histórico por objeto; impossível separar patrimônio de ativo
 - *Desvantagens:* sem consultas por cliente, sem reuso, sem dados de contato para laudo.
 - *Rejeição:* insuficiente para empresa de inspeção, que organiza por cliente.
 
-**B) Entidade `clients` leve + FK opcional no ativo.** ✅
-- *Escolha:* permite listar ativos por cliente e enriquecer o laudo. Continua opcional
-  (`owner = self` não usa).
+**B) Entidade `clients` mínima + `assets.client_id` nullable como discriminador.** ✅
+- *Escolha:* permite listar ativos por cliente e enriquecer o laudo. `client_id` nulo =
+  patrimônio próprio (não há `owner_kind` separado). **Decidido como Fase 1** (Q2), pois o
+  primeiro cliente é uma empresa de inspeção cujo fluxo gira em torno do cliente externo.
 
 ---
 
@@ -137,9 +143,11 @@ formulário; sem histórico por objeto; impossível separar patrimônio de ativo
 - **AssetTypeComponent (blueprint / BOM)** — relação de composição entre tipos: "Veículo é
   composto de N Rodas, M Portas". Cada linha: tipo-pai, tipo-filho, label, `default_quantity`.
 - **Asset (instância, árvore)** — objeto concreto: `asset_type_id`, `attributes_json` (valores),
-  `parent_asset_id` (NULL = raiz; preenchido = componente), `owner_kind` (`self`|`client`),
-  `client_id` (opcional), `identifier`, `status`.
-- **Client (leve)** — destinatário do laudo no caso "serviço a terceiros".
+  `parent_asset_id` (NULL = raiz; preenchido = componente), `client_id` **nullable**
+  (NULL = patrimônio próprio; preenchido = ativo de cliente externo — **discriminador único**,
+  sem `owner_kind`), `identifier`, `status`.
+- **Client (mínimo, Fase 1)** — `id, company_id, name, is_active`. Dono externo do ativo e
+  destinatário do laudo; atributos ricos (CNPJ, contato) entram com o DR-0005.
 
 ### Comportamento
 
@@ -153,8 +161,8 @@ formulário; sem histórico por objeto; impossível separar patrimônio de ativo
 
 - **RN1.** Todo `Asset` pertence a uma empresa; um componente herda o `company_id` da raiz.
 - **RN2.** Cardinalidade de componentes é decidida na **instância**, não no tipo.
-- **RN3.** `owner_kind = self` → `client_id` nulo (patrimônio próprio). `owner_kind = client`
-  → `client_id` obrigatório.
+- **RN3.** `client_id` nulo ⇒ patrimônio próprio; `client_id` preenchido ⇒ ativo de cliente
+  externo. Não há `owner_kind` — o próprio `client_id` (nullable) é o discriminador.
 - **RN4.** A árvore não tem ciclos (um ativo não pode ser ancestral de si mesmo).
 - **RN5.** Soft delete por `status`/`is_active` segue a semântica da entidade (ADR 0009).
 
@@ -172,8 +180,10 @@ formulário; sem histórico por objeto; impossível separar patrimônio de ativo
 - **APIs.** Recursos REST sob `/api/v1` (`asset-types`, `assets`, `clients`); envelope + RFC
   7807 (ADR 0011). Schemas de request com `Field(min/max)` (regra do projeto).
 - **Auth/Autorização.** Reusa guards de papel (ADR 0004): leitura para qualquer membro; escrita
-  de ativos/tipos para MANAGER+ (a definir na spec). **Acesso do cliente externo a "apenas seus
-  ativos" é row-level scoping** — fora deste DR.
+  de ativos/tipos para MANAGER+ (a definir na spec). **Gestão de `clients` = MANAGER+** (no
+  beachhead de empresa de inspeção, cliente é dado **operacional**, não comercial — ver Q3).
+  **Acesso do cliente externo a "apenas seus ativos" é row-level scoping** (portal externo) —
+  fora deste DR.
 - **Multi-tenancy.** Todas as entidades carregam `company_id` (ADR 0003).
 - **Observabilidade/Auditoria.** `audit_logs` ganha eventos `asset.created`, `asset.updated`,
   `client.created` (seguindo o padrão existente).
@@ -206,7 +216,7 @@ Company 1─N AssetType 1─N AssetTypeComponent (parent_type_id / child_type_id
 Company 1─N Asset
 AssetType 1─N Asset
 Asset   1─N Asset            (parent_asset_id — árvore de componentes, profundidade livre)
-Company 1─N Client 1─N Asset (quando owner_kind = client)
+Company 1─N Client 1─N Asset (via assets.client_id nullable; nulo = patrimônio próprio)
 Asset   0─N Submission        (asset_id opcional em submissions)
 ```
 
@@ -216,8 +226,10 @@ Asset   0─N Submission        (asset_id opcional em submissions)
 AssetType:  id, company_id, name, slug, description, attributes_schema(JSONB), is_active, ts
 AssetTypeComponent: id, parent_type_id, child_type_id, label, default_quantity, position
 Asset:      id, company_id, asset_type_id, parent_asset_id?, identifier,
-            attributes_json(JSONB), owner_kind('self'|'client'), client_id?, status, ts
-Client:     id, company_id, name, document?, contact_email?, ts
+            attributes_json(JSONB), client_id?, status, ts
+            -- client_id NULL = patrimônio próprio; preenchido = ativo de cliente (sem owner_kind)
+Client:     id, company_id, name, is_active, ts
+            -- mínimo na Fase 1; document/contact_email entram com o DR-0005 (laudo)
 ```
 
 ### Agregados e invariantes
@@ -226,7 +238,9 @@ Client:     id, company_id, name, document?, contact_email?, ts
 - **INV1.** `Asset`/`AssetType`/`Client` visíveis só na própria empresa (ADR 0003).
 - **INV2.** Componente tem o mesmo `company_id` da raiz.
 - **INV3.** Árvore sem ciclos.
-- **INV4.** `owner_kind=client` ⇒ `client_id` presente; `owner_kind=self` ⇒ `client_id` nulo.
+- **INV4.** `client_id`, quando presente, referencia um `Client` ativo da mesma empresa
+  (`company_id`). `client_id` nulo significa patrimônio próprio (não há `owner_kind` a manter
+  consistente — eliminado por construção).
 - **INV5.** `default_quantity ≥ 0`; cardinalidade real é da instância.
 
 ---
@@ -244,13 +258,13 @@ Client:     id, company_id, name, document?, contact_email?, ts
 
 ### Alternativo — serviço a terceiros
 
-- Cadastra-se o `Client` "Transportadora Y"; o `Asset` recebe `owner_kind=client`,
-  `client_id=Y`. O restante é igual.
+- Cadastra-se o `Client` "Transportadora Y"; o `Asset` recebe `client_id = Y` (sem
+  `owner_kind`). O restante é igual.
 
 ### Cenários de erro
 
 - **Ciclo na árvore** (definir um ativo como filho de seu descendente) → rejeitado (INV3).
-- **`owner_kind=client` sem `client_id`** → rejeitado (INV4).
+- **`client_id` de cliente de outra empresa** → rejeitado (INV4).
 - **Componente de empresa diferente da raiz** → rejeitado (INV2).
 - **Excluir tipo em uso por instâncias** → bloqueado/soft delete (a definir na spec).
 
@@ -277,12 +291,19 @@ Client:     id, company_id, name, document?, contact_email?, ts
 
 ## 12. Estratégia de Implementação
 
-- **Fase 1.** `asset_types` + `assets` (árvore, sem blueprint automático) + CRUD + telas.
+- **Fase 1.** `clients` (mínimo) + `asset_types` + `assets` (árvore, `client_id` nullable, sem
+  blueprint automático) + CRUD + telas. Listagem de ativos por cliente.
 - **Fase 2.** `asset_type_components` (blueprint) + expansão automática ao criar instância.
-- **Fase 3.** `clients` + `owner_kind`/`client_id` + listagem por cliente.
-- **Fase 4.** `submissions.asset_id` (vínculo da inspeção ao ativo) + histórico por objeto.
+- **Fase 3.** `submissions.asset_id` (vínculo da inspeção ao ativo) + histórico por objeto/cliente.
+- **Fase 4.** Atributos ricos do cliente (CNPJ, contato) — quando o laudo exigir (DR-0005).
 
-> Cada fase é aditiva e independente; o vínculo da inspeção (Fase 4) é pré-requisito do DR-0002.
+> **Nota de faseamento (beachhead = empresa de inspeção, 2026-06-08).** Como o primeiro cliente
+> organiza tudo por cliente externo (`cliente → ativos → inspeções → laudo`), o `Client` subiu
+> para a **Fase 1** (antes Fase 3) e o **vínculo da inspeção ao ativo** (`submissions.asset_id`)
+> subiu para a **Fase 3** (antes Fase 4) — pois a inspeção precisa estar ligada ao ativo/cliente
+> para o laudo fazer sentido já no primeiro produto utilizável. A árvore profunda e o blueprint
+> automático (Fase 2) podem vir depois. Cada fase continua aditiva; a Fase 3 é pré-requisito do
+> DR-0002.
 
 ---
 
@@ -293,7 +314,9 @@ Client:     id, company_id, name, document?, contact_email?, ts
 - **CA2.** Um ativo pode ter componentes em árvore de profundidade ≥ 2 (ex.: Veículo → Suspensão
   → Amortecedor).
 - **CA3.** A cardinalidade de componentes da instância pode divergir do blueprint do tipo.
-- **CA4.** Um ativo com `owner_kind=client` exige `client_id`; com `self`, recusa `client_id`.
+- **CA4.** Um ativo pode ser criado **com** `client_id` (pertence ao cliente) ou **sem**
+  (patrimônio próprio); listar ativos por cliente retorna apenas os daquele cliente; `client_id`
+  de outra empresa é rejeitado.
 - **CA5.** Uma inspeção pode ser criada com e sem `asset_id` (retrocompatível).
 - **CA6.** Nenhum ativo/tipo/cliente vaza entre empresas (consultas filtram `company_id`).
 - **CA7.** Tentar criar ciclo na árvore é rejeitado com erro RFC 7807.
@@ -303,9 +326,16 @@ Client:     id, company_id, name, document?, contact_email?, ts
 ## 14. Questões em Aberto
 
 - **Q1.** Blueprint: `default_quantity` numérico (gera Roda 1..4) ou slots nomeados (Roda DD/DE)?
-- **Q2.** `Client` como entidade desde já, ou atributo no ativo até haver volume de serviço a
-  terceiros? (Recomendação: entidade, pois habilita laudo e listagem.)
-- **Q3.** Papel mínimo para criar/editar tipos de ativo (MANAGER+? ADMIN+?).
+- **Q2. DECIDIDO (2026-06-08).** `Client` é entidade **mínima desde a Fase 1**
+  (`id, company_id, name, is_active`) — porque o primeiro cliente esperado é uma **empresa de
+  inspeção**, cujo fluxo primário é `cliente externo → ativos → inspeções → laudo`. O vínculo
+  do ativo ao cliente usa **`assets.client_id` nullable como discriminador único** (nulo =
+  patrimônio próprio; preenchido = ativo de cliente externo), **eliminando o `owner_kind`**.
+  Atributos ricos do cliente (CNPJ, contato) entram quando o laudo exigir (DR-0005). Ver nota
+  de faseamento na seção 12.
+- **Q3.** Papel mínimo: tipos de ativo e ativos = MANAGER+ (escrita), leitura = qualquer membro.
+  **`clients` = MANAGER+** (decidido junto de Q2 — no beachhead, cliente é operacional). *Em
+  aberto:* permitir INSPECTOR cadastrar ativo em campo?
 - **Q4.** Excluir tipo/ativo: soft delete (`status`) ou bloqueio quando em uso?
 - **Q5.** `attributes_schema` é obrigatório no tipo ou opcional (atributos totalmente livres)?
 

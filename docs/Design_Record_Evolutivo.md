@@ -253,8 +253,8 @@ Três camadas (espelham o padrão template→instância já usado em forms):
 
 - **RN1.** IA nunca publica; produz rascunho revisável.
 - **RN2.** Cardinalidade de componentes é decidida na **instância**, não no tipo.
-- **RN3.** `owner = null` → patrimônio próprio; `owner = client` → serviço a terceiros — mesmo
-  fluxo de inspeção para ambos.
+- **RN3.** `asset.client_id` nulo → patrimônio próprio; preenchido → serviço a terceiros —
+  mesmo fluxo de inspeção para ambos (sem `owner_kind`; ver DR-0001 Q2).
 - **RN4.** Item crítico reprovado força reprovação do laudo, independentemente do score.
 - **RN5.** Score continua calculado de `submission_conformities` (ADR 0008), agora podendo ter
   a dimensão componente.
@@ -350,7 +350,7 @@ itens críticos → não conformidades → ações corretivas → re-inspeção 
 Company 1─N AssetType 1─N AssetTypeComponent (parent_type / child_type)
 Company 1─N Asset
 Asset   1─N Asset            (parent_asset_id — árvore de componentes)
-Client  1─N Asset            (quando owner = client)
+Client  1─N Asset            (via assets.client_id nullable; nulo = patrimônio próprio)
 Asset   1─N Submission        (objeto inspecionado)
 Asset   1─N SubmissionValue   (resposta por componente)
 Asset   1─N SubmissionConformity (conformidade por componente)
@@ -405,7 +405,7 @@ AssetType 1─N FormField       (escopo de repetição por tipo de componente)
 
 ### 10.3 Fluxo alternativo — serviço a terceiros (empresa de inspeção)
 
-- Igual ao 10.1, com `Asset.owner = client` e `client_id` apontando ao cliente externo; ao
+- Igual ao 10.1, com `Asset.client_id` apontando ao cliente externo; ao
   final, o laudo é o entregável ao cliente.
 
 ### 10.4 Cenários de erro
@@ -508,7 +508,8 @@ offline/PWA; RBAC dinâmico.
   pendente é bloqueado.
 - **CA4 (Score regulado).** Com um item marcado como crítico reprovado, o laudo resulta
   "reprovado" mesmo que o score numérico esteja acima do threshold.
-- **CA5 (Dois mercados).** A mesma inspeção funciona com `owner=self` e com `owner=client`; no
+- **CA5 (Dois mercados).** A mesma inspeção funciona com `client_id` nulo (próprio) e preenchido
+  (cliente externo); no
   segundo caso, o laudo referencia o cliente.
 - **CA6 (Ação corretiva).** Uma não conformidade gera ação corretiva com responsável/prazo;
   a re-inspeção do mesmo componente fecha o item.
