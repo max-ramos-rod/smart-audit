@@ -30,12 +30,19 @@ async def list_submissions(
     status: str | None = Query(default=None),
     form_id: str | None = Query(default=None),
     created_by: str | None = Query(default=None),
+    asset_id: str | None = Query(default=None),
     membership: Membership = Depends(get_current_membership),
     db: AsyncSession = Depends(get_db),
     submission_service: SubmissionService = Depends(get_submission_service),
 ) -> dict[str, object]:
     data, meta = await submission_service.list_submissions(
-        db, membership, params, status=status, form_id=form_id, created_by=created_by
+        db,
+        membership,
+        params,
+        status=status,
+        form_id=form_id,
+        created_by=created_by,
+        asset_id=asset_id,
     )
     return paginated_response([item.model_dump(mode="json") for item in data], meta)
 

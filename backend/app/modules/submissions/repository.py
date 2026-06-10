@@ -40,6 +40,7 @@ class SubmissionRepository(SQLAlchemyRepository[Submission]):
                 selectinload(Submission.form_version).selectinload(FormVersion.form),
                 selectinload(Submission.values),
                 selectinload(Submission.conformities).selectinload(SubmissionConformity.form_field),
+                selectinload(Submission.asset),
             )
         )
         return await self._get_one(db, statement)
@@ -52,6 +53,7 @@ class SubmissionRepository(SQLAlchemyRepository[Submission]):
         status: str | None = None,
         form_id: str | None = None,
         created_by: str | None = None,
+        asset_id: str | None = None,
     ) -> tuple[list[Submission], int]:
         statement = (
             select(Submission)
@@ -59,6 +61,7 @@ class SubmissionRepository(SQLAlchemyRepository[Submission]):
             .options(
                 selectinload(Submission.form_version).selectinload(FormVersion.form),
                 selectinload(Submission.values),
+                selectinload(Submission.asset),
             )
             .order_by(Submission.created_at.desc())
         )
@@ -70,6 +73,8 @@ class SubmissionRepository(SQLAlchemyRepository[Submission]):
             ).where(FormVersion.form_id == form_id)
         if created_by:
             statement = statement.where(Submission.created_by == created_by)
+        if asset_id:
+            statement = statement.where(Submission.asset_id == asset_id)
         return await self._paginate_select(db, statement, params)
 
     async def get_submission_for_export(
@@ -263,6 +268,7 @@ class SubmissionRepository(SQLAlchemyRepository[Submission]):
             .options(
                 selectinload(Submission.form_version).selectinload(FormVersion.form),
                 selectinload(Submission.values),
+                selectinload(Submission.asset),
             )
             .order_by(Submission.created_at.desc())
             .limit(limit)

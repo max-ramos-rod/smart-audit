@@ -28,6 +28,8 @@ class SubmissionConformityUpdateRequest(BaseModel):
 
 class SubmissionCreateRequest(BaseModel):
     form_id: str = Field(min_length=1, max_length=36)
+    # Vínculo opcional ao ativo inspecionado (DR-0002 Fase 1). Ausente = inspeção sem ativo.
+    asset_id: str | None = Field(default=None, min_length=1, max_length=36)
 
 
 class SubmissionAnswerInput(BaseModel):
@@ -58,6 +60,8 @@ class SubmissionResponse(BaseModel):
     form_id: str
     form_version_id: str
     form_name: str
+    asset_id: str | None = None
+    asset_identifier: str | None = None
     status: str
     score: float | None
     score_breakdown: ScoreBreakdown | None
@@ -71,6 +75,8 @@ class SubmissionListItemResponse(BaseModel):
     id: str
     form_id: str
     form_name: str
+    asset_id: str | None = None
+    asset_identifier: str | None = None
     status: str
     score: float | None
     started_at: datetime

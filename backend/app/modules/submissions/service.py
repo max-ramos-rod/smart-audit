@@ -14,6 +14,7 @@ from app.db.models.submission_conformities import SubmissionConformity
 from app.db.models.submission_values import SubmissionValue
 from app.db.models.submissions import Submission
 from app.db.models.users import User
+from app.modules.assets.repository import AssetRepository
 from app.modules.submissions.pdf import generate_submission_pdf
 from app.modules.submissions.repository import SubmissionRepository
 from app.modules.submissions.schemas import (
@@ -33,8 +34,13 @@ from app.modules.submissions.schemas import (
 
 
 class SubmissionService:
-    def __init__(self, repository: SubmissionRepository | None = None) -> None:
+    def __init__(
+        self,
+        repository: SubmissionRepository | None = None,
+        asset_repository: AssetRepository | None = None,
+    ) -> None:
         self.repository = repository or SubmissionRepository()
+        self.asset_repository = asset_repository or AssetRepository()
 
     async def export_csv(
         self,
@@ -163,6 +169,7 @@ class SubmissionService:
         status: str | None = None,
         form_id: str | None = None,
         created_by: str | None = None,
+        asset_id: str | None = None,
     ) -> tuple[list[SubmissionListItemResponse], PageMeta]:
         submissions, total = await self.repository.list_submissions(
             db,
@@ -171,6 +178,7 @@ class SubmissionService:
             status=status,
             form_id=form_id,
             created_by=created_by,
+            asset_id=asset_id,
         )
         meta = PaginationMetaBuilder.build(total, params)
         return [self.serialize_submission_list_item(item) for item in submissions], meta
@@ -190,11 +198,28 @@ class SubmissionService:
                 status_code=status.HTTP_404_NOT_FOUND, detail="Formulario nao encontrado."
             )
 
+        # DR-0002 Fase 1: vínculo opcional ao ativo inspecionado.
+        if payload.asset_id is not None:
+            asset = await self.asset_repository.get_company_asset(
+                db, payload.asset_id, str(membership.company_id)
+            )
+            # V1 (isolamento): inexistente ou de outra empresa.
+            if asset is None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST, detail="Ativo invalido."
+                )
+            # V2 (ativo elegível): não se inicia inspeção sobre ativo desativado/baixado.
+            if asset.status != "active":
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST, detail="Ativo nao esta ativo."
+                )
+
         current_version = max(form.versions, key=lambda item: item.version)
         submission = Submission(
             company_id=membership.company_id,
             form_version_id=current_version.id,
             created_by=current_user.id,
+            asset_id=payload.asset_id,
             status="in_progress",
             answers_json={},
         )
@@ -601,6 +626,8 @@ class SubmissionService:
             form_id=str(submission.form_version.form.id),
             form_version_id=str(submission.form_version_id),
             form_name=submission.form_version.form.name,
+            asset_id=str(submission.asset_id) if submission.asset_id else None,
+            asset_identifier=submission.asset.identifier if submission.asset else None,
             status=submission.status,
             score=float(submission.score) if submission.score is not None else None,
             score_breakdown=SubmissionService.calculate_score_breakdown(submission),
@@ -616,6 +643,8 @@ class SubmissionService:
             id=str(submission.id),
             form_id=str(submission.form_version.form.id),
             form_name=submission.form_version.form.name,
+            asset_id=str(submission.asset_id) if submission.asset_id else None,
+            asset_identifier=submission.asset.identifier if submission.asset else None,
             status=submission.status,
             score=float(submission.score) if submission.score is not None else None,
             started_at=submission.started_at,
