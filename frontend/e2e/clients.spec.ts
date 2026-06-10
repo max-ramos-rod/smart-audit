@@ -27,7 +27,11 @@ test.describe('Clients', () => {
       return r.fulfill({ json: paginated([...MOCK_CLIENTS, newClient]) })
     })
 
-    await page.locator('.field').filter({ hasText: /nome do cliente/i }).locator('input').fill('Construtora Gama')
+    await page
+      .locator('.field')
+      .filter({ hasText: /nome do cliente/i })
+      .locator('input')
+      .fill('Construtora Gama')
     await page.getByRole('button', { name: /criar cliente/i }).click()
     await expect(page.getByText(/cliente salvo com sucesso/i)).toBeVisible()
   })
