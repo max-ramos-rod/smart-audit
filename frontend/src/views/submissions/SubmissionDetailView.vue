@@ -913,7 +913,7 @@ const currentFieldEvidenceCount = computed(() =>
           </button>
           <div class="insp-fhdr-info">
             <div class="insp-fhdr-name">{{ submission.form_name }}</div>
-            <div class="insp-fhdr-sub">Em andamento</div>
+            <div class="insp-fhdr-sub"><span v-if="submission.asset_identifier">🏷 {{ submission.asset_identifier }} · </span>Em andamento</div>
           </div>
           <div class="insp-fhdr-vt">
             <button class="insp-fhdr-vt-btn" :class="String(viewMode) === 'list' ? 'active' : ''" @click="viewMode = 'list'">
@@ -1233,7 +1233,7 @@ const currentFieldEvidenceCount = computed(() =>
           </button>
           <div class="insp-fhdr-info">
             <div class="insp-fhdr-name">{{ submission.form_name }}</div>
-            <div class="insp-fhdr-sub">Em andamento</div>
+            <div class="insp-fhdr-sub"><span v-if="submission.asset_identifier">🏷 {{ submission.asset_identifier }} · </span>Em andamento</div>
           </div>
           <div class="insp-fhdr-vt">
             <button class="insp-fhdr-vt-btn" :class="String(viewMode) === 'list' ? 'active' : ''" @click="viewMode = 'list'">
