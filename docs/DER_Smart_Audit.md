@@ -14,6 +14,7 @@ Ele sustenta:
 - respostas tipadas por campo com suporte a regras condicionais
 - anexos de evidencias
 - equipes e membros por empresa com soft delete via `is_active`
+- ativos genericos em arvore (raiz/componentes) com tipo e cliente discriminador (DR-0001)
 
 ## Decisoes de modelagem
 
@@ -33,6 +34,8 @@ Ele sustenta:
 - campos do tipo `section` nao geram `submission_value`
 - soft delete de membership via `revoked_at TIMESTAMPTZ NULL` — preserva historico de inspecoes
 - soft delete de team via `is_active BOOLEAN` — equipes desativadas nao aparecem na listagem
+- ativo e componente sao a mesma tabela `assets` (adjacency list via `parent_asset_id`); cliente so na raiz (CHECK `ck_assets_client_only_on_root`)
+- soft delete de ativo via `status` em cascata na subarvore; tipos/clientes via `is_active`
 
 ## Contextos e relacionamentos
 
@@ -92,6 +95,21 @@ Relacionamentos:
 - `teams 1:N team_members`
 - `users 1:N team_members`
 
+### Ativos
+
+- `clients`
+- `asset_types`
+- `assets`
+
+Relacionamentos:
+
+- `companies 1:N clients`
+- `companies 1:N asset_types`
+- `companies 1:N assets`
+- `asset_types 1:N assets`
+- `clients 1:N assets` (apenas em ativo raiz; componente herda o cliente da raiz)
+- `assets 1:N assets` (auto-relacionamento `parent_asset_id` — árvore de componentes)
+
 ### Auditoria
 
 - `audit_logs`
@@ -122,6 +140,10 @@ users
                         |-< teams
                         |      `-< team_members >- users
                         |
+                        |-< clients ------.
+                        |-< asset_types --|
+                        |                 `-< assets >- (self: parent/components)
+                        |
                         `-< audit_logs
 ```
 
@@ -150,6 +172,12 @@ erDiagram
     COMPANIES ||--o{ AUDIT_LOGS : owns
     USERS ||--o{ AUDIT_LOGS : performs
     USERS ||--o{ AUDIT_LOGS : targeted_by
+    COMPANIES ||--o{ CLIENTS : owns
+    COMPANIES ||--o{ ASSET_TYPES : owns
+    COMPANIES ||--o{ ASSETS : owns
+    ASSET_TYPES ||--o{ ASSETS : classifies
+    CLIENTS ||--o{ ASSETS : owns_root
+    ASSETS ||--o{ ASSETS : composed_of
 ```
 
 ## Tabelas
@@ -478,11 +506,81 @@ Observacoes:
   (ex.: usuario revogado)
 - valores de `action` registrados pelo backend: `user.created`, `user.invited`,
   `membership.revoked`, `membership.reactivated`, `team.deactivated`,
-  `company.deactivated`
-- `meta` armazena contexto adicional por acao (nome, role, etc.)
+  `company.deactivated`, `asset.created`, `asset.deactivated`
+- `meta` armazena contexto adicional por acao (nome, role, etc.); em
+  `asset.deactivated` inclui `descendants` (contagem de descendentes desativados na cascata)
 - nao ha CASCADE em `company_id` nem em `actor_id`/`target_user_id`: a empresa
   e desativada (soft delete via `is_active`), nunca excluida; usuarios revogados
   preservam o historico
+
+### `clients`
+
+- `id UUID PK`
+- `company_id UUID FK -> companies.id ON DELETE CASCADE`
+- `name VARCHAR(150)`
+- `is_active BOOLEAN` — soft delete (desativados nao aparecem na listagem ativa)
+- `created_at TIMESTAMPTZ`
+- `updated_at TIMESTAMPTZ`
+
+Indices:
+
+- `ix_clients_company_id`
+
+Observacoes:
+
+- entidade minima (DR-0001): atributos ricos (CNPJ, contato) sao de fase posterior
+- discrimina ativo de cliente externo de patrimonio proprio via `assets.client_id`
+
+### `asset_types`
+
+- `id UUID PK`
+- `company_id UUID FK -> companies.id ON DELETE CASCADE`
+- `name VARCHAR(150)`
+- `description TEXT NULL`
+- `attributes_schema JSONB NULL` — molde opcional dos atributos esperados
+- `is_active BOOLEAN` — soft delete; tipo arquivado bloqueia novas instancias
+- `created_at TIMESTAMPTZ`
+- `updated_at TIMESTAMPTZ`
+
+Indices:
+
+- `ix_asset_types_company_id`
+
+Observacoes:
+
+- `attributes_schema` e aceito livre na Fase 1 (M1): a validacao de `assets.attributes_json`
+  contra ele e de fase posterior
+
+### `assets`
+
+- `id UUID PK`
+- `company_id UUID FK -> companies.id ON DELETE CASCADE`
+- `asset_type_id UUID FK -> asset_types.id`
+- `parent_asset_id UUID NULL FK -> assets.id ON DELETE CASCADE` — NULL = raiz; preenchido = componente
+- `client_id UUID NULL FK -> clients.id` — so em raiz (componente herda da raiz)
+- `identifier VARCHAR(180)`
+- `attributes_json JSONB` — `NOT NULL`, `server_default '{}'`; aceito livre (M1)
+- `status VARCHAR(20)` — `NOT NULL`, `server_default 'active'`
+- `created_at TIMESTAMPTZ`
+- `updated_at TIMESTAMPTZ`
+
+Restricoes:
+
+- `CHECK (parent_asset_id IS NULL OR client_id IS NULL)` (`ck_assets_client_only_on_root`, M6)
+- `CHECK status IN ('active', 'inactive', 'retired')` (`ck_assets_status`)
+
+Indices:
+
+- `ix_assets_company_parent` (`company_id, parent_asset_id`)
+- `ix_assets_company_type` (`company_id, asset_type_id`)
+- `ix_assets_company_client` (`company_id, client_id`)
+
+Observacoes:
+
+- arvore de componentes em adjacency list (`parent`/`components`); profundidade livre
+- soft delete em cascata: desativar um ativo desativa toda a subarvore na mesma transacao
+  (CTE recursiva `deactivate_subtree`); reativacao e top-down (so com pai ativo, sem cascatear)
+- `parent_asset_id` e imutavel apos o create (sem reparent, M5)
 
 ## Regras de consistencia
 
@@ -496,6 +594,7 @@ Isso vale para:
 - formularios
 - inspecoes
 - equipes (ativas, `is_active = TRUE`)
+- clientes, tipos de ativo e ativos
 - evidencias e uploads
 - stats e notificacoes
 - contagens de uso em `/me/usage`
@@ -558,6 +657,7 @@ Duas estrategias conforme a semântica:
 | `f8a9b0c1d2e3` | add revoked_at TIMESTAMPTZ NULL em memberships |
 | `a9b0c1d2e3f4` | add is_active BOOLEAN em teams |
 | `b0c1d2e3f4a5` | create audit_logs |
+| `c1d2e3f4a5b6` | create clients, asset_types e assets (DR-0001 Fase 1) |
 
 ## Evolucao futura prevista
 

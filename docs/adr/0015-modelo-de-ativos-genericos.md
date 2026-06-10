@@ -1,12 +1,12 @@
 # ADR-0015 — Modelo de ativos genéricos (árvore de componentes + `client_id` discriminador)
 
-**Status:** Proposta · **Data:** 2026-06-08
+**Status:** Aceita · **Data:** 2026-06-08 · **Implementada:** 2026-06-10 (Fase 1)
 **Supersedes:** — · **Superseded-by:** —
 
 <!--
-Status Proposta: decisão acordada, ainda não implementada no código. Origem em
-docs/design-records/DR-0001-ativos-genericos.md (Q1–Q5 decididas em 2026-06-08).
-Ao implementar, mudar Status para "Aceita" e citar os pontos do código que a sustentam.
+Aceita na Fase 1 (DR-0001): instância (árvore) + tipo + cliente discriminador, com soft
+delete em cascata e reativação top-down. Blueprint de composição (asset_type_components) e
+validação de attributes_schema ficaram fora da Fase 1 — ver "## Implementação (Fase 1)".
 -->
 
 ## Contexto
@@ -30,7 +30,7 @@ camadas (ADR-0001). Decisão e alternativas detalhadas em
 ## Decisão
 
 Adotar um **modelo de ativos genérico**, sem tabela por domínio, com três camadas e um
-discriminador de dono único. (Decisão de design; ainda não implementada — ver Status.)
+discriminador de dono único. (Núcleo implementado na Fase 1 — ver "## Implementação (Fase 1)".)
 
 - **Tipo (molde):** `asset_types` define a forma de um tipo (atributos esperados + blueprint de
   componentes), por empresa. Análogo ao papel de `form_versions` para campos (ADR-0005).
@@ -61,6 +61,45 @@ discriminador de dono único. (Decisão de design; ainda não implementada — v
 A repetição de campo por componente na inspeção (enumerar as 4 rodas no checklist) **não** faz
 parte desta decisão — é tratada à parte porque toca o modelo híbrido de respostas (ADR-0006);
 ver DR-0002.
+
+## Implementação (Fase 1)
+
+Entregue em [`docs/specs/SPEC-DR-0001-Fase1-Ativos.md`](../specs/SPEC-DR-0001-Fase1-Ativos.md) /
+[`PLANO-DR-0001-Fase1.md`](../specs/PLANO-DR-0001-Fase1.md) (tarefas T1–T8).
+
+**Schema** — migration `c1d2e3f4a5b6_add_assets_clients_asset_types.py`, três tabelas em ordem
+de dependência:
+
+- `clients` — [`Client`](../../backend/app/db/models/clients.py): entidade mínima (`company_id`,
+  `name`, `is_active`), como decidido para o beachhead.
+- `asset_types` — [`AssetType`](../../backend/app/db/models/asset_types.py): `name`,
+  `description`, `attributes_schema` (JSONB **nullable**), `is_active`.
+- `assets` — [`Asset`](../../backend/app/db/models/assets.py): `asset_type_id`,
+  `parent_asset_id` (nullable, self-FK `ON DELETE CASCADE`), `client_id` (nullable), `identifier`,
+  `attributes_json` (JSONB), `status`. Árvore via `relationship` `parent`/`components`
+  (adjacency list). CHECKs `ck_assets_client_only_on_root` (M6) e `ck_assets_status`; índices por
+  `company_id` (tenant).
+
+**API** (`/api/v1`, registradas em
+[`router.py`](../../backend/app/api/v1/router.py)): `clients_router`, `asset_types_router`,
+`assets_router`. Cada domínio segue `api → service → repository` (ADR-0001); escrita
+`get_manager_membership`, leitura `get_current_membership` (Q3/ADR-0004); isolamento por
+`company_id` (ADR-0003).
+
+**Soft delete (Q4/ADR-0009).** `clients`/`asset_types` por `is_active`; `assets` por `status`.
+Desativar um ativo desativa **toda a subárvore** em cascata na mesma transação
+(`AssetRepository.deactivate_subtree`, CTE recursiva — V6); reativação é **top-down** — só com o
+pai ativo, sem cascatear (`AssetService.update_asset` — V7).
+
+**Frontend.** Telas de `clients`, `asset-types` e `assets` (cadastro raiz/componente + filhos
+diretos + filtros), sob `/app/` (T6–T8).
+
+**Fora da Fase 1 (adiado, sem contradizer a decisão):**
+
+- **Blueprint de composição entre tipos** (`asset_type_components`): a cardinalidade real é
+  decidida na instância; o molde de composição não foi necessário para a Fase 1.
+- **Validação de `attributes_schema`** contra `attributes_json` (M1): a coluna existe, mas os
+  atributos são aceitos livres — mesma postura adiável do `config_json` (ADR-0007).
 
 ## Consequências
 

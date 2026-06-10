@@ -40,7 +40,7 @@ campos `Supersedes`/`Superseded-by` no cabeçalho dos ADRs envolvidos**.
 | [0012](0012-hash-de-senha-pbkdf2.md) | Hash de senha PBKDF2-SHA256 customizado | Aceita | — | — |
 | [0013](0013-email-infra-fail-soft.md) | E-mail como infraestrutura compartilhada fail-soft | Aceita | — | — |
 | [0014](0014-convite-reaproveita-reset-de-senha.md) | Convite de usuário reaproveita a máquina de reset de senha | Aceita | — | — |
-| [0015](0015-modelo-de-ativos-genericos.md) | Modelo de ativos genéricos (árvore de componentes + `client_id` discriminador) | Proposta | — | — |
+| [0015](0015-modelo-de-ativos-genericos.md) | Modelo de ativos genéricos (árvore de componentes + `client_id` discriminador) | Aceita | — | — |
 
 > Decisões de granularidade mais fina (tetos de CSV, janela de notificações, isolamento de
 > testes, `field_type` validado pela CHECK, etc.) estão catalogadas em
