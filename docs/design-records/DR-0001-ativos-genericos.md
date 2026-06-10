@@ -194,9 +194,10 @@ formulário; sem histórico por objeto; impossível separar patrimônio de ativo
 
 - **Reusa** ADR 0003 (multi-tenancy), 0007 (filosofia JSONB), 0009 (soft delete), 0001
   (camadas), 0011 (contrato HTTP) — sem alterá-los.
-- **Nova ADR necessária:** *"Modelo de ativos genéricos"* — registra a decisão de árvore
-  adjacency list + JSONB + componente-é-ativo + dualidade owner. Deve citar o ponto do código
-  quando implementada.
+- **ADR originada:** [ADR-0015 — Modelo de ativos genéricos](../adr/0015-modelo-de-ativos-genericos.md)
+  (Status: Proposta), registrando árvore adjacency list + JSONB + componente-é-ativo +
+  `client_id` discriminador + soft delete + MANAGER+. Passa a **Aceita** e cita o código quando
+  implementada.
 
 ---
 
