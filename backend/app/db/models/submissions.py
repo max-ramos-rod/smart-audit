@@ -32,6 +32,7 @@ class Submission(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         Index(
             "ix_submissions_company_status_created_at", "company_id", "status", desc("created_at")
         ),
+        Index("ix_submissions_company_asset", "company_id", "asset_id"),
     )
 
     company_id: Mapped[str] = mapped_column(
@@ -39,6 +40,9 @@ class Submission(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     form_version_id: Mapped[str] = mapped_column(ForeignKey("form_versions.id"), nullable=False)
     created_by: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False)
+    # Vínculo opcional inspeção→ativo (DR-0002 Fase 1). NULL = inspeção sem ativo
+    # (comportamento atual). Sem CASCADE: ativos são soft-deletados, nunca removidos.
+    asset_id: Mapped[str | None] = mapped_column(ForeignKey("assets.id"), nullable=True)
     status: Mapped[str] = mapped_column(
         String(20), nullable=False, default="draft", server_default=text("'draft'")
     )
@@ -56,6 +60,7 @@ class Submission(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     company = relationship("Company", back_populates="submissions")
     creator = relationship("User", back_populates="submissions_created")
+    asset = relationship("Asset")
     form_version = relationship("FormVersion", back_populates="submissions")
     values = relationship("SubmissionValue", back_populates="submission")
     conformities = relationship(
