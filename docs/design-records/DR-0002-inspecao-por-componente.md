@@ -1,11 +1,23 @@
 # DR-0002 — Inspeção por Componente
 
-**Status:** Proposta · **Data:** 2026-06-08 · **Depende de:** DR-0001 · **Toca o core:** **Sim**
+**Status:** Em andamento (Fase 1 implementada) · **Data:** 2026-06-08 · **Depende de:** DR-0001 · **Toca o core:** **Sim**
 **ADRs relacionadas:** **0006 (modelo híbrido — impacto direto)**, 0008 (score), 0005, 0007
 
 > ⚠️ **Este é o único DR que altera o core.** Muda a unicidade de `submission_values`/
 > `submission_conformities` e o formato do snapshot `answers_json` (ADR 0006). Deve ser a
 > **última** iniciativa da sequência, com migração testada e retrocompatibilidade total.
+
+> **Progresso de implementação.** O **vínculo inspeção→ativo (`submissions.asset_id`)** está
+> **implementado** — o pré-requisito que a seção 2 assume e que o DR-0001 havia adiado. Inclui
+> migration `d2e3f4a5b6c7`, validação no create, exposição/filtro e UI (seletor opcional +
+> exibição no detalhe/relatório). Aditivo e retrocompatível; **não tocou o core**. Ver
+> [`SPEC-DR-0002-Fase1-SubmissionAsset.md`](../specs/SPEC-DR-0002-Fase1-SubmissionAsset.md) e
+> [`PLANO-DR-0002-Fase1.md`](../specs/PLANO-DR-0002-Fase1.md).
+>
+> **Pendente:** todo o núcleo deste DR — as Fases 1–4 da seção 12 (dimensão de componente em
+> `submission_values`/`submission_conformities`, `component_type_id`, motor de expansão, novo
+> `answers_json`), que **revisam o ADR-0006**. O `submissions.asset_id` apenas **destrava** esse
+> trabalho.
 
 ---
 

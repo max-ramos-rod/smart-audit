@@ -192,9 +192,9 @@ Entidades principais:
 
 Capacidades ativas:
 
-- criacao de inspecao
-- listagem com filtros (status, form_id, created_by)
-- detalhe
+- criacao de inspecao (com `asset_id` opcional — vínculo ao ativo inspecionado, DR-0002 Fase 1)
+- listagem com filtros (status, form_id, created_by, asset_id)
+- detalhe (expoe `asset_id`/`asset_identifier`)
 - salvamento de respostas tipadas (todos os tipos de campo)
 - resposta N/A em booleanos com `allow_na: true` (armazenada como `value_text = "na"`)
 - avaliacao de conformidade por campo: `PUT /submissions/{id}/conformity` registra `conforme` ou `nao_conforme` em `submission_conformities`
@@ -837,6 +837,16 @@ subarvore (CTE recursiva) e reativacao top-down. Ficaram para fase posterior o b
 composicao entre tipos (`asset_type_components`) e a validacao de `attributes_schema`
 (atributos aceitos livres, M1). Ver ADR-0015 e `docs/specs/SPEC-DR-0001-Fase1-Ativos.md`.
 
+### Vinculo inspecao->ativo (DR-0002 Fase 1)
+
+`submissions.asset_id` (FK nullable -> `assets`, sem CASCADE) liga cada inspecao ao ativo
+inspecionado. E **aditivo e retrocompativel**: `asset_id` NULL = comportamento legado; validado
+no create (mesma empresa + ativo ativo); exposto no detalhe/lista (`asset_identifier`) e
+filtravel (`?asset_id=`). E o degrau que **destrava o DR-0002** sem tocar o core (ADR-0006). A
+**dimensao de componente** nas respostas/conformidades (mudanca de unicidade, `component_type_id`,
+novo formato de `answers_json`) sao as **Fases 2-4** do DR-0002 e **ainda nao existem** — revisam
+o ADR-0006. Ver `docs/specs/SPEC-DR-0002-Fase1-SubmissionAsset.md`.
+
 ## 11. O que esta consolidado vs. parcial
 
 ### Consolidado
@@ -860,6 +870,7 @@ composicao entre tipos (`asset_type_components`) e a validacao de `attributes_sc
 - evidencias e uploads (imagem, video, audio, PDF)
 - equipes com soft delete (`is_active`)
 - ativos genericos (DR-0001/ADR-0015): `clients`, `asset_types`, `assets` em arvore; soft delete em cascata da subarvore e reativacao top-down; telas `/clients`, `/asset-types`, `/assets`
+- vinculo inspecao->ativo (DR-0002 Fase 1): `submissions.asset_id` aditivo; seletor opcional na criacao, exibicao no detalhe/relatorio, filtro por ativo
 - memberships com soft delete (`revoked_at`) e reativacao
 - desativacao de empresa (`DELETE /companies/me`) com cascade de memberships e equipes; modal de confirmacao com digitacao do nome + logout automatico
 - audit_logs: tabela imutavel, bounded context completo, eventos company.deactivated / membership.revoked / membership.reactivated / user.created / user.invited / team.deactivated; view com filtro e paginacao
@@ -871,7 +882,7 @@ composicao entre tipos (`asset_type_components`) e a validacao de `attributes_sc
 - notificacoes com persistencia de leitura e dismiss
 - endpoint `/me/usage` com contagens reais e limites por plano
 - CI com jobs separados: backend (ruff + pytest), frontend (vue-tsc + Vitest), E2E (Playwright)
-- testes automatizados: backend 252 passed, frontend 165 passed (Vitest), 68 E2E (Playwright)
+- testes automatizados: backend 257 passed, frontend 167 passed (Vitest), 70 E2E (Playwright)
 
 ### Parcial ou com limitacao conhecida
 
