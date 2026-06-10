@@ -267,6 +267,33 @@ Regras de desativacao:
 - operacoes de membro em equipes inativas tambem retornam 404
 - o historico de membros permanece intacto no banco
 
+### Ativos (clientes, tipos e ativos)
+
+Responsavel pelo cadastro do objeto inspecionado e suas partes (DR-0001 / ADR-0015). Tres
+bounded contexts irmaos sob a mesma decisao de modelagem.
+
+Entidades principais:
+
+- `clients` — empresa atendida cujos ativos sao inspecionados (entidade minima)
+- `asset_types` — categoria/molde de ativo, com `attributes_schema` opcional
+- `assets` — objeto concreto em arvore (raiz/componentes), com `attributes_json` livre
+
+Capacidades ativas (todas: leitura `get_current_membership`, escrita `get_manager_membership`):
+
+- `GET/POST /api/v1/clients`, `GET/PATCH/DELETE /api/v1/clients/{id}` — CRUD + soft delete (`is_active`)
+- `GET/POST /api/v1/asset-types`, `GET/PATCH/DELETE /api/v1/asset-types/{id}` — CRUD + soft delete (`is_active`); `attributes_schema` aceito livre (M1)
+- `GET/POST /api/v1/assets`, `GET/PATCH/DELETE /api/v1/assets/{id}` — CRUD + arvore
+  - `GET /assets` filtra por `asset_type_id`, `client_id`, `parent_asset_id`, `status`
+  - `GET /assets/{id}` retorna `components` (filhos diretos)
+  - `parent_asset_id` so no create (imutavel, M5); `client_id` so em raiz (M6/V3)
+  - `DELETE` desativa toda a subarvore em cascata (CTE `deactivate_subtree`, V6); `PATCH status='active'` e top-down (so com pai ativo, V7)
+
+Regras de desativacao:
+
+- soft delete em cascata: nenhum ativo `active` pode existir sob ancestral `inactive`
+- reativacao nao cascateia (preserva o estado previo de cada componente)
+- auditoria `asset.created` e `asset.deactivated` (esta ultima com contagem de descendentes)
+
 ### Busca
 
 Responsavel por consulta full-text simples sobre formularios e inspecoes da empresa.
@@ -532,6 +559,9 @@ Rotas agregadas hoje:
 - `submissions` (CRUD, answers, conformity, finish, export CSV, export PDF com `?inline`)
 - `search`
 - `teams`
+- `clients` (CRUD + soft delete via `is_active`)
+- `asset-types` (CRUD + soft delete; `attributes_schema` opcional aceito livre)
+- `assets` (CRUD + arvore; filtros; soft delete em cascata da subarvore; reativacao top-down)
 - `attachments`
 - `uploads`
 - `audit-logs` (`GET /api/v1/audit-logs` — lista de eventos de auditoria com filtro por acao e paginacao; requer ADMIN)
@@ -558,6 +588,9 @@ Rotas de interface existentes hoje:
 - `/notifications` — com dismiss persistido
 - `/search`
 - `/teams` — lista, cria, edita, desativa equipes; gerencia membros
+- `/clients` — lista, cria, edita, desativa e reativa clientes
+- `/asset-types` — CRUD de tipos; `attributes_schema` como JSON livre
+- `/assets` — cadastro raiz/componente, filhos diretos, filtros por tipo/cliente/status
 
 ## 8. Contratos HTTP
 
@@ -792,6 +825,18 @@ Mantido e coerente com o momento do projeto.
 
 Ja e realidade no codigo. Qualquer documentacao antiga que ainda fale em sessao sincrona deve ser considerada obsoleta.
 
+### Modelo de ativos genericos (ADR-0015)
+
+O objeto inspecionado e modelado sem tabela por dominio: `asset_types` (molde), `assets`
+(instancia em arvore) e `clients` (dono externo). Um componente **e** um `asset` com
+`parent_asset_id` preenchido — colapsa "ativo" e "componente" numa adjacency list de
+profundidade livre; a cardinalidade real e decidida na instancia, nao no tipo. O dono e
+discriminado por `assets.client_id` nullable (NULL = patrimonio proprio), sem `owner_kind`.
+A Fase 1 (DR-0001) entregou o nucleo: CRUD dos tres contextos, soft delete em cascata da
+subarvore (CTE recursiva) e reativacao top-down. Ficaram para fase posterior o blueprint de
+composicao entre tipos (`asset_type_components`) e a validacao de `attributes_schema`
+(atributos aceitos livres, M1). Ver ADR-0015 e `docs/specs/SPEC-DR-0001-Fase1-Ativos.md`.
+
 ## 11. O que esta consolidado vs. parcial
 
 ### Consolidado
@@ -814,6 +859,7 @@ Ja e realidade no codigo. Qualquer documentacao antiga que ainda fale em sessao 
 - relatorio e exportacao PDF profissional (score colorido, breakdown, secoes, Unicode via DejaVu Sans)
 - evidencias e uploads (imagem, video, audio, PDF)
 - equipes com soft delete (`is_active`)
+- ativos genericos (DR-0001/ADR-0015): `clients`, `asset_types`, `assets` em arvore; soft delete em cascata da subarvore e reativacao top-down; telas `/clients`, `/asset-types`, `/assets`
 - memberships com soft delete (`revoked_at`) e reativacao
 - desativacao de empresa (`DELETE /companies/me`) com cascade de memberships e equipes; modal de confirmacao com digitacao do nome + logout automatico
 - audit_logs: tabela imutavel, bounded context completo, eventos company.deactivated / membership.revoked / membership.reactivated / user.created / user.invited / team.deactivated; view com filtro e paginacao
@@ -825,7 +871,7 @@ Ja e realidade no codigo. Qualquer documentacao antiga que ainda fale em sessao 
 - notificacoes com persistencia de leitura e dismiss
 - endpoint `/me/usage` com contagens reais e limites por plano
 - CI com jobs separados: backend (ruff + pytest), frontend (vue-tsc + Vitest), E2E (Playwright)
-- testes automatizados: backend 216 passed, frontend 119 passed (Vitest), 54 E2E (Playwright)
+- testes automatizados: backend 252 passed, frontend 165 passed (Vitest), 68 E2E (Playwright)
 
 ### Parcial ou com limitacao conhecida
 
