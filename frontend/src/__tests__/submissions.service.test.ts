@@ -61,6 +61,14 @@ describe('submissions.service', () => {
         params: { page: 2, page_size: 10, form_id: 'f1', created_by: 'u1' },
       })
     })
+
+    it('includes asset_id filter when provided', async () => {
+      vi.mocked(http.get).mockResolvedValue({ data: { data: [], meta: mockMeta } })
+      await fetchSubmissions(1, 20, undefined, undefined, undefined, 'a1')
+      expect(http.get).toHaveBeenCalledWith('/submissions', {
+        params: { page: 1, page_size: 20, asset_id: 'a1' },
+      })
+    })
   })
 
   describe('fetchSubmission', () => {
@@ -78,6 +86,12 @@ describe('submissions.service', () => {
       const result = await createSubmission({ form_id: 'f1' })
       expect(http.post).toHaveBeenCalledWith('/submissions', { form_id: 'f1' })
       expect(result).toEqual(mockDetail)
+    })
+
+    it('forwards asset_id when provided (DR-0002 vínculo)', async () => {
+      vi.mocked(http.post).mockResolvedValue({ data: { data: mockDetail } })
+      await createSubmission({ form_id: 'f1', asset_id: 'a1' })
+      expect(http.post).toHaveBeenCalledWith('/submissions', { form_id: 'f1', asset_id: 'a1' })
     })
   })
 

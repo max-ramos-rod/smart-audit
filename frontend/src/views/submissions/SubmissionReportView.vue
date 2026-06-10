@@ -148,6 +148,11 @@ async function handleExport(inline = false) {
               <h1 style="font-size:18px;font-weight:700;letter-spacing:-.01em;color:var(--sa-text);line-height:1.2;">
                 {{ submission.form_name }}
               </h1>
+              <RouterLink
+                v-if="submission.asset_identifier"
+                to="/assets"
+                style="font-size:13px;font-weight:600;color:var(--sa-brand);text-decoration:none;"
+              >🏷 {{ submission.asset_identifier }}</RouterLink>
             </div>
           </div>
           <div style="display:flex;gap:8px;flex-shrink:0;">

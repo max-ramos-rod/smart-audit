@@ -10,6 +10,8 @@ export interface SubmissionListItem {
   id: string
   form_id: string
   form_name: string
+  asset_id: string | null
+  asset_identifier: string | null
   status: string
   score: number | null
   started_at: string
@@ -49,6 +51,7 @@ export interface SubmissionDetail extends SubmissionListItem {
 
 export interface SubmissionCreatePayload {
   form_id: string
+  asset_id?: string | null
 }
 
 export interface SubmissionAnswerPayload {
