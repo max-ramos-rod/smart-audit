@@ -46,12 +46,25 @@ Status. Detalhe técnico em
   `submission_conformities`. A unicidade passa de `(submission_id, form_field_id)` para
   **`(submission_id, form_field_id, asset_id)`**. Como o Postgres trata `NULL` como distinto, as
   linhas históricas (`asset_id NULL`) permanecem únicas por campo — **retrocompatível**.
-- **Formato do snapshot (ratifica Q1 do DR-0002):** `answers_json` fica **aninhado** — campo geral
-  continua **escalar**; campo escopado vira **mapa por componente** `{ <asset_id>: valor }`.
-  Ex.: `{ "placa": "ABC", "pressao_pneu": { "<roda1>": 32, "<roda2>": 30 } }`. Relacional e
-  snapshot continuam escritos na **mesma operação** em `save_answers` (invariante do ADR-0006).
+- **Formato do snapshot (ratifica Q1 do DR-0002):** `answers_json` fica **aninhado** e carrega
+  **apenas respostas** — campo geral continua **escalar**; campo escopado vira **mapa de valores
+  puros por componente** `{ <asset_id>: valor }`. Ex.:
+  `{ "placa": "ABC", "pressao_pneu": { "<roda1>": 32, "<roda2>": 30 } }`. A chave é o `asset_id`
+  (UUID) — `identifier` é mutável e não-único, logo inviável como chave. Relacional e snapshot
+  continuam escritos na **mesma operação** em `save_answers` (invariante do ADR-0006).
+- **Snapshot de identidade do componente (ratifica Q1.1):** a identidade exibível do componente
+  (rótulo, tipo, caminho) é **mutável** no cadastro (`identifier` editável e não-único;
+  `asset_types.name` e os rótulos dos ancestrais também mudam — embora `asset_id`,
+  `parent_asset_id` e `asset_type_id` sejam imutáveis). Para preservar a fidelidade histórica do
+  laudo, congela-se essa identidade **uma vez por componente**, **separada das respostas**, numa
+  coluna dedicada **`submissions.components_snapshot` (JSONB, nullable)**:
+  `{ <asset_id>: { "label": "Roda DD", "type": "Roda", "path": "Caminhão ABC > Eixo 1 > Roda DD" } }`,
+  gravada no `save_answers` do momento da inspeção. O `asset_id` liga ao **presente** (rastreio); o
+  `components_snapshot` preserva o **passado** (laudo imune a renomeação, desativação ou mudança de
+  nome de tipo, sem join ao estado vivo).
 - **Score (ADR-0008 inalterado em fórmula):** cada par **(campo booleano × componente)** avaliado é
-  uma unidade; a fórmula ponderada não muda, só a cardinalidade.
+  uma unidade; a fórmula ponderada não muda, só a cardinalidade. O `weight` vem do `config_json` do
+  campo, igual para todas as instâncias (sem peso por componente — ratifica Q6).
 - **Integridade:** `asset_id` de uma resposta/conformidade deve pertencer à subárvore do
   `submissions.asset_id` e ter `asset_type_id = component_type_id` do campo.
 
@@ -68,6 +81,10 @@ acrescenta a dimensão de componente a ambas.
   bateria de retrocompatibilidade antes de seguir.
 - **Leitores do snapshot precisam saber** se o valor de um `field_key` é escalar (geral) ou mapa
   (escopado) — pequena complexidade adicional de parsing.
+- **Identidade sem duplicação e sem join:** `components_snapshot` guarda label/type/path **uma vez
+  por componente** (não por campo×componente), e o laudo histórico não depende do estado vivo do
+  ativo. Custo: uma coluna JSONB adicional, sincronizada no mesmo `save_answers`. Em alta
+  cardinalidade, é o campo a enxugar primeiro (ex.: dropar `path`), por ser isolável das respostas.
 - **Acoplamento `forms` ↔ `asset_types`:** um formulário escopado só faz sentido para ativos com
   aqueles tipos de componente — validar compatibilidade ao vincular ativo × formulário.
 - Volume de `submission_values`/`submission_conformities` cresce por componente — monitorar.
@@ -76,6 +93,12 @@ acrescenta a dimensão de componente a ambas.
 
 - **Chave composta plana no snapshot** (`"pressao_pneu::<roda1>"`): mantém o mapa plano, mas troca
   o formato de chave para todos e depende de convenção de string frágil.
+- **Identidade (label/type/path) dentro de cada campo escopado** (`{ <asset_id>: { v, label } }`):
+  duplica o rótulo a cada campo × componente para o mesmo componente, com risco de divergência
+  interna e mistura de resposta com identidade — por isso a identidade vai para a coluna
+  `components_snapshot`, separada e deduplicada (Q1.1).
+- **`identifier` como chave do mapa escopado:** `identifier` é mutável e não-único — inviável como
+  chave estável/única; o `asset_id` (UUID) é a chave, e o `identifier` é congelado como `label`.
 - **Tabela nova `submission_component_values`** separada de `submission_values`: duplica o conceito
   de "valor de resposta", cria dois caminhos de escrita/leitura e força o score a unir duas fontes
   — fragmenta o modelo híbrido (ADR-0006).

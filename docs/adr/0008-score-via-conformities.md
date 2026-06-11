@@ -1,6 +1,7 @@
 # ADR-0008 — Score ponderado a partir de `submission_conformities`
 
 **Status:** Aceita · **Data:** 2026-06-08
+**Extensão prevista:** [ADR-0016](0016-inspecao-por-componente-revisao-modelo-hibrido.md) (Proposta) — com inspeção por componente, a unidade avaliada passa a ser o par (campo × componente); a **fórmula ponderada permanece inalterada**, o `weight` segue vindo do `config_json` do campo (igual para todas as instâncias — Q6).
 
 ## Contexto
 
