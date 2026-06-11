@@ -307,4 +307,70 @@ test.describe('Submission report', () => {
     await expect(page.getByText('100').first()).toBeVisible()
     await expect(page.getByText('Aprovado')).toBeVisible()
   })
+
+  test('groups report results by component using the frozen snapshot (DR-0002 T9)', async ({
+    authed: page,
+  }) => {
+    const SCOPED_VERSION = {
+      id: 'v1',
+      version: 1,
+      status: 'published',
+      published_at: null,
+      fields: [
+        {
+          id: 'ff1',
+          key: 'pressao',
+          label: 'Pressão do pneu',
+          field_type: 'boolean',
+          required: true,
+          position: 1,
+          config_json: {},
+          component_type_id: 'ct1',
+        },
+      ],
+    }
+    const reportDetail = {
+      ...MOCK_DETAIL,
+      status: 'completed',
+      score: 75,
+      finished_at: '2024-01-10T11:00:00Z',
+      asset_id: 'truck1',
+      asset_identifier: 'Caminhão 01',
+      answers: [
+        { field_key: 'pressao', field_type: 'boolean', value: true, asset_id: 'a1' },
+        { field_key: 'pressao', field_type: 'boolean', value: false, asset_id: 'a2' },
+        { field_key: 'pressao', field_type: 'boolean', value: true, asset_id: 'a3' },
+        { field_key: 'pressao', field_type: 'boolean', value: true, asset_id: 'a4' },
+      ],
+      conformity: [
+        {
+          field_key: 'pressao',
+          status: 'nao_conforme',
+          justification: 'Pneu furado',
+          asset_id: 'a2',
+        },
+      ],
+      components_snapshot: {
+        a1: { label: 'Roda DD', type: 'Roda', path: 'Caminhão 01 > Roda DD' },
+        a2: { label: 'Roda DE', type: 'Roda', path: 'Caminhão 01 > Roda DE' },
+        a3: { label: 'Roda TD', type: 'Roda', path: 'Caminhão 01 > Roda TD' },
+        a4: { label: 'Roda TE', type: 'Roda', path: 'Caminhão 01 > Roda TE' },
+      },
+    }
+    await page.route(`${API}/forms/f1/versions/v1**`, (r) =>
+      r.fulfill({ json: envelope(SCOPED_VERSION) }),
+    )
+    await page.route(`${API}/submissions/s1**`, (r) => r.fulfill({ json: envelope(reportDetail) }))
+    await page.route(`${API}/submissions/s1/attachments**`, (r) =>
+      r.fulfill({ json: paginated([]) }),
+    )
+    await page.goto('/app/submissions/s1/report')
+
+    // Uma linha por componente, com o rótulo congelado do snapshot.
+    for (const roda of ['Roda DD', 'Roda DE', 'Roda TD', 'Roda TE']) {
+      await expect(page.getByText(roda).first()).toBeVisible()
+    }
+    // A não conformidade aponta o componente afetado.
+    await expect(page.getByText('Pneu furado')).toBeVisible()
+  })
 })

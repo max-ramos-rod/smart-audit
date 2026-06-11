@@ -24,6 +24,13 @@ export interface ChecklistField {
   components: ComponentInstance[]
 }
 
+// Identidade congelada de um componente no laudo (DR-0002 T9, Q1.1). Imune a renomeação.
+export interface ComponentSnapshotEntry {
+  label: string
+  type: string
+  path: string
+}
+
 export interface SubmissionListItem {
   id: string
   form_id: string
@@ -73,6 +80,8 @@ export interface SubmissionDetail extends SubmissionListItem {
   checklist?: ChecklistField[]
   // Avisos não-bloqueantes da expansão (Q2: sem componentes; Q3: campo escopado sem ativo).
   warnings?: string[]
+  // Identidade congelada por componente (DR-0002 T9): { <asset_id>: {label,type,path} }.
+  components_snapshot?: Record<string, ComponentSnapshotEntry> | null
 }
 
 export interface SubmissionCreatePayload {

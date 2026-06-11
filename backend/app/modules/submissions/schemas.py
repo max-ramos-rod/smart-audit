@@ -70,6 +70,14 @@ class ComponentInstance(BaseModel):
     path: str
 
 
+class ComponentSnapshotEntry(BaseModel):
+    """Identidade congelada de um componente (DR-0002 T9, Q1.1). Imune a renomeação do ativo."""
+
+    label: str
+    type: str
+    path: str
+
+
 class ChecklistField(BaseModel):
     """Item do checklist expandido. ``components`` vazio = campo geral (uma instância)."""
 
@@ -97,6 +105,8 @@ class SubmissionResponse(BaseModel):
     checklist: list[ChecklistField] = []
     # Avisos não-bloqueantes da expansão (Q2: sem componentes; Q3: campo escopado sem ativo).
     warnings: list[str] = []
+    # Identidade congelada por componente (DR-0002 T9, Q1.1): { <asset_id>: {label,type,path} }.
+    components_snapshot: dict[str, ComponentSnapshotEntry] | None = None
 
 
 class SubmissionListItemResponse(BaseModel):

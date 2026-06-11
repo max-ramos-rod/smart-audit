@@ -9,9 +9,9 @@ import { fetchFormVersion } from '@/services/forms.service'
 import { exportSubmissionPdf } from '@/services/submissions.service'
 import { useSubmissionsStore } from '@/stores/submissions/submissions.store'
 import type { AttachmentItem } from '@/types/attachments'
-import type { FormField, FormVersion } from '@/types/forms'
-import type { SubmissionAnswer } from '@/types/submissions'
+import type { FormVersion } from '@/types/forms'
 import { scoreChipClass, scoreColorVar, scoreText } from '@/utils/score'
+import { buildReportRows, componentLabel, type ReportRow } from '@/utils/reportRows'
 
 const route = useRoute()
 const router = useRouter()
@@ -58,19 +58,17 @@ const fields = computed(() =>
   [...(formVersion.value?.fields ?? [])].sort((a, b) => a.position - b.position),
 )
 
-interface EnrichedAnswer {
-  field: FormField
-  answer: SubmissionAnswer | undefined
-  value: SubmissionAnswer['value']
+// Rótulo congelado de um componente, lido do snapshot (imune a renomeação do ativo).
+function componentLabelFor(assetId: string | null | undefined): string | null {
+  return componentLabel(submission.value?.components_snapshot, assetId)
 }
 
-const enrichedAnswers = computed<EnrichedAnswer[]>(() => {
-  if (!submission.value) return []
-  return fields.value.map(field => {
-    const answer = submission.value!.answers.find(a => a.field_key === field.key)
-    return { field, answer, value: answer?.value ?? null }
-  })
-})
+// Expande campos escopados em uma linha por componente (DR-0002 T9, lógica pura em utils/reportRows).
+const enrichedAnswers = computed<ReportRow[]>(() =>
+  submission.value
+    ? buildReportRows(fields.value, submission.value.answers, submission.value.components_snapshot)
+    : [],
+)
 
 const boolAnswers    = computed(() => enrichedAnswers.value.filter(a => a.field.field_type === 'boolean'))
 const nonBoolAnswers = computed(() => enrichedAnswers.value.filter(a => !['boolean', 'section'].includes(a.field.field_type)))
@@ -233,7 +231,7 @@ async function handleExport(inline = false) {
           <div class="fpanel" style="margin-bottom:16px;">
             <div
               v-for="(ans, i) in boolAnswers"
-              :key="ans.field.key"
+              :key="ans.key"
               class="frow"
               style="display:flex;align-items:flex-start;gap:12px;"
             >
@@ -249,13 +247,16 @@ async function handleExport(inline = false) {
               </div>
               <div style="flex:1;min-width:0;">
                 <div class="frow-type">Campo {{ i + 1 }}{{ ans.field.required ? ' · Obrigatório' : '' }}</div>
-                <div class="frow-name" style="margin:2px 0 6px;">{{ ans.field.label }}</div>
+                <div class="frow-name" style="margin:2px 0 6px;">
+                  {{ ans.field.label }}
+                  <span v-if="ans.componentLabel" class="comp-chip">🧩 {{ ans.componentLabel }}</span>
+                </div>
                 <span v-if="boolResult(ans.value) === 'ok'"  style="font-size:13px;font-weight:700;color:var(--sa-ok);">✓ Sim (conforme)</span>
                 <span v-else-if="boolResult(ans.value) === 'err'" style="font-size:13px;font-weight:700;color:var(--sa-danger);">✗ Não (não conforme)</span>
                 <span v-else-if="boolResult(ans.value) === 'na'" style="font-size:13px;font-weight:600;color:var(--sa-muted);">N/A (não aplicável)</span>
                 <span v-else style="font-size:13px;color:var(--sa-muted);">—</span>
-                <!-- Evidências do campo -->
-                <div v-if="evidenceAttachments[ans.field.key]?.length" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;">
+                <!-- Evidências do campo (compartilhadas entre componentes — limitação T8) -->
+                <div v-if="ans.showEvidence && evidenceAttachments[ans.field.key]?.length" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;">
                   <a v-for="att in evidenceAttachments[ans.field.key]" :key="att.id"
                     :href="att.file_url" target="_blank" rel="noopener"
                     style="display:inline-flex;align-items:center;gap:5px;padding:3px 8px;background:var(--sa-bg);border:1px solid var(--sa-line);border-radius:6px;font-size:11px;text-decoration:none;color:var(--sa-text);">
@@ -273,14 +274,17 @@ async function handleExport(inline = false) {
         <template v-if="nonBoolAnswers.length">
           <div class="slabel" style="margin-bottom:10px;">Campos adicionais</div>
           <div class="fpanel" style="margin-bottom:16px;">
-            <div v-for="ans in nonBoolAnswers" :key="ans.field.key" class="frow">
+            <div v-for="ans in nonBoolAnswers" :key="ans.key" class="frow">
               <div class="frow-type">{{ TYPE_LABEL[ans.field.field_type] ?? ans.field.field_type }}</div>
-              <div class="frow-name" style="margin-bottom:6px;">{{ ans.field.label }}</div>
+              <div class="frow-name" style="margin-bottom:6px;">
+                {{ ans.field.label }}
+                <span v-if="ans.componentLabel" class="comp-chip">🧩 {{ ans.componentLabel }}</span>
+              </div>
               <span style="font-size:13px;font-weight:500;color:var(--sa-text);">
                 {{ formatValue(ans.value, ans.field.field_type) }}
               </span>
-              <!-- Evidências do campo -->
-              <div v-if="evidenceAttachments[ans.field.key]?.length" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;">
+              <!-- Evidências do campo (compartilhadas entre componentes — limitação T8) -->
+              <div v-if="ans.showEvidence && evidenceAttachments[ans.field.key]?.length" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;">
                 <a v-for="att in evidenceAttachments[ans.field.key]" :key="att.id"
                   :href="att.file_url" target="_blank" rel="noopener"
                   style="display:inline-flex;align-items:center;gap:5px;padding:3px 8px;background:var(--sa-bg);border:1px solid var(--sa-line);border-radius:6px;font-size:11px;text-decoration:none;color:var(--sa-text);">
@@ -299,13 +303,16 @@ async function handleExport(inline = false) {
           <div class="fpanel" style="margin-bottom:16px;border:1px solid var(--sa-err-bd, #fecaca);">
             <div
               v-for="c in submission.conformity.filter(c => c.status === 'nao_conforme')"
-              :key="c.field_key"
+              :key="`${c.field_key}@${c.asset_id ?? ''}`"
               class="frow"
             >
               <div style="display:flex;align-items:flex-start;gap:10px;">
                 <div style="width:20px;height:20px;border-radius:50%;background:var(--sa-err-bg);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:var(--sa-danger);flex-shrink:0;margin-top:2px;">✗</div>
                 <div style="flex:1;min-width:0;">
-                  <div class="frow-name" style="margin-bottom:4px;">{{ fields.find(f => f.key === c.field_key)?.label ?? c.field_key }}</div>
+                  <div class="frow-name" style="margin-bottom:4px;">
+                    {{ fields.find(f => f.key === c.field_key)?.label ?? c.field_key }}
+                    <span v-if="componentLabelFor(c.asset_id)" class="comp-chip">🧩 {{ componentLabelFor(c.asset_id) }}</span>
+                  </div>
                   <div v-if="c.justification" style="font-size:12px;color:var(--sa-muted);background:var(--sa-err-bg);border-radius:6px;padding:6px 10px;">
                     {{ c.justification }}
                   </div>
@@ -332,3 +339,18 @@ async function handleExport(inline = false) {
     </div>
   </AppShell>
 </template>
+
+<style scoped>
+/* Chip de componente no laudo (campo escopado, DR-0002 T9) */
+.comp-chip {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 8px;
+  border-radius: 99px;
+  background: #f5f3ff;
+  color: #7c3aed;
+  vertical-align: middle;
+}
+</style>
