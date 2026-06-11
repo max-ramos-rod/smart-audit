@@ -52,7 +52,21 @@ ordem de deploy, feature flag, plano de reversão.>
 
 ## Impacto operacional *(se aplicável)*
 
-<Performance, armazenamento, segurança/RBAC, tenancy, custo, observabilidade.>
+<Performance, armazenamento, custo, escala.>
+
+## Impacto em segurança / RBAC / tenancy *(se aplicável)*
+
+<Guards de role, isolamento multiempresa (`company_id`), exposição de dados, validação de input,
+invariantes de tenant que o CHECK não cobre.>
+
+## Impacto em observabilidade *(se aplicável)*
+
+<Logs, métricas, auditoria (`audit_logs`), rastreabilidade de quem fez o quê.>
+
+## Impacto em testes & contratos automatizados *(se aplicável)*
+
+<Testes de regressão/arquiteturais que esta decisão exige (ex.: guarda de invariante);
+contrato OpenAPI (`openapi.json`), schemas Pydantic/DTO, mocks de E2E que mudam.>
 
 ## Critérios de aceite / Requisitos obrigatórios *(se aplicável)*
 
