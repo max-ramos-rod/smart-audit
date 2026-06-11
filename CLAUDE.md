@@ -62,6 +62,8 @@ python backend/scripts/export_openapi.py -o openapi.json
 
 ### Frontend
 
+> **Use Node 20 / npm 10 localmente** (mesma versão do CI — ver `.nvmrc` e `engines` em `frontend/package.json`). Node 24/npm 11 resolve dependências transitivas (`@emnapi/*`) em versões diferentes e gera um `package-lock.json` que o `npm ci` do CI rejeita. Com `nvm`: `nvm use` (lê o `.nvmrc`). Corepack respeita `"packageManager": "npm@10.9.8"`.
+
 ```powershell
 cd frontend
 npm install
