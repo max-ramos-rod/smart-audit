@@ -11,6 +11,7 @@ import { useSubmissionsStore } from '@/stores/submissions/submissions.store'
 import type { AttachmentItem } from '@/types/attachments'
 import type { FormVersion } from '@/types/forms'
 import { scoreChipClass, scoreColorVar, scoreText } from '@/utils/score'
+import { instanceKey } from '@/utils/inspectionInstances'
 import { buildReportRows, componentLabel, type ReportRow } from '@/utils/reportRows'
 
 const route = useRoute()
@@ -39,10 +40,13 @@ onMounted(async () => {
       )
       try {
         const all = await listAttachments(submissionId.value)
+        // Agrupa evidência por instância (DR-0017): mesma chave dos ReportRow (field@asset).
         const grouped: Record<string, AttachmentItem[]> = {}
         for (const att of all) {
-          if (!grouped[att.field_key]) grouped[att.field_key] = []
-          grouped[att.field_key].push(att)
+          if (!att.field_key) continue // evidência da inspeção/ativo: sem linha de campo no laudo
+          const key = instanceKey(att.field_key, att.asset_id ?? null)
+          if (!grouped[key]) grouped[key] = []
+          grouped[key].push(att)
         }
         evidenceAttachments.value = grouped
       } catch {
@@ -256,8 +260,8 @@ async function handleExport(inline = false) {
                 <span v-else-if="boolResult(ans.value) === 'na'" style="font-size:13px;font-weight:600;color:var(--sa-muted);">N/A (não aplicável)</span>
                 <span v-else style="font-size:13px;color:var(--sa-muted);">—</span>
                 <!-- Evidências do campo (compartilhadas entre componentes — limitação T8) -->
-                <div v-if="ans.showEvidence && evidenceAttachments[ans.field.key]?.length" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;">
-                  <a v-for="att in evidenceAttachments[ans.field.key]" :key="att.id"
+                <div v-if="evidenceAttachments[ans.key]?.length" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;">
+                  <a v-for="att in evidenceAttachments[ans.key]" :key="att.id"
                     :href="att.file_url" target="_blank" rel="noopener"
                     style="display:inline-flex;align-items:center;gap:5px;padding:3px 8px;background:var(--sa-bg);border:1px solid var(--sa-line);border-radius:6px;font-size:11px;text-decoration:none;color:var(--sa-text);">
                     <img v-if="att.mime_type.startsWith('image/')" :src="att.file_url" style="width:18px;height:18px;object-fit:cover;border-radius:2px;flex-shrink:0;" />
@@ -284,8 +288,8 @@ async function handleExport(inline = false) {
                 {{ formatValue(ans.value, ans.field.field_type) }}
               </span>
               <!-- Evidências do campo (compartilhadas entre componentes — limitação T8) -->
-              <div v-if="ans.showEvidence && evidenceAttachments[ans.field.key]?.length" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;">
-                <a v-for="att in evidenceAttachments[ans.field.key]" :key="att.id"
+              <div v-if="evidenceAttachments[ans.key]?.length" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;">
+                <a v-for="att in evidenceAttachments[ans.key]" :key="att.id"
                   :href="att.file_url" target="_blank" rel="noopener"
                   style="display:inline-flex;align-items:center;gap:5px;padding:3px 8px;background:var(--sa-bg);border:1px solid var(--sa-line);border-radius:6px;font-size:11px;text-decoration:none;color:var(--sa-text);">
                   <img v-if="att.mime_type.startsWith('image/')" :src="att.file_url" style="width:18px;height:18px;object-fit:cover;border-radius:2px;flex-shrink:0;" />
