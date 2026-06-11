@@ -11,6 +11,7 @@ from app.db.models.form_versions import FormVersion
 from app.db.models.forms import Form
 from app.db.models.memberships import Membership
 from app.db.models.users import User
+from app.modules.asset_types.repository import AssetTypeRepository
 from app.modules.forms.repository import FormRepository
 from app.modules.forms.schemas import (
     FormCreateRequest,
@@ -25,8 +26,13 @@ from app.modules.forms.schemas import (
 
 
 class FormService:
-    def __init__(self, repository: FormRepository | None = None) -> None:
+    def __init__(
+        self,
+        repository: FormRepository | None = None,
+        asset_type_repository: AssetTypeRepository | None = None,
+    ) -> None:
         self.repository = repository or FormRepository()
+        self.asset_type_repository = asset_type_repository or AssetTypeRepository()
 
     async def list_versions(
         self, db: AsyncSession, membership: Membership, form_id: str
@@ -92,6 +98,7 @@ class FormService:
         payload: FormCreateRequest,
     ) -> FormResponse:
         self.validate_fields(payload.fields)
+        await self._validate_component_types(db, str(membership.company_id), payload.fields)
 
         form = Form(
             company_id=membership.company_id,
@@ -121,6 +128,7 @@ class FormService:
                 position=item.position,
                 config_json=item.config_json,
                 instruction=item.instruction,
+                component_type_id=item.component_type_id,
             )
             for item in payload.fields
         ]
@@ -142,6 +150,7 @@ class FormService:
         payload: FormVersionPublishRequest,
     ) -> FormResponse:
         self.validate_fields(payload.fields)
+        await self._validate_component_types(db, str(membership.company_id), payload.fields)
         form = await self.repository.get_form_by_id(db, str(membership.company_id), form_id)
         if form is None:
             raise HTTPException(
@@ -168,6 +177,7 @@ class FormService:
                 position=item.position,
                 config_json=item.config_json,
                 instruction=item.instruction,
+                component_type_id=item.component_type_id,
             )
             for item in payload.fields
         ]
@@ -198,6 +208,27 @@ class FormService:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="As posicoes dos campos devem ser unicas.",
+            )
+
+        # Escopo por campo (DR-0002 Q4): section é divisor visual, nunca repete por componente.
+        if any(f.field_type == "section" and f.component_type_id is not None for f in fields):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Campo do tipo section nao pode ter escopo de componente.",
+            )
+
+    async def _validate_component_types(
+        self, db: AsyncSession, company_id: str, fields: list[FormFieldCreateRequest]
+    ) -> None:
+        """Valida que todo ``component_type_id`` referencia um tipo da empresa (cross-context)."""
+        referenced = {f.component_type_id for f in fields if f.component_type_id is not None}
+        if not referenced:
+            return
+        existing = await self.asset_type_repository.filter_existing_ids(db, company_id, referenced)
+        if referenced - existing:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Tipo de componente invalido.",
             )
 
     @staticmethod
@@ -244,6 +275,11 @@ class FormService:
                     position=field.position,
                     config_json=field.config_json,
                     instruction=field.instruction,
+                    component_type_id=(
+                        str(field.component_type_id)
+                        if field.component_type_id is not None
+                        else None
+                    ),
                 )
                 for field in ordered_fields
             ],
