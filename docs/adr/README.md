@@ -9,7 +9,9 @@ registram decisões acordadas mas ainda não implementadas — tipicamente origi
 Record em [`docs/design-records/`](../design-records/README.md); ao implementar, mudam para
 **Aceita** e passam a citar os pontos do código que as sustentam.
 
-Novos ADRs partem de [`template.md`](template.md). Registro inicial em 2026-06-08.
+Novos ADRs partem do template oficial [`ADR_TEMPLATE.md`](ADR_TEMPLATE.md) — núcleo + seções de
+impacto "se aplicável" + **Checklist de Sincronização Documental obrigatória** (Q7.4 / ADR-0017).
+Registro inicial em 2026-06-08.
 
 ## Ciclo de vida (Status)
 

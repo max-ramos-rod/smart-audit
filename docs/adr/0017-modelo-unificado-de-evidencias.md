@@ -221,6 +221,22 @@ migração futura sobre evidência real. Substitui e amplia o escopo do item **T
 > **Definition of Done:** nenhuma implementação derivada de uma ADR é considerada concluída
 > enquanto a sua Checklist de Sincronização Documental não estiver integralmente resolvida.
 
+### Q7.4 — A Checklist é padrão obrigatório de toda ADR + template oficial
+
+A prática inaugurada por esta ADR é **promovida a padrão permanente** (não fica restrita à 0017):
+
+- **Obrigatória, com N/A explícito.** Toda ADR inclui a seção Checklist de Sincronização
+  Documental. ADRs que **não** alteram domínio/dados/API/módulos marcam
+  `N/A — não altera domínio/dados/API/módulos` (decisão visível, não esquecida); as que alteram
+  **devem** preencher e resolver.
+- **Verificável, não teatral.** Cada item marcado **nomeia arquivo + mudança**; caixa marcada sem
+  diff correspondente reprova o PR.
+- **Template oficial canônico:** [`docs/adr/ADR_TEMPLATE.md`](ADR_TEMPLATE.md) (o antigo
+  `template.md` passa a apontar para ele). Inclui o núcleo, as seções de impacto "se aplicável"
+  (schema · API · migração/rollout · operacional · critérios de aceite) e a Checklist obrigatória.
+- **Definition of Done** de toda ADR inclui a checklist resolvida (já vigente em `AI_RULES.md` /
+  `START_HERE.md`).
+
 ### Checklist de Sincronização Documental — ADR-0017
 
 Resolver **antes** de marcar esta ADR como *Aceita*. Os docs descritivos atualizam **junto com a
@@ -229,6 +245,7 @@ implementação** (para refletirem o schema entregue), não antes.
 | Documento | Impacto | Status |
 |---|---|---|
 | `docs/adr/README.md` | adicionar linha ADR-0017 ao índice | ✅ (nesta entrega) |
+| `docs/adr/ADR_TEMPLATE.md` + `template.md` | template oficial com Checklist (Q7.4) | ✅ (nesta entrega) |
 | `docs/adr/0006-modelo-hibrido-de-respostas.md` | nota: efeito anexo→`answers_json` revisado pela 0017 | ⬜ |
 | `docs/adr/0016-inspecao-por-componente-revisao-modelo-hibrido.md` | nota cruzada com 0017 | ⬜ |
 | `docs/DER_Smart_Audit.md` | novo DDL `attachments`, relações, diagrama ER, remover notas obsoletas | ⬜ |
