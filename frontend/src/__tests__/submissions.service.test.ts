@@ -17,6 +17,7 @@ import {
   fetchSubmissions,
   finishSubmission,
   saveAnswers,
+  saveConformity,
 } from '@/services/submissions.service'
 
 const mockListItem = {
@@ -101,6 +102,38 @@ describe('submissions.service', () => {
       const payload = { answers: [{ field_key: 'ok', value: true }] }
       const result = await saveAnswers('s1', payload)
       expect(http.put).toHaveBeenCalledWith('/submissions/s1/answers', payload)
+      expect(result).toEqual(mockDetail)
+    })
+
+    it('forwards asset_id per answer (DR-0002 T8 inspeção por componente)', async () => {
+      vi.mocked(http.put).mockResolvedValue({ data: { data: mockDetail } })
+      const payload = {
+        answers: [
+          { field_key: 'pressao', value: true, asset_id: 'a1' },
+          { field_key: 'pressao', value: false, asset_id: 'a2' },
+        ],
+      }
+      await saveAnswers('s1', payload)
+      expect(http.put).toHaveBeenCalledWith('/submissions/s1/answers', payload)
+    })
+  })
+
+  describe('saveConformity', () => {
+    it('forwards asset_id per conformity item (DR-0002 T8)', async () => {
+      vi.mocked(http.put).mockResolvedValue({ data: { data: mockDetail } })
+      const payload = {
+        items: [
+          { field_key: 'pressao', status: 'conforme' as const, asset_id: 'a1' },
+          {
+            field_key: 'pressao',
+            status: 'nao_conforme' as const,
+            justification: 'furada',
+            asset_id: 'a2',
+          },
+        ],
+      }
+      const result = await saveConformity('s1', payload)
+      expect(http.put).toHaveBeenCalledWith('/submissions/s1/conformity', payload)
       expect(result).toEqual(mockDetail)
     })
   })

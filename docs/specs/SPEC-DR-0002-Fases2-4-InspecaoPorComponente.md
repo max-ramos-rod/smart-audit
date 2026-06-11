@@ -159,8 +159,19 @@ submissions
   `asset_type`); parte da versão publicada imutável (ADR-0005).
 - **Inspeção** (`SubmissionDetailView` + `InspectionListRow`/`InspectionFieldRow`): renderizar
   campos escopados como **grupo por componente** (Roda DD/DE/TD/TE), cada um com resposta +
-  conformidade + evidência; reusar o padrão de lista existente.
+  conformidade própria; reusar o padrão de lista existente.
 - **Relatório/PDF**: seções por componente; score breakdown por componente.
+
+> **Limitação temporária (T8, decidida 2026-06-11 — Opção 1).** **Respostas e conformidades já são
+> individualizadas por componente** (chave de instância `field_key@asset_id`, `asset_id` enviado em
+> `PUT /answers` e `/conformity`). **Evidências permanecem associadas ao campo** (`field_key`),
+> compartilhadas entre os componentes daquele campo, até a evolução do módulo de attachments para
+> suportar `asset_id`. Motivo: o módulo de attachments tem contrato próprio (localiza/cria o
+> `submission_value` apenas por `field_key`) e estendê-lo junto da refatoração da
+> `SubmissionDetailView` aumentaria significativamente o tamanho e o risco do PR. **Follow-up:**
+> abrir **T8.5** (ou ADR complementar) para adicionar `asset_id` ao fluxo de attachments
+> (`AttachmentCreateRequest` → lookup do `submission_value` → `AttachmentResponse` →
+> aninhamento no `answers_json`).
 
 ---
 
