@@ -6,9 +6,11 @@ import AppShell from '@/components/layout/AppShell.vue'
 import FormFieldEditor from '@/components/forms/FormFieldEditor.vue'
 import SvgIcon from '@/components/ui/SvgIcon.vue'
 import { extractProblemMessage } from '@/services/api/problem'
+import { fetchAssetTypes } from '@/services/asset-types.service'
 import { fetchForm } from '@/services/forms.service'
 import { fetchSubmissions } from '@/services/submissions.service'
 import { useFormsStore } from '@/stores/forms/forms.store'
+import type { AssetType } from '@/types/asset-types'
 import type { FormDetail, FormFieldCreatePayload } from '@/types/forms'
 import type { SubmissionListItem } from '@/types/submissions'
 
@@ -24,6 +26,9 @@ const isLoadingSubmissions  = ref(false)
 
 const versionError = ref<string | null>(null)
 const versionFields       = ref<FormFieldCreatePayload[]>([])
+
+// Tipos de ativo ativos, para o seletor de escopo de componente (DR-0002 T7).
+const assetTypes = ref<AssetType[]>([])
 
 // ── B5/B6: expand state ──
 const expandedDetailIndex = ref<number | null>(null)
@@ -228,6 +233,12 @@ function setupOutlineScrollSync() {
 onMounted(async () => {
   try {
     formDetail.value = await fetchForm(formId.value)
+    // Tipos de ativo ativos para o seletor de escopo (DR-0002 T7). Falha não bloqueia o composer.
+    try {
+      assetTypes.value = (await fetchAssetTypes(1, 100, true)).data
+    } catch {
+      assetTypes.value = []
+    }
     // Auto-open composer with current version fields
     openVersionComposer()
   } finally {
@@ -271,6 +282,7 @@ function openVersionComposer() {
   versionFields.value = formDetail.value.current_version.fields.map(f => ({
     key: f.key, label: f.label, field_type: f.field_type,
     required: f.required, position: f.position, config_json: f.config_json,
+    instruction: f.instruction, component_type_id: f.component_type_id ?? null,
   }))
   versionError.value = null
   expandedDetailIndex.value = null
@@ -534,6 +546,7 @@ async function submitVersion() {
                       :index="fieldIdx"
                       :show-remove="versionFields.length > 1"
                       mode="inline"
+                      :asset-types="assetTypes"
                       @remove="removeVersionField(fieldIdx)"
                     />
                   </div>
@@ -600,6 +613,7 @@ async function submitVersion() {
                         :index="fieldIdx"
                         :show-remove="versionFields.length > 1"
                         mode="inline"
+                        :asset-types="assetTypes"
                         @remove="removeVersionField(fieldIdx)"
                       />
                     </div>
@@ -662,6 +676,7 @@ async function submitVersion() {
                       :index="fieldIdx"
                       :show-remove="versionFields.length > 1"
                       mode="inline"
+                      :asset-types="assetTypes"
                       @remove="removeVersionField(fieldIdx)"
                     />
                   </div>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { AssetType } from '@/types/asset-types'
 import type { FieldType, FormFieldCreatePayload } from '@/types/forms'
 
 const field = defineModel<FormFieldCreatePayload>({ required: true })
@@ -7,6 +8,8 @@ const props = defineProps<{
   index: number
   showRemove: boolean
   mode?: 'inline' | 'full'
+  // Tipos de ativo da empresa, para o seletor de escopo de componente (DR-0002 T7).
+  assetTypes?: AssetType[]
 }>()
 
 const emit = defineEmits<{ remove: [], updateKey: [key: string] }>()
@@ -24,10 +27,22 @@ function setConfig(patch: Config) {
 function onTypeChange(event: Event) {
   const ft = (event.target as HTMLSelectElement).value as FieldType
   if (ft === 'section') {
-    field.value = { ...field.value, field_type: ft, config_json: {}, required: false }
+    // section nunca tem escopo de componente (Q4: escopo por campo).
+    field.value = {
+      ...field.value,
+      field_type: ft,
+      config_json: {},
+      required: false,
+      component_type_id: null,
+    }
   } else {
     field.value = { ...field.value, field_type: ft, config_json: {} }
   }
+}
+
+function setComponentType(event: Event) {
+  const value = (event.target as HTMLSelectElement).value
+  set({ component_type_id: value || null })
 }
 
 function getOptionsString(): string {
@@ -137,6 +152,17 @@ function onLabelBlur(e: FocusEvent) {
         >
           <option value="false">Não</option>
           <option value="true">Sim</option>
+        </select>
+      </label>
+
+      <label
+        v-if="field.field_type !== 'section' && assetTypes && assetTypes.length"
+        style="display:grid;gap:6px;"
+      >
+        <span>Escopo de componente</span>
+        <select :value="field.component_type_id ?? ''" @change="setComponentType($event)">
+          <option value="">Nenhum (campo geral)</option>
+          <option v-for="t in assetTypes" :key="t.id" :value="t.id">{{ t.name }}</option>
         </select>
       </label>
 
@@ -258,6 +284,18 @@ function onLabelBlur(e: FocusEvent) {
         >
           <option value="false">Não</option>
           <option value="true">Sim</option>
+        </select>
+      </label>
+
+      <!-- Escopo de componente (DR-0002) -->
+      <label
+        v-if="field.field_type !== 'section' && assetTypes && assetTypes.length"
+        class="ffe-field"
+      >
+        <span class="ffe-lbl">Escopo de componente</span>
+        <select class="fselect" :value="field.component_type_id ?? ''" @change="setComponentType($event)">
+          <option value="">Nenhum (campo geral)</option>
+          <option v-for="t in assetTypes" :key="t.id" :value="t.id">{{ t.name }}</option>
         </select>
       </label>
 

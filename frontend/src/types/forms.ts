@@ -9,6 +9,8 @@ export interface FormField {
   position: number
   config_json: Record<string, unknown>
   instruction: string | null
+  // Escopo de componente (DR-0002). NULL = campo geral; preenchido = repete por componente.
+  component_type_id?: string | null
 }
 
 export interface FormVersion {
@@ -47,6 +49,8 @@ export interface FormFieldCreatePayload {
   position: number
   config_json: Record<string, unknown>
   instruction?: string | null
+  // Escopo de componente (DR-0002). NULL/ausente = campo geral.
+  component_type_id?: string | null
 }
 
 export interface FormCreatePayload {

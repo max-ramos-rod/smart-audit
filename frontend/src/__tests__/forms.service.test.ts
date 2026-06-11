@@ -61,6 +61,28 @@ describe('forms.service', () => {
       expect(http.post).toHaveBeenCalledWith('/forms', payload)
       expect(result).toEqual(mockFormDetail)
     })
+
+    it('forwards component_type_id on scoped fields (DR-0002 T7)', async () => {
+      vi.mocked(http.post).mockResolvedValue({ data: { data: mockFormDetail } })
+      const payload = {
+        name: 'Veicular',
+        fields: [
+          {
+            key: 'pressao',
+            label: 'Pressao',
+            field_type: 'boolean',
+            required: true,
+            position: 1,
+            config_json: {},
+            component_type_id: 'type-roda',
+          },
+        ],
+      }
+      await createForm(payload as any)
+      expect(http.post).toHaveBeenCalledWith('/forms', payload)
+      const sent = vi.mocked(http.post).mock.calls[0][1] as typeof payload
+      expect(sent.fields[0].component_type_id).toBe('type-roda')
+    })
   })
 
   describe('fetchFormVersion', () => {
