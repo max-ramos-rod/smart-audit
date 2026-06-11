@@ -86,8 +86,9 @@ no histórico). Implementa a SPEC §3–§4.
 **Critérios de aceite**
 - `alembic upgrade head` e `downgrade -1` rodam limpos; head novo aponta para esta revisão.
 - Postgres: duas linhas com `asset_id NULL` no mesmo `(submission_id, form_field_id)` continuam
-  **violando** o `UNIQUE` (NULL distinto preserva "uma linha por campo" no histórico) — **provar em
-  teste** (SPEC §3 nota).
+  **violando** o `UNIQUE` — graças a **`NULLS NOT DISTINCT`** (PG 15+), que preserva "uma linha por
+  campo" no histórico; o padrão `NULLS DISTINCT` perderia essa garantia — **provar em teste**
+  (SPEC §3 nota).
 - Histórico fica com `asset_id = NULL`, `component_type_id = NULL`, `components_snapshot = NULL`.
 - `ruff`/`mypy` verdes; toda a suíte existente verde **sem alteração de teste** (retrocompat
   estrutural).

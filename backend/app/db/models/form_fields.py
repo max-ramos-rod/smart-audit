@@ -30,6 +30,11 @@ class FormField(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         JSONB, nullable=False, default=dict, server_default="{}"
     )
     instruction: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Escopo de componente (DR-0002 Fases 2-4 / ADR-0016). NULL = campo geral; preenchido =
+    # o campo repete por componente daquele tipo. Parte da versão publicada imutável (ADR-0005).
+    component_type_id: Mapped[str | None] = mapped_column(
+        ForeignKey("asset_types.id"), nullable=True
+    )
 
     form_version = relationship("FormVersion", back_populates="fields")
     submission_values = relationship("SubmissionValue", back_populates="form_field")

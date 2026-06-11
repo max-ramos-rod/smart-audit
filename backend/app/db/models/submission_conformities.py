@@ -9,12 +9,17 @@ class SubmissionConformity(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "submission_conformities"
     __table_args__ = (
         UniqueConstraint(
-            "submission_id", "form_field_id", name="uq_submission_conformities_submission_field"
+            "submission_id",
+            "form_field_id",
+            "asset_id",
+            name="uq_submission_conformities_submission_field_asset",
+            postgresql_nulls_not_distinct=True,
         ),
         CheckConstraint(
             "status IN ('conforme', 'nao_conforme')", name="ck_submission_conformities_status"
         ),
         Index("ix_submission_conformities_submission_id", "submission_id"),
+        Index("ix_submission_conformities_asset", "asset_id"),
     )
 
     submission_id: Mapped[str] = mapped_column(
@@ -23,6 +28,9 @@ class SubmissionConformity(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     form_field_id: Mapped[str] = mapped_column(
         ForeignKey("form_fields.id", ondelete="CASCADE"), nullable=False
     )
+    # Dimensão de componente (DR-0002 Fases 2-4 / ADR-0016). NULL = campo geral
+    # (comportamento atual). Sem CASCADE: ativos são soft-deletados, nunca removidos.
+    asset_id: Mapped[str | None] = mapped_column(ForeignKey("assets.id"), nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False)
     justification: Mapped[str | None] = mapped_column(Text, nullable=True)
 

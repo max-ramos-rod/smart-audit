@@ -73,12 +73,12 @@ form_fields
 
 submission_values
   + asset_id  UUID NULL  FK -> assets(id)
-  UNIQUE(submission_id, form_field_id)  ->  UNIQUE(submission_id, form_field_id, asset_id)
+  UNIQUE(submission_id, form_field_id)  ->  UNIQUE(submission_id, form_field_id, asset_id) NULLS NOT DISTINCT
   (uq_submission_values_submission_field  ->  uq_submission_values_submission_field_asset)
 
 submission_conformities
   + asset_id  UUID NULL  FK -> assets(id)
-  UNIQUE(submission_id, form_field_id)  ->  UNIQUE(submission_id, form_field_id, asset_id)
+  UNIQUE(submission_id, form_field_id)  ->  UNIQUE(submission_id, form_field_id, asset_id) NULLS NOT DISTINCT
   (uq_submission_conformities_submission_field  ->  ..._field_asset)
 
 submissions
@@ -90,9 +90,12 @@ submissions
 `{ <asset_id>: valor }` (sem metadado). A identidade (label/type/path) vive **só** em
 `components_snapshot`, 1× por componente.
 
-> **Nota Postgres (sensível):** `UNIQUE` trata `NULL` como distinto, então linhas com `asset_id
-> NULL` permanecem únicas por `(submission_id, form_field_id)` — o histórico (uma linha por campo)
-> continua válido sem ajuste. Validar esse comportamento em teste antes de promover a migração.
+> **Nota Postgres (sensível, corrigida em 2026-06-11):** o `UNIQUE` precisa de **`NULLS NOT
+> DISTINCT`** (PG 15+) para tratar `NULL` como **igual**. Só assim o histórico (`asset_id NULL`)
+> permanece com uma linha por `(submission_id, form_field_id)`, como o constraint antigo garantia.
+> O padrão (`NULLS DISTINCT`) trataria cada `NULL` como distinto e permitiria **várias** linhas no
+> mesmo campo geral — regressão. Comportamento validado em teste
+> (`test_submissions_component.py`) antes de promover a migração; prod roda PG 17.
 
 ---
 
@@ -102,7 +105,7 @@ submissions
 - `upgrade`: add `form_fields.component_type_id` (FK nullable → asset_types); add
   `submission_values.asset_id` e `submission_conformities.asset_id` (FK nullable → assets);
   add `submissions.components_snapshot` (JSONB nullable); **drop** os `UNIQUE` antigos e **create**
-  os novos com `asset_id`; índices auxiliares.
+  os novos com `asset_id` e **`NULLS NOT DISTINCT`** (ver Nota Postgres em §3); índices auxiliares.
 - Histórico fica com `asset_id = NULL` e `components_snapshot = NULL` (sem mudança de
   comportamento). **Reversível.**
 - **Sem CASCADE** nos novos FKs de `asset_id` (ativos são soft-deletados; ADR-0009/0015).
@@ -247,7 +250,8 @@ Em volume (100 inspeções/mês de cada): caminhão ~48 mil linhas SV/ano; ônib
   veicular).
 - `ix_*_submission_id` segue sendo o índice quente (carrega o detalhe); `ix_*_form_field_id` vira o
   gargalo de **relatórios cross-inspeção** por campo escopado.
-- `asset_id NULL` distinto no Postgres → histórico permanece único por campo, **sem backfill**.
+- `asset_id NULL` com **`NULLS NOT DISTINCT`** → histórico permanece único por campo, **sem
+  backfill** (o padrão `NULLS DISTINCT` perderia essa unicidade — ver Nota Postgres em §3).
 
 ### Consultas mais pesadas
 
