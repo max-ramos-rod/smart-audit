@@ -162,16 +162,12 @@ submissions
   conformidade própria; reusar o padrão de lista existente.
 - **Relatório/PDF**: seções por componente; score breakdown por componente.
 
-> **Limitação temporária (T8, decidida 2026-06-11 — Opção 1).** **Respostas e conformidades já são
-> individualizadas por componente** (chave de instância `field_key@asset_id`, `asset_id` enviado em
-> `PUT /answers` e `/conformity`). **Evidências permanecem associadas ao campo** (`field_key`),
-> compartilhadas entre os componentes daquele campo, até a evolução do módulo de attachments para
-> suportar `asset_id`. Motivo: o módulo de attachments tem contrato próprio (localiza/cria o
-> `submission_value` apenas por `field_key`) e estendê-lo junto da refatoração da
-> `SubmissionDetailView` aumentaria significativamente o tamanho e o risco do PR. **Follow-up:**
-> abrir **T8.5** (ou ADR complementar) para adicionar `asset_id` ao fluxo de attachments
-> (`AttachmentCreateRequest` → lookup do `submission_value` → `AttachmentResponse` →
-> aninhamento no `answers_json`).
+> **Evidência por componente — RESOLVIDA pela [ADR-0017](../adr/0017-modelo-unificado-de-evidencias.md).**
+> A limitação temporária do T8 (Opção 1: evidência por `field_key`, compartilhada entre componentes)
+> foi **fechada**: `attachments` virou uma entidade polimórfica ancorada por escopo
+> (`component`/`field`/`submission`/`asset`), sem `submission_value_id` e sem escrever `answers_json`.
+> Evidência agora é individualizada por componente (`asset_id`), com cardinalidade 1:N protegida
+> (INV-E1). Respostas e conformidades já eram por componente desde o T8.
 
 ---
 

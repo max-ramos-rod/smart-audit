@@ -302,23 +302,15 @@ com resposta + conformidade + evidência próprias, reusando o padrão de lista 
 
 ---
 
-## T8.5 — Backend: `asset_id` no fluxo de attachments (evidência por componente)
+## T8.5 — Evidência por componente — ✅ CONCLUÍDA pela ADR-0017
 
-**Objetivo.** Permitir evidência **por componente** (não só por campo), fechando a limitação
-temporária da Opção 1 do T8. A coluna `submission_values.asset_id` já existe (T1).
-
-**Arquivos impactados (esboço)**
-- `backend/app/modules/attachments/schemas.py` — `asset_id` opcional em `AttachmentCreateRequest`
-  e em `AttachmentResponse`.
-- `backend/app/modules/attachments/service.py` — lookup/criação do `submission_value` por
-  `(submission_id, form_field_id, asset_id)`; aninhar no `answers_json` por componente; validar
-  INV1 (asset na subárvore + tipo do campo).
-- `backend/app/modules/attachments/repository.py` — `get_submission_value` com `asset_id`.
-- Frontend: `attachments.service` + `SubmissionDetailView` re-chaveiam evidência por instância.
-
-**Critérios de aceite**
-- Evidência anexada a um componente fica isolada por `asset_id`; retrocompat (`asset_id` nulo) =
-  comportamento atual; INV1 rejeita asset fora da subárvore/tipo (400 RFC 7807).
+**Resultado.** O escopo estreito originalmente previsto aqui (adicionar `asset_id` ao fluxo de
+attachments) foi **superado e ampliado** pela [ADR-0017](../adr/0017-modelo-unificado-de-evidencias.md):
+`attachments` virou uma entidade polimórfica ancorada por escopo (`component`/`field`/`submission`/
+`asset`), **sem** `submission_value_id` (Q7.1), **sem** efeito em `answers_json`, com cardinalidade
+1:N protegida (INV-E1) e validação INV1/INV-E2. Migrations `e4f5a6b7c8d9` (expand) + `f5a6b7c8d9e0`
+(contract). Frontend (`SubmissionDetailView`/`SubmissionReportView`) re-chaveia evidência por
+instância e envia `asset_id`. **A limitação Opção-1 do T8 está fechada.**
 
 ---
 

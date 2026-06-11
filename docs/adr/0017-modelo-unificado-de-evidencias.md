@@ -1,8 +1,18 @@
 # ADR-0017 — Modelo unificado de evidências (anexo polimórfico por escopo)
 
-**Status:** Proposta · **Data:** 2026-06-11
+**Status:** Aceita · **Data:** 2026-06-11
 **Supersedes:** — · **Superseded-by:** —
 **Revisa/estende:** [ADR-0006](0006-modelo-hibrido-de-respostas.md) · [ADR-0016](0016-inspecao-por-componente-revisao-modelo-hibrido.md)
+
+> **Implementada.** Símbolos que a sustentam: modelo `backend/app/db/models/attachments.py`
+> (`Attachment` com `scope`/`company_id`/`submission_id`/`form_field_id`/`asset_id`/`component_label`/
+> `metadata_json`; sem `submission_value_id`); migrations `e4f5a6b7c8d9` (expand) + `f5a6b7c8d9e0`
+> (contract: `ck_attachments_scope_anchor`, índices não-únicos, drop do vínculo legado);
+> `AttachmentService._resolve_scope`/`_validate_component` (escopo + INV1/INV-E2; não escreve
+> `answers_json`); `AttachmentRepository.list_for_anchor` (`IS NOT DISTINCT FROM`); frontend
+> `SubmissionDetailView`/`SubmissionReportView` re-chaveiam evidência por instância e enviam
+> `asset_id`. Testes: `backend/tests/integration/test_attachments_evidence_scope.py` (INV-E1, escopos,
+> INV1) + `frontend/src/__tests__/attachments.service.test.ts`.
 
 <!--
 Status Proposta: decisão acordada (Architecture Review de evidências, 2026-06-11; Q7 e Q7.1),
@@ -268,26 +278,26 @@ A prática inaugurada por esta ADR é **promovida a padrão permanente** (não f
 
 ### Checklist de Sincronização Documental — ADR-0017
 
-Resolver **antes** de marcar esta ADR como *Aceita*. Os docs descritivos atualizam **junto com a
-implementação** (para refletirem o schema entregue), não antes.
+Resolvida — todos os itens sincronizados nesta finalização da ADR.
 
 | Documento | Impacto | Status |
 |---|---|---|
-| `docs/adr/README.md` | adicionar linha ADR-0017 ao índice | ✅ (nesta entrega) |
-| `docs/adr/ADR_TEMPLATE.md` + `template.md` | template oficial com Checklist (Q7.4) | ✅ (nesta entrega) |
-| `docs/adr/0006-modelo-hibrido-de-respostas.md` | nota: efeito anexo→`answers_json` revisado pela 0017 | ⬜ |
-| `docs/adr/0016-inspecao-por-componente-revisao-modelo-hibrido.md` | nota cruzada com 0017 | ⬜ |
-| `docs/DER_Smart_Audit.md` | novo DDL `attachments`, relações, diagrama ER, remover notas obsoletas | ⬜ |
-| `docs/Arquitetura_Smart_Audit.md` | bounded context "Evidências": âncora por escopo + doc de ativo | ⬜ |
-| `docs/ai/AI_MODELS.md` | colunas/relacionamentos de `attachments`; remover efeito `answers_json` | ⬜ |
-| `docs/ai/AI_DECISIONS.md` | revisar nota "anexo sempre ligado a submission_value on-demand" | ⬜ |
-| `docs/ai/AI_RULES.md` | operacionalizar a Regra de Governança Documental | ✅ (nesta entrega) |
-| `docs/ai/START_HERE.md` | ponto de entrada de IA referencia a Regra de Governança | ✅ (nesta entrega) |
-| `docs/AUDIT_REPORT.md` | marcar efeito anexo→`answers_json` como superado pela 0017 | ⬜ |
-| `docs/specs/SPEC-DR-0002-Fases2-4-InspecaoPorComponente.md` | §7: resolução = ADR-0017; remover "limitação temporária" | ⬜ |
-| `docs/specs/PLANO-DR-0002-Fases2-4.md` | T8.5 reescrito com o escopo pleno da 0017 | ⬜ |
-| `docs/design-records/README.md` · `docs/Design_Record_Evolutivo.md` | refletir a evolução de evidências | ⬜ |
-| `CLAUDE.md` | reescrever seção "Attachments module" para o modelo polimórfico | ⬜ |
+| `docs/adr/README.md` | linha ADR-0017 no índice | ✅ |
+| `docs/adr/ADR_TEMPLATE.md` + `template.md` | template oficial com Checklist (Q7.4) | ✅ |
+| `docs/adr/0006-modelo-hibrido-de-respostas.md` | nota: efeito anexo→`answers_json` revisado pela 0017 | ✅ |
+| `docs/adr/0016-inspecao-por-componente-revisao-modelo-hibrido.md` | nota cruzada com 0017 | ✅ |
+| `docs/DER_Smart_Audit.md` | novo DDL `attachments`, relações, diagrama ER, notas obsoletas removidas | ✅ |
+| `docs/Arquitetura_Smart_Audit.md` | bounded context "Evidências": âncora por escopo + doc de ativo | ✅ |
+| `docs/ai/AI_MODELS.md` | colunas/relacionamentos de `attachments`; efeito `answers_json` removido | ✅ |
+| `docs/ai/AI_DECISIONS.md` | nota de evidência por escopo (sem submission_value on-demand) | ✅ |
+| `docs/ai/AI_RULES.md` | Regra de Governança Documental | ✅ |
+| `docs/ai/START_HERE.md` | ponto de entrada de IA referencia a Regra de Governança | ✅ |
+| `docs/AUDIT_REPORT.md` | efeito anexo→`answers_json` marcado como superado pela 0017 | ✅ |
+| `docs/specs/SPEC-DR-0002-Fases2-4-InspecaoPorComponente.md` | §7: limitação T8 resolvida pela 0017 | ✅ |
+| `docs/specs/PLANO-DR-0002-Fases2-4.md` | T8.5 marcado concluído pela 0017 | ✅ |
+| `docs/design-records/Design_Record_Evolutivo.md` | evolução de evidências (âncora por escopo) | ✅ |
+| `CLAUDE.md` | seção "Attachments module" reescrita para o modelo polimórfico | ✅ |
+| `docs/TECH_BACKLOG.md` | TB-001 (limpeza física de arquivos órfãos) | ✅ |
 
 > Nota A→B→C: a auditoria de 2026-06-11 não encontrou documento assumindo o modelo híbrido (B);
 > todos os docs acima estão no modelo atual (A) e convergem para C (esta ADR).

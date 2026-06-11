@@ -24,7 +24,7 @@ herda `UUIDPrimaryKeyMixin` (PK `uuid` com `gen_random_uuid()`); a maioria herda
 - `submissions` — `company_id`, `form_version_id`, `created_by`, `status`, `score` (NUMERIC(5,2)), `started_at`, `finished_at`, `answers_json` (JSONB). `CHECK status IN (draft, in_progress, completed, cancelled)`.
 - `submission_values` — `submission_id`, `form_field_id`, `value_text`, `value_number` (NUMERIC(14,4)), `value_boolean`, `value_date`, `value_json`. `UNIQUE(submission_id, form_field_id)`.
 - `submission_conformities` — `submission_id` (CASCADE), `form_field_id` (CASCADE), `status`, `justification`. `UNIQUE(submission_id, form_field_id)`; `CHECK status IN (conforme, nao_conforme)`.
-- `attachments` — `submission_value_id` (CASCADE), `file_url`, `thumbnail_url`, `mime_type`, `file_size` (BIGINT), `uploaded_by`. **`field_key` não é coluna** — resolvido em runtime via `submission_value.form_field.key`.
+- `attachments` (ADR-0017) — âncora por escopo: `company_id`, `scope` (`component`/`field`/`submission`/`asset`), `submission_id` (CASCADE, nullable), `form_field_id` (nullable), `asset_id` (nullable, sem CASCADE), `component_label`, `metadata_json`, `file_url`, `thumbnail_url`, `mime_type`, `file_size` (BIGINT), `uploaded_by`. `CHECK ck_attachments_scope_anchor`; índices da âncora **não-únicos** (1:N por item — INV-E1). **Sem `submission_value_id`** (removido — Q7.1). `field_key` resolvido via `attachment.form_field.key`.
 
 ### Equipes
 - `teams` — `company_id`, `name`, `created_by`, `is_active` (soft delete).
@@ -41,7 +41,8 @@ users     1:N memberships, password_reset_tokens, notification_reads, submission
               team_members, audit_logs (actor + target)
 forms          1:N form_versions 1:N form_fields
 form_versions  1:N submissions
-submissions    1:N submission_values 1:N attachments
+submissions    1:N submission_values
+submissions / form_fields / assets / companies  1:N attachments  (âncora por escopo — ADR-0017)
 submissions    1:N submission_conformities
 form_fields    1:N submission_values, submission_conformities
 teams          1:N team_members
@@ -75,8 +76,9 @@ score = round( Σ weight(conforme) / Σ weight(avaliados em submission_conformit
 
 ## Snapshot e N/A
 
-- `answers_json` é snapshot `{ field_key: valor_serializado }` escrito em `save_answers` **e**
-  atualizado como efeito colateral na criação de anexo (`answers_json[field_key] = file_url`).
+- `answers_json` é snapshot escrito em `save_answers` (campo geral escalar; campo escopado =
+  `{ <asset_id>: valor }`). **Anexos não escrevem mais `answers_json`** — `attachments` é a fonte da
+  verdade da evidência (ADR-0017 revisa o efeito colateral do ADR-0006/0016).
 - N/A: linha existe em `submission_values` com `value_text = "na"`; "sem resposta" = linha
   inexistente.
 
