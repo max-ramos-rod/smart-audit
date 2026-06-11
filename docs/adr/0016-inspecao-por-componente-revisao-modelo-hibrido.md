@@ -3,6 +3,9 @@
 **Status:** Proposta · **Data:** 2026-06-10
 **Supersedes:** — · **Superseded-by:** —
 **Revisa/estende:** [ADR-0006](0006-modelo-hibrido-de-respostas.md)
+**Relacionado:** [ADR-0017](0017-modelo-unificado-de-evidencias.md) — a evidência por componente é
+realizada pelo modelo unificado de evidências (anexo por escopo), que também remove o efeito de
+anexo→`answers_json` herdado do ADR-0006.
 
 <!--
 Status Proposta: decisão acordada, ainda não implementada no código. Origem em

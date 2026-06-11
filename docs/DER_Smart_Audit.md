@@ -80,7 +80,7 @@ Relacionamentos:
 - `form_versions 1:N submissions`
 - `submissions 1:N submission_values`
 - `form_fields 1:N submission_values`
-- `submission_values 1:N attachments`
+- `submissions 1:N attachments` · `form_fields 1:N attachments` · `assets 1:N attachments` · `companies 1:N attachments` (âncora por escopo — ADR-0017; 1:N por item)
 - `submissions 1:N submission_conformities`
 - `form_fields 1:N submission_conformities`
 
@@ -135,7 +135,7 @@ users
   |                     |      |
   `-< audit_logs >------|      |- form_versions
       (actor +          |      |-< submission_values >- form_fields
-       target,          |      |      `-< attachments
+       target,          |      |-< attachments (escopo: submission/field/asset — ADR-0017)
        opt.)            |      `-< submission_conformities >- form_fields
                         |
                         |-< teams
@@ -164,7 +164,9 @@ erDiagram
     FORM_VERSIONS ||--o{ SUBMISSIONS : uses
     SUBMISSIONS ||--o{ SUBMISSION_VALUES : contains
     FORM_FIELDS ||--o{ SUBMISSION_VALUES : answers
-    SUBMISSION_VALUES ||--o{ ATTACHMENTS : has
+    SUBMISSIONS ||--o{ ATTACHMENTS : scoped_evidence
+    FORM_FIELDS ||--o{ ATTACHMENTS : on_field
+    ASSETS ||--o{ ATTACHMENTS : on_component
     SUBMISSIONS ||--o{ SUBMISSION_CONFORMITIES : has
     FORM_FIELDS ||--o{ SUBMISSION_CONFORMITIES : evaluated_by
     COMPANIES ||--o{ TEAMS : owns
@@ -439,10 +441,19 @@ Observacoes:
   (sem registro em `submission_conformities`); a resposta N/A em si mora em
   `submission_values.value_text = 'na'`
 
-### `attachments`
+### `attachments` (evidência por escopo — ADR-0017)
+
+Âncora polimórfica; `submission_value_id` foi **removido** (Q7.1). Migrations
+`e4f5a6b7c8d9` (expand) + `f5a6b7c8d9e0` (contract).
 
 - `id UUID PK`
-- `submission_value_id UUID FK -> submission_values.id ON DELETE CASCADE`
+- `company_id UUID NOT NULL FK -> companies.id`
+- `scope TEXT NOT NULL` — `component` | `field` | `submission` | `asset`
+- `submission_id UUID NULL FK -> submissions.id ON DELETE CASCADE`
+- `form_field_id UUID NULL FK -> form_fields.id`
+- `asset_id UUID NULL FK -> assets.id` (sem CASCADE — ativo soft-deletado)
+- `component_label TEXT NULL` — rótulo congelado do componente (evento)
+- `metadata_json JSONB NULL`
 - `file_url TEXT`
 - `thumbnail_url TEXT NULL`
 - `mime_type VARCHAR(120)`
@@ -451,15 +462,22 @@ Observacoes:
 - `created_at TIMESTAMPTZ`
 - `updated_at TIMESTAMPTZ`
 
+Constraints e índices:
+
+- `CHECK ck_attachments_scope_anchor` — consistência `scope` × âncoras (component:
+  todos preenchidos; field: sem asset; submission: só submission; asset: só asset).
+- Índices **não-únicos** (INV-E1/Q7.3): `(submission_id)`, `(asset_id)`, `(company_id)`,
+  `(submission_id, form_field_id, asset_id)`. **Nenhum `UNIQUE` toca a âncora** — 1:N por item.
+
 Observacoes:
 
 - o arquivo fisico fica em disco em `settings.upload_dir/<company_id>/<uuid>.<ext>`
-- `attachments` armazena apenas metadados e a URL publica
-- vinculo e com `submission_value` (nao diretamente com a submission); o `submission_value` alvo e criado on-demand na criacao do anexo se ainda nao existir
-- efeito colateral na criacao do anexo: grava `answers_json[field_key] = file_url` no snapshot da submission
-- `field_key` nao e coluna persistida: e resolvido em runtime via
-  `attachment.submission_value.form_field.key` e exposto apenas no payload
-  da `AttachmentResponse`
+- `attachments` é a **fonte da verdade** da evidência; **não** grava `answers_json`
+  (revisa o efeito colateral do ADR-0006/0016)
+- `field_key` nao e coluna: e resolvido via `attachment.form_field.key` e exposto na
+  `AttachmentResponse` (junto de `scope`, `asset_id`, `component_label`, `metadata_json`)
+- limpeza física do arquivo só em `delete_attachment` (não no `ON DELETE CASCADE`) —
+  ver `docs/TECH_BACKLOG.md` TB-001
 - `uploaded_by` registra o usuario que fez o upload
 
 Tipos de arquivo permitidos: `image/jpeg`, `image/png`, `image/webp`, `video/mp4`, `video/quicktime`, `video/x-msvideo`, `audio/mpeg`, `audio/wav`, `audio/ogg`, `audio/mp4`, `application/pdf`
@@ -625,7 +643,7 @@ Isso vale para:
 
 - o arquivo e salvo fora do banco
 - o endpoint de upload devolve URL publica
-- `attachments` liga essa URL a um `submission_value` especifico
+- `attachments` liga essa URL a um escopo: inspeção, campo, componente ou ativo (ADR-0017)
 
 ### Notificacoes
 

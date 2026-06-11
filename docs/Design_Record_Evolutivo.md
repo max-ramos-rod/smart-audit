@@ -74,8 +74,8 @@ orçamento). A maturidade internacional é o **destino**, alcançado subindo de 
   `form_field_id`) + `answers_json` (snapshot) (ADR 0006).
 - **Score ponderado** calculado de `submission_conformities` (não de `submission_values`);
   só campos `boolean` pontuam; peso via `config_json.weight`; N/A excluído (ADR 0008).
-- **Evidências** como capacidade de qualquer campo via módulo `attachments`; arquivos em
-  **disco local**.
+- **Evidências** como entidade própria ancorada por **escopo** (componente/campo/inspeção/ativo)
+  no módulo `attachments`, 1:N por item (ADR-0017); arquivos em **disco local**.
 - **Relatório**: exportação **PDF** (fpdf2) e **CSV**; o PDF é gerado diretamente, sem camada
   de template/renderer.
 - **E-mail**: infraestrutura compartilhada fail-soft em `core/email/` (ADR 0013).

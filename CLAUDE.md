@@ -190,18 +190,24 @@ Score is 0–100, calculated only from `boolean` fields with at least one answer
 
 ### Attachments module (evidence)
 
-Evidence is **not** a field type — it is a capability attached to any field during an inspection. The `attachments` bounded context lives under `backend/app/modules/attachments/` and is served at `/submissions/{id}/attachments`.
+Evidence is **not** a field type — it is a first-class entity anchored by **scope** (DR-0017/ADR-0017). The `attachments` bounded context lives under `backend/app/modules/attachments/` and is served at `/submissions/{id}/attachments`.
 
-**Data model:** `Attachment` → FK(CASCADE) → `SubmissionValue` → FK → `FormField`. An attachment is always linked to a `submission_value`, which is created on-demand if it doesn't exist yet for the target field.
+**Data model (ADR-0017):** `attachments` é uma tabela polimórfica com âncora `(scope, company_id, submission_id?, form_field_id?, asset_id?)` + `component_label` (rótulo congelado) + `metadata_json`. **Não há mais `submission_value_id`** (removido — Q7.1). `scope ∈ {component, field, submission, asset}` governado por `CHECK`:
+- `component` — `(submission, field, asset)` todos preenchidos (evidência de um componente);
+- `field` — `(submission, field)`, sem asset (campo geral);
+- `submission` — só `submission` (evidência da inspeção);
+- `asset` — só `asset` (documento permanente do ativo, sem inspeção).
+
+**1:N protegido (INV-E1/Q7.3):** um item inspecionado admite N evidências — a âncora é deliberadamente **não-única** (nenhum `UNIQUE`/PK a toca). **Retenção (Q7.2):** `submission_id ON DELETE CASCADE`; `asset_id` sem CASCADE (ativo soft-deletado). Limpeza física de arquivo só em `delete_attachment` (ver `docs/TECH_BACKLOG.md` TB-001).
 
 **Endpoints (all require JWT + X-Company-Id):**
 - `GET  /submissions/{id}/attachments?page=1&page_size=N` — lists all attachments for a submission
-- `POST /submissions/{id}/attachments` — creates an attachment; body: `{ field_key, file_url, mime_type, file_size, thumbnail_url? }`; validates that `field_key` exists in the form version
+- `POST /submissions/{id}/attachments` — creates an attachment; body: `{ field_key?, asset_id?, file_url, mime_type, file_size, thumbnail_url?, metadata_json? }`. Escopo derivado: sem `field_key` ⇒ `submission`; com `field_key` ⇒ `field`; `+asset_id` ⇒ `component` (valida INV1: asset na subárvore + tipo bate com `component_type_id` do campo).
 - `DELETE /submissions/{id}/attachments/{attachment_id}` — deletes attachment and removes local file if stored on disk
 
-**Side effect on create:** `AttachmentService.create_attachment` also writes `answers_json[field_key] = file_url` on the submission snapshot, so the field appears as answered in the denormalized store.
+**Não escreve `answers_json`** — `attachments` é a fonte da verdade da evidência (revisa o efeito colateral do ADR-0006/0016).
 
-**Serialize shape** (`AttachmentResponse`): `id`, `submission_id`, `field_key` (resolved from `submission_value.form_field.key`), `file_url`, `thumbnail_url`, `mime_type`, `file_size`, `created_at`.
+**Serialize shape** (`AttachmentResponse`): `id`, `submission_id`, `scope`, `field_key` (de `attachment.form_field.key`), `asset_id`, `component_label`, `file_url`, `thumbnail_url`, `mime_type`, `file_size`, `metadata_json`, `created_at`.
 
 **Allowed MIME types for uploads:** `image/jpeg`, `image/png`, `image/webp`, `video/mp4`, `video/quicktime`, `video/x-msvideo`, `audio/mpeg`, `audio/wav`, `audio/ogg`, `audio/mp4`, `application/pdf` (enforced in uploads router). Size limits: images 10 MB, PDF 20 MB, audio 50 MB, video 200 MB.
 

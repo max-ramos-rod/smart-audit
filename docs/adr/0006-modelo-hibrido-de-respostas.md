@@ -19,8 +19,11 @@ Armazenar a resposta **duas vezes, de propósito** (verificado em
 2. **Snapshot denormalizado** em `submissions.answers_json` (`{ field_key: valor }`) — para
    leitura rápida.
 
-Ambos são escritos na mesma operação e devem permanecer sincronizados. A criação de anexo
-também atualiza o snapshot (`answers_json[field_key] = file_url`).
+Ambos são escritos na mesma operação e devem permanecer sincronizados.
+
+> **Revisado pela [ADR-0017](0017-modelo-unificado-de-evidencias.md):** a criação de anexo **não
+> escreve mais** `answers_json` — `attachments` passou a ser a fonte da verdade da evidência. O
+> modelo híbrido de **respostas** permanece; só o efeito colateral de evidência foi removido.
 
 ## Consequências
 

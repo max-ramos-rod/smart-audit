@@ -214,11 +214,15 @@ A fonte do score e `submission_conformities`, nao `submission_values`. Campos se
 
 ### Evidencias
 
-Responsavel por vincular metadados de arquivos a respostas de inspecao.
+Responsavel por ancorar metadados de evidencia por **escopo** (ADR-0017): componente
+`(submission × campo × componente)`, campo geral, inspecao inteira ou documento permanente do
+ativo. Evidencia e entidade propria 1:N por item (INV-E1); `attachments` e a fonte da verdade —
+nao escreve `answers_json`. Sem `submission_value_id` (Q7.1); retencao por `submission_id ON DELETE
+CASCADE` (Q7.2).
 
 Entidade principal:
 
-- `attachments`
+- `attachments` (âncora `scope` + `submission_id?`/`form_field_id?`/`asset_id?` + `company_id`)
 
 Relacionamento: `attachments` vincula ao `submission_value` correspondente ao campo de evidencia.
 

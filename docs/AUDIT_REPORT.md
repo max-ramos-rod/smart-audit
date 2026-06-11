@@ -117,7 +117,7 @@ Itens em que documentação e código estão alinhados e foram verificados nesta
 | Teto de 5000 linhas na exportação CSV | `submissions/repository.py:list_all_for_export` (`.limit(5000)`) | Não documentado |
 | Teto de 50 registros na query de notificações antes do corte de 20 | `submissions/repository.py:list_for_notifications` (`.limit(50)`) | Documentado o cap de 20; o teto de 50 da query é parcial |
 | BOM UTF-8 prefixado no CSV (compatibilidade Excel PT-BR) | `submissions/service.py:export_csv` (`b"\xef\xbb\xbf"`) | Não documentado |
-| Efeito colateral do anexo: grava `answers_json[field_key] = file_url` | `attachments/service.py:create_attachment` | Em CLAUDE.md; ausente na prosa de Arquitetura/DER |
+| ~~Efeito colateral do anexo: grava `answers_json[field_key] = file_url`~~ | — | **Superado pela ADR-0017**: anexo não escreve mais `answers_json` (attachments = fonte da verdade) |
 | `GET /companies/me` legível por qualquer membro; escrita gated por role | `api/v1/routers/companies.py` | Coberto após inclusão da matriz RBAC nesta sessão |
 | VIEWER pode fazer upload e criar/remover anexos (apesar de não responder inspeções) | `uploads.py`/`attachments.py` usam `get_current_membership` | Documentado após inclusão da nota de RBAC nesta sessão |
 

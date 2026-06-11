@@ -78,8 +78,10 @@ versão é criada como `published`; não há rascunho de versão no fluxo atual.
 
 ### Upload não tem persistência própria
 `POST /uploads` grava o arquivo em disco e devolve URL, mas **não cria registro em banco**. A
-persistência de metadados só ocorre no `POST .../attachments`, sempre ligado a um
-`submission_value` (criado on-demand).
+persistência de metadados só ocorre no `POST .../attachments`, que ancora a evidência por **escopo**
+(`component`/`field`/`submission`/`asset` — ADR-0017), **sem** `submission_value` e **sem** escrever
+`answers_json`. Catálogo das decisões de evidência: Q7 (modelo), Q7.1 (remoção de
+`submission_value_id`), Q7.2 (retenção CASCADE), Q7.3/INV-E1 (1:N por item), Q7.4 (governança).
 
 ### Janela e teto das notificações
 `pending`: `in_progress` há +24h (**sem piso de data**). `low_score`/`excellent`: só
