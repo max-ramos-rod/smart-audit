@@ -70,8 +70,10 @@ attachments
   uploaded_by      uuid   NOT NULL  FK users
   created_at, updated_at
 
-  INDEX (submission_id), (asset_id), (company_id)
-  INDEX (submission_id, form_field_id, asset_id)            -- leitura por instância (laudo)
+  -- TODOS os índices abaixo são NÃO-ÚNICOS por design (ver INV-E1). Nenhum UNIQUE/PK
+  -- pode tocar a âncora (submission_id, form_field_id, asset_id) — isso capparia 1:N.
+  INDEX (submission_id), (asset_id), (company_id)                       -- não-único
+  INDEX (submission_id, form_field_id, asset_id)                        -- não-único; leitura por instância (laudo)
 
   CHECK (
     (scope='component'  AND submission_id IS NOT NULL AND form_field_id IS NOT NULL AND asset_id IS NOT NULL) OR
@@ -94,6 +96,29 @@ Materialização por cenário:
 `metadata jsonb` é a válvula que cumpre "sem migração estrutural futura sobre dados existentes":
 novos atributos de documento (validade, tipo, versão) entram como chave; novo escopo entra como
 valor de enum + ramo de CHECK — nenhum dos dois reescreve linhas existentes.
+
+#### INV-E1 — Cardinalidade 1:N de evidências por item inspecionado (invariante protegida)
+
+**Um item inspecionado — `(submission, field, component)` ou qualquer escopo — admite N evidências.
+Esta cardinalidade é uma garantia de negócio permanente e não pode ser limitada por acidente.**
+
+Regras de proteção (vinculam toda evolução futura do schema):
+
+1. **Proibido** qualquer `UNIQUE`, `PRIMARY KEY` (além de `id`) ou índice único que inclua
+   `submission_id`, `form_field_id` e/ou `asset_id` — isoladamente ou em combinação. A âncora é
+   deliberadamente **não-única**.
+2. Todo índice sobre a âncora é criado **explicitamente não-único** (performance de leitura), nunca
+   `unique=True`.
+3. **Diferença essencial vs. respostas/conformidades:** `submission_values`/`submission_conformities`
+   têm `UNIQUE(submission_id, form_field_id, asset_id) NULLS NOT DISTINCT` (uma resposta por item).
+   **`attachments` é o oposto e por design:** zero constraints de unicidade sobre a âncora. Não
+   copiar o padrão de unicidade daquelas tabelas para esta.
+4. **Guarda de regressão obrigatória:** um teste insere ≥ 2 anexos com âncora idêntica (mesmo
+   `submission_id`+`form_field_id`+`asset_id`) e **exige sucesso**; qualquer migração futura que
+   reintroduza unicidade quebra esse teste antes de chegar à produção.
+
+Esta invariante é citada pela Checklist de Sincronização: qualquer ADR/migration que toque
+`attachments` deve reafirmar INV-E1.
 
 ### Q7.1 — Remoção de `submission_value_id`
 
@@ -136,7 +161,8 @@ registrada aqui como gatilho, **não antecipada**.
 
 ### Requisitos arquiteturais obrigatórios da implementação
 
-1. Índice composto `(submission_id, form_field_id, asset_id)`.
+1. Índice composto `(submission_id, form_field_id, asset_id)` — **não-único** (INV-E1); nenhum
+   `UNIQUE`/PK pode tocar a âncora.
 2. `submission_id ON DELETE CASCADE`; `asset_id` **sem** CASCADE (ativo é soft-deletado — ADR-0009/0015).
 3. **Helper único** no `AttachmentRepository` para consultas por âncora usando `IS NOT DISTINCT FROM`
    (evita o footgun `=` com `asset_id` nullable).
@@ -145,7 +171,8 @@ registrada aqui como gatilho, **não antecipada**.
    asset_id` do seu `submission_value`, `company_id` via submission, `scope = 'component' if
    asset_id else 'field'`; depois `DROP submission_value_id`.
 6. Cobertura de testes: migração (up/down), os 4 escopos, retrocompatibilidade (evidência legada
-   vira `scope='field'` sem mover arquivo), e cardinalidade **1:N** por item inspecionado.
+   vira `scope='field'` sem mover arquivo), e a **guarda de regressão de INV-E1** — inserir ≥ 2
+   anexos com âncora idêntica e exigir sucesso (cardinalidade **1:N** por item inspecionado).
 7. `create_attachment` valida o escopo reusando a **INV1** do T4 (asset ∈ subárvore do alvo + tipo
    bate com `component_type_id` do campo; field ∈ versão) e **não** escreve em `answers_json`.
 
