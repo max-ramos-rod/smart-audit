@@ -7,12 +7,15 @@ class ConformityItem(BaseModel):
     field_key: str
     status: str
     justification: str | None
+    asset_id: str | None = None
 
 
 class ConformityInput(BaseModel):
     field_key: str = Field(min_length=1, max_length=100)
     status: str = Field(min_length=1, max_length=20)
     justification: str | None = Field(default=None, max_length=2000)
+    # Componente avaliado (DR-0002 T4). NULL = campo geral.
+    asset_id: str | None = Field(default=None, min_length=1, max_length=36)
 
     @field_validator("status")
     @classmethod
@@ -35,6 +38,8 @@ class SubmissionCreateRequest(BaseModel):
 class SubmissionAnswerInput(BaseModel):
     field_key: str = Field(min_length=1, max_length=100)
     value: bool | int | float | str | date | dict | None
+    # Componente respondido (DR-0002 T4). NULL = campo geral.
+    asset_id: str | None = Field(default=None, min_length=1, max_length=36)
 
 
 class SubmissionAnswersUpdateRequest(BaseModel):
@@ -45,6 +50,7 @@ class SubmissionAnswerResponse(BaseModel):
     field_key: str
     field_type: str
     value: bool | float | str | date | dict | None
+    asset_id: str | None = None
 
 
 class ScoreBreakdown(BaseModel):

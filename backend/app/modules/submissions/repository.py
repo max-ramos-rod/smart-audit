@@ -95,11 +95,18 @@ class SubmissionRepository(SQLAlchemyRepository[Submission]):
         return await self._get_one(db, statement)
 
     async def get_conformity(
-        self, db: AsyncSession, submission_id: str, form_field_id: str
+        self,
+        db: AsyncSession,
+        submission_id: str,
+        form_field_id: str,
+        asset_id: str | None = None,
     ) -> SubmissionConformity | None:
         statement = select(SubmissionConformity).where(
             SubmissionConformity.submission_id == submission_id,
             SubmissionConformity.form_field_id == form_field_id,
+            SubmissionConformity.asset_id == asset_id
+            if asset_id is not None
+            else SubmissionConformity.asset_id.is_(None),
         )
         return await self._get_one(db, statement)
 
@@ -113,10 +120,14 @@ class SubmissionRepository(SQLAlchemyRepository[Submission]):
         db: AsyncSession,
         submission_id: str,
         form_field_id: str,
+        asset_id: str | None = None,
     ) -> SubmissionValue | None:
         statement = select(SubmissionValue).where(
             SubmissionValue.submission_id == submission_id,
             SubmissionValue.form_field_id == form_field_id,
+            SubmissionValue.asset_id == asset_id
+            if asset_id is not None
+            else SubmissionValue.asset_id.is_(None),
         )
         return await self._get_one(db, statement)
 

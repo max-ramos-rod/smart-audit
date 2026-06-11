@@ -267,6 +267,15 @@ class SubmissionService:
 
         fields_by_key = {field.key: field for field in submission.form_version.fields}
         answers_snapshot = dict(submission.answers_json or {})
+        components_snapshot = dict(submission.components_snapshot or {})
+
+        scoped_keys = {
+            f.key
+            for f in submission.form_version.fields
+            if f.component_type_id is not None and f.field_type != "section"
+        }
+        needs_components = any(a.field_key in scoped_keys for a in payload.answers)
+        components_by_id = await self._components_by_id(db, submission) if needs_components else {}
 
         for answer in payload.answers:
             field = fields_by_key.get(answer.field_key)
@@ -278,13 +287,17 @@ class SubmissionService:
             if field.field_type == "section":
                 continue
 
+            component = self._validate_component_scope(field, answer.asset_id, components_by_id)
+
             normalized_value = self.normalize_value(field, answer.value)
             submission_value = await self.repository.get_submission_value_by_field_id(
-                db, str(submission.id), str(field.id)
+                db, str(submission.id), str(field.id), answer.asset_id
             )
             if submission_value is None:
                 submission_value = SubmissionValue(
-                    submission_id=submission.id, form_field_id=field.id
+                    submission_id=submission.id,
+                    form_field_id=field.id,
+                    asset_id=answer.asset_id,
                 )
 
             submission_value.value_text = None
@@ -309,9 +322,28 @@ class SubmissionService:
 
             await self.repository.save_submission_value(db, submission_value)
             raw = self.serialize_raw_value(field.field_type, normalized_value)
-            answers_snapshot[field.key] = raw
+
+            if component is None:
+                # Campo geral: snapshot escalar (Q1).
+                answers_snapshot[field.key] = raw
+            else:
+                # Campo escopado: mapa de valores puros por componente (Q1).
+                bucket = answers_snapshot.get(field.key)
+                if not isinstance(bucket, dict):
+                    bucket = {}
+                bucket[answer.asset_id] = raw
+                answers_snapshot[field.key] = bucket
+                # Identidade congelada 1x por componente (Q1.1 / INV6) — nunca reescrita.
+                if answer.asset_id not in components_snapshot:
+                    components_snapshot[answer.asset_id] = {
+                        "label": component["identifier"],
+                        "type": component["type_name"],
+                        "path": component["path"],
+                    }
 
         submission.answers_json = answers_snapshot
+        if components_snapshot:
+            submission.components_snapshot = components_snapshot
         submission.status = "in_progress"
         db.add(submission)
         await db.commit()
@@ -343,6 +375,14 @@ class SubmissionService:
 
         fields_by_key = {field.key: field for field in submission.form_version.fields}
 
+        scoped_keys = {
+            f.key
+            for f in submission.form_version.fields
+            if f.component_type_id is not None and f.field_type != "section"
+        }
+        needs_components = any(i.field_key in scoped_keys for i in payload.items)
+        components_by_id = await self._components_by_id(db, submission) if needs_components else {}
+
         for item in payload.items:
             field = fields_by_key.get(item.field_key)
             if field is None:
@@ -353,13 +393,16 @@ class SubmissionService:
             if field.field_type == "section":
                 continue
 
+            self._validate_component_scope(field, item.asset_id, components_by_id)
+
             conformity = await self.repository.get_conformity(
-                db, str(submission.id), str(field.id)
+                db, str(submission.id), str(field.id), item.asset_id
             )
             if conformity is None:
                 conformity = SubmissionConformity(
                     submission_id=submission.id,
                     form_field_id=field.id,
+                    asset_id=item.asset_id,
                 )
             conformity.status = item.status
             conformity.justification = item.justification
@@ -670,6 +713,45 @@ class SubmissionService:
         checklist, warnings = await self.build_checklist(db, submission)
         return self.serialize_submission(submission, checklist=checklist, warnings=warnings)
 
+    async def _components_by_id(
+        self, db: AsyncSession, submission: Submission
+    ) -> dict[str, dict]:
+        """Mapa ``asset_id -> componente`` da subárvore do ativo alvo (vazio se sem ativo)."""
+        if submission.asset_id is None:
+            return {}
+        rows = await self.asset_repository.list_subtree_components(db, str(submission.asset_id))
+        return {str(row["id"]): row for row in rows}
+
+    @staticmethod
+    def _validate_component_scope(
+        field: FormField, asset_id: str | None, components_by_id: dict[str, dict]
+    ) -> dict | None:
+        """Valida o escopo de um item de resposta/conformidade (INV1/INV2 do DR-0002).
+
+        Retorna o componente resolvido (linha da subárvore) para campo escopado, ou ``None``
+        para campo geral. Levanta 400 quando o vínculo viola os invariantes.
+        """
+        if field.component_type_id is None:
+            if asset_id is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Campo {field.key} nao aceita escopo de componente.",
+                )
+            return None
+        # Campo escopado: exige um componente válido da subárvore, do tipo do campo (INV1).
+        if asset_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Campo {field.key} exige um componente.",
+            )
+        component = components_by_id.get(asset_id)
+        if component is None or str(component["asset_type_id"]) != str(field.component_type_id):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Componente invalido para o campo {field.key}.",
+            )
+        return component
+
     @staticmethod
     def serialize_submission(
         submission: Submission,
@@ -685,6 +767,7 @@ class SubmissionService:
                     field_key=field.key,
                     field_type=field.field_type,
                     value=SubmissionService.extract_value(value, field.field_type),
+                    asset_id=str(value.asset_id) if value.asset_id else None,
                 )
             )
 
@@ -694,12 +777,15 @@ class SubmissionService:
                 field_key=fields_by_id_key.get(str(c.form_field_id), ""),
                 status=c.status,
                 justification=c.justification,
+                asset_id=str(c.asset_id) if c.asset_id else None,
             )
             for c in submission.conformities
             if str(c.form_field_id) in fields_by_id_key
         ]
 
-        ordered_answers = sorted(answers, key=lambda item: item.field_key)
+        ordered_answers = sorted(
+            answers, key=lambda item: (item.field_key, item.asset_id or "")
+        )
         return SubmissionResponse(
             id=str(submission.id),
             form_id=str(submission.form_version.form.id),
