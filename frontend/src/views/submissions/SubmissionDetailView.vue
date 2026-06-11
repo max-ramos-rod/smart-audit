@@ -13,6 +13,8 @@ import { fetchFormVersion } from '@/services/forms.service'
 import { saveConformity } from '@/services/submissions.service'
 import { uploadFile } from '@/services/uploads.service'
 import { useSubmissionsStore } from '@/stores/submissions/submissions.store'
+import { buildRenderRows, instanceKey } from '@/utils/inspectionInstances'
+import type { FieldInstance, RenderRow } from '@/utils/inspectionInstances'
 import type { AttachmentItem } from '@/types/attachments'
 import type { FormVersion } from '@/types/forms'
 
@@ -90,10 +92,26 @@ const fields = computed(() =>
   [...(formVersion.value?.fields ?? [])].sort((a, b) => a.position - b.position),
 )
 
-// Fields that accept answers (skip section dividers)
-const answerableFields = computed(() =>
-  fields.value.filter((f) => f.field_type !== 'section'),
+// ── Component expansion (DR-0002 T8) ────────────────────────────────────────────
+// Lógica pura em utils/inspectionInstances (testada em unidade). A fonte de verdade é o
+// `checklist` expandido pelo backend (T3); ausente (respostas legadas/sem ativo) = modo geral.
+const renderRows = computed(() => buildRenderRows(fields.value, submission.value?.checklist ?? null))
+
+// Todas as instâncias respondíveis (substitui answerableFields na expansão por componente).
+const answerableInstances = computed(() =>
+  renderRows.value.flatMap((r) => (r.kind === 'instance' ? [r.instance] : [])),
 )
+
+function instancePosition(inst: FieldInstance): number {
+  return answerableInstances.value.findIndex((i) => i.key === inst.key) + 1
+}
+
+// Rótulo amigável de uma instância pendente (campo + componente quando escopado).
+function pendingLabel(key: string): string {
+  const inst = answerableInstances.value.find((i) => i.key === key)
+  if (!inst) return key
+  return inst.componentLabel ? `${inst.field.label} (${inst.componentLabel})` : inst.field.label
+}
 
 // ── Progress counters ─────────────────────────────────────────────────────────
 
@@ -101,13 +119,13 @@ const progressStats = computed(() => {
   let conformes    = 0
   let naoConformes = 0
 
-  for (const field of answerableFields.value) {
-    const s = conformityStatus[field.key]
+  for (const inst of answerableInstances.value) {
+    const s = conformityStatus[inst.key]
     if (s === 'conforme') conformes++
     else if (s === 'nao_conforme') naoConformes++
   }
 
-  const total      = answerableFields.value.length
+  const total      = answerableInstances.value.length
   const evaluated  = conformes + naoConformes
   const pending    = total - evaluated
   const percentage = total === 0 ? 0 : Math.round((evaluated / total) * 100)
@@ -115,14 +133,15 @@ const progressStats = computed(() => {
   return { conformes, naoConformes, evaluated, pending, total, percentage }
 })
 
-// Real-time weighted score based on conformity status (mirrors backend calculate_score logic)
+// Real-time weighted score based on conformity status (mirrors backend calculate_score logic).
+// Itera por (campo × componente); o weight é o do campo, igual para todas as instâncias (Q6).
 const liveScore = computed((): number | null => {
   let wConformes = 0
   let wTotal     = 0
-  for (const field of answerableFields.value) {
-    const s      = conformityStatus[field.key]
+  for (const inst of answerableInstances.value) {
+    const s      = conformityStatus[inst.key]
     if (!s) continue
-    const weight = (field.config_json?.weight as number | undefined) ?? 1
+    const weight = (inst.field.config_json?.weight as number | undefined) ?? 1
     wTotal += weight
     if (s === 'conforme') wConformes += weight
   }
@@ -152,25 +171,26 @@ const formSections = computed(() =>
     .filter((f) => f.field_type === 'section')
     .map((section, idx, arr) => {
       const nextSectionPos = arr[idx + 1]?.position ?? Infinity
-      const sectionItems   = answerableFields.value.filter(
-        (f) => f.position > section.position && f.position < nextSectionPos,
+      const sectionItems   = answerableInstances.value.filter(
+        (i) => i.field.position > section.position && i.field.position < nextSectionPos,
       )
-      const evaluated = sectionItems.filter((f) => conformityStatus[f.key]).length
+      const evaluated = sectionItems.filter((i) => conformityStatus[i.key]).length
       const pct = sectionItems.length === 0 ? 100 : Math.round((evaluated / sectionItems.length) * 100)
       return { key: section.key, label: section.label, pct }
     }),
 )
 
-// ── List-mode filtered fields ─────────────────────────────────────────────────
+// ── List-mode filtered rows (sections + expanded instances) ─────────────────────
 
-const filteredListFields = computed(() => {
-  return fields.value.filter(f => {
-    if (f.field_type === 'section') return true
-    if (listFilter.value === 'pend')  return !conformityStatus[f.key]
-    if (listFilter.value === 'conf')  return conformityStatus[f.key] === 'conforme'
-    if (listFilter.value === 'nconf') return conformityStatus[f.key] === 'nao_conforme'
-    if (listFilter.value === 'bool')  return f.field_type === 'boolean'
-    if (listFilter.value === 'sel')   return f.field_type === 'select'
+const filteredRows = computed<RenderRow[]>(() => {
+  return renderRows.value.filter((r) => {
+    if (r.kind === 'section') return true
+    const inst = r.instance
+    if (listFilter.value === 'pend')  return !conformityStatus[inst.key]
+    if (listFilter.value === 'conf')  return conformityStatus[inst.key] === 'conforme'
+    if (listFilter.value === 'nconf') return conformityStatus[inst.key] === 'nao_conforme'
+    if (listFilter.value === 'bool')  return inst.field.field_type === 'boolean'
+    if (listFilter.value === 'sel')   return inst.field.field_type === 'select'
     return true
   })
 })
@@ -178,22 +198,25 @@ const filteredListFields = computed(() => {
 const visibleSectionKeys = computed(() => {
   const keys = new Set<string>()
   let currentSec: string | null = null
-  for (const f of filteredListFields.value) {
-    if (f.field_type === 'section') { currentSec = f.key; continue }
+  for (const r of filteredRows.value) {
+    if (r.kind === 'section') { currentSec = r.field.key; continue }
     if (currentSec) keys.add(currentSec)
   }
   return keys
 })
 
-// ── Inspection card (current field) ───────────────────────────────────────────
+// ── Inspection card (current instance) ────────────────────────────────────────
 
-const inspectionField = computed(() => answerableFields.value[inspectionIndex.value] ?? null)
+const inspectionInstance = computed(() => answerableInstances.value[inspectionIndex.value] ?? null)
+// Alias para o campo (metadados) e a chave de instância (resposta/conformidade) do cartão atual.
+const inspectionField = computed(() => inspectionInstance.value?.field ?? null)
+const inspKey         = computed(() => inspectionInstance.value?.key ?? '')
 
 const inspectionSectionLabel = computed(() => {
-  const field = inspectionField.value
-  if (!field) return ''
+  const inst = inspectionInstance.value
+  if (!inst) return ''
   const allVisible = fields.value
-  const idx = allVisible.findIndex((f) => f.key === field.key)
+  const idx = allVisible.findIndex((f) => f.key === inst.field.key)
   for (let i = idx - 1; i >= 0; i--) {
     if (allVisible[i].field_type === 'section') return allVisible[i].label
   }
@@ -208,14 +231,14 @@ function fieldConformityStatus(fieldKey: string): 'pending' | 'conformes' | 'nao
 }
 
 const currentFieldStatus = computed(() => {
-  if (!inspectionField.value) return 'pending'
-  return fieldConformityStatus(inspectionField.value.key)
+  if (!inspectionInstance.value) return 'pending'
+  return fieldConformityStatus(inspectionInstance.value.key)
 })
 
 // ── Navigation ────────────────────────────────────────────────────────────────
 
 function inspectionNext() {
-  if (inspectionIndex.value < answerableFields.value.length - 1) {
+  if (inspectionIndex.value < answerableInstances.value.length - 1) {
     swipeExiting.value = 'right'
     setTimeout(() => { swipeExiting.value = null; inspectionIndex.value++ }, 220)
   }
@@ -231,10 +254,8 @@ function inspectionPrev() {
 function jumpToSection(sectionKey: string) {
   const sectionField = fields.value.find((f) => f.key === sectionKey && f.field_type === 'section')
   if (!sectionField) return
-  const firstInSection = answerableFields.value.find((f) => f.position > sectionField.position)
-  if (firstInSection) {
-    inspectionIndex.value = answerableFields.value.indexOf(firstInSection)
-  }
+  const idx = answerableInstances.value.findIndex((i) => i.field.position > sectionField.position)
+  if (idx !== -1) inspectionIndex.value = idx
 }
 
 // ── Touch / swipe ─────────────────────────────────────────────────────────────
@@ -254,17 +275,17 @@ function onTouchEnd() {
   if (!isSwiping.value) return
   isSwiping.value = false
 
-  const field = inspectionField.value
+  const inst = inspectionInstance.value
   const delta = swipeDeltaX.value
   swipeDeltaX.value = 0
 
-  if (!field || Math.abs(delta) < 80) return
+  if (!inst || Math.abs(delta) < 80) return
 
   if (delta > 0) {
-    setConformity(field.key, 'conforme')
+    setConformity(inst.key, 'conforme')
   } else {
-    setConformity(field.key, 'nao_conforme')
-    openJustificationSheet(field.key)
+    setConformity(inst.key, 'nao_conforme')
+    openJustificationSheet(inst.key)
   }
 }
 
@@ -330,14 +351,22 @@ function setConformity(fieldKey: string, status: 'conforme' | 'nao_conforme') {
   triggerConformitySave()
 }
 
+// Itens de conformidade derivados das instâncias (carrega asset_id por componente — T8).
+function buildConformityItems() {
+  return answerableInstances.value
+    .filter((inst) => conformityStatus[inst.key])
+    .map((inst) => ({
+      field_key: inst.field.key,
+      status: conformityStatus[inst.key],
+      justification: conformityJustification[inst.key] || null,
+      ...(inst.asset_id ? { asset_id: inst.asset_id } : {}),
+    }))
+}
+
 function triggerConformitySave() {
   if (conformitySaveTimer) clearTimeout(conformitySaveTimer)
   conformitySaveTimer = setTimeout(async () => {
-    const items = Object.entries(conformityStatus).map(([field_key, status]) => ({
-      field_key,
-      status,
-      justification: conformityJustification[field_key] || null,
-    }))
+    const items = buildConformityItems()
     if (items.length === 0) return
     try {
       await saveConformity(submissionId.value, { items })
@@ -394,19 +423,21 @@ function statusLabel(status: string) {
 function populateDraft() {
   if (!submission.value) return
   for (const ans of submission.value.answers) {
+    const key = instanceKey(ans.field_key, ans.asset_id)
     if (ans.value === null || ans.value === undefined) {
-      draftAnswers[ans.field_key] = ''
+      draftAnswers[key] = ''
     } else if (ans.field_type === 'boolean') {
-      draftAnswers[ans.field_key] = ans.value === 'na' ? 'na' : ans.value ? 'true' : 'false'
+      draftAnswers[key] = ans.value === 'na' ? 'na' : ans.value ? 'true' : 'false'
     } else if (ans.field_type === 'select') {
-      draftAnswers[ans.field_key] = typeof ans.value === 'string' ? ans.value : ''
+      draftAnswers[key] = typeof ans.value === 'string' ? ans.value : ''
     } else {
-      draftAnswers[ans.field_key] = String(ans.value)
+      draftAnswers[key] = String(ans.value)
     }
   }
   for (const c of submission.value.conformity ?? []) {
-    conformityStatus[c.field_key] = c.status
-    if (c.justification) conformityJustification[c.field_key] = c.justification
+    const key = instanceKey(c.field_key, c.asset_id)
+    conformityStatus[key] = c.status
+    if (c.justification) conformityJustification[key] = c.justification
   }
 }
 
@@ -485,10 +516,10 @@ async function handleEvidenceDelete(fieldKey: string, attachmentId: string) {
 // ── Save / finish ─────────────────────────────────────────────────────────────
 
 function buildPayload() {
-  return fields.value
-    .map((field) => {
-      if (field.field_type === 'section') return null
-      const raw = draftAnswers[field.key] ?? ''
+  return answerableInstances.value
+    .map((inst) => {
+      const field = inst.field
+      const raw = draftAnswers[inst.key] ?? ''
       if (raw === '') return null
       let value: boolean | number | string | null = null
       if (field.field_type === 'boolean') {
@@ -500,7 +531,7 @@ function buildPayload() {
         value = raw
       }
       if (value === null) return null
-      return { field_key: field.key, value }
+      return { field_key: field.key, value, ...(inst.asset_id ? { asset_id: inst.asset_id } : {}) }
     })
     .filter((ans): ans is NonNullable<typeof ans> => ans !== null)
 }
@@ -508,18 +539,16 @@ function buildPayload() {
 function validateRequiredFields(): boolean {
   const missing = new Set<string>()
 
-  for (const f of fields.value) {
-    if (f.field_type === 'section') continue
-    if (f.required) {
-      const val = draftAnswers[f.key]
-      if (!val || val === '') missing.add(f.key)
-      if (!conformityStatus[f.key]) missing.add(f.key)
+  // Cada instância (campo × componente) obrigatória precisa de resposta + conformidade (RN4).
+  for (const inst of answerableInstances.value) {
+    if (inst.field.required) {
+      const val = draftAnswers[inst.key]
+      if (!val || val === '') missing.add(inst.key)
+      if (!conformityStatus[inst.key]) missing.add(inst.key)
     }
-  }
-
-  for (const [key, s] of Object.entries(conformityStatus)) {
-    if (s === 'nao_conforme' && !(conformityJustification[key] || '').trim()) {
-      missing.add(key)
+    const s = conformityStatus[inst.key]
+    if (s === 'nao_conforme' && !(conformityJustification[inst.key] || '').trim()) {
+      missing.add(inst.key)
     }
   }
 
@@ -545,16 +574,13 @@ async function handleFinish() {
   savedOnce.value   = false
   pendingRequiredFields.value = []
   if (!validateRequiredFields()) {
-    finishError.value = `Campos com pendências: ${pendingRequiredFields.value.join(', ')}`
+    const labels = pendingRequiredFields.value.map(pendingLabel)
+    finishError.value = `Campos com pendências: ${labels.join(', ')}`
     return
   }
   try {
     await submissionsStore.updateAnswers(submissionId.value, { answers: buildPayload() })
-    const items = Object.entries(conformityStatus).map(([field_key, status]) => ({
-      field_key,
-      status,
-      justification: conformityJustification[field_key] || null,
-    }))
+    const items = buildConformityItems()
     if (items.length > 0) {
       await saveConformity(submissionId.value, { items })
     }
@@ -567,8 +593,8 @@ async function handleFinish() {
 
 // ── List progressive loading ──────────────────────────────────────────────────
 
-const displayedListFields = computed(() => fields.value.slice(0, listViewLimit.value))
-const hasMoreFields        = computed(() => listViewLimit.value < fields.value.length)
+const displayedListRows = computed(() => renderRows.value.slice(0, listViewLimit.value))
+const hasMoreFields      = computed(() => listViewLimit.value < renderRows.value.length)
 function loadMoreFields() { listViewLimit.value += LIST_PAGE }
 
 // ── Skip ──────────────────────────────────────────────────────────────────────
@@ -577,42 +603,40 @@ function doSkip() { inspectionNext() }
 // ── List-mode helpers ─────────────────────────────────────────────────────────
 
 function filterCount(filterId: ListFilter): number {
-  const af = answerableFields.value
-  if (filterId === 'all')   return af.length
-  if (filterId === 'pend')  return af.filter(f => !conformityStatus[f.key]).length
-  if (filterId === 'conf')  return af.filter(f => conformityStatus[f.key] === 'conforme').length
-  if (filterId === 'nconf') return af.filter(f => conformityStatus[f.key] === 'nao_conforme').length
-  if (filterId === 'bool')  return af.filter(f => f.field_type === 'boolean').length
-  if (filterId === 'sel')   return af.filter(f => f.field_type === 'select').length
+  const ai = answerableInstances.value
+  if (filterId === 'all')   return ai.length
+  if (filterId === 'pend')  return ai.filter(i => !conformityStatus[i.key]).length
+  if (filterId === 'conf')  return ai.filter(i => conformityStatus[i.key] === 'conforme').length
+  if (filterId === 'nconf') return ai.filter(i => conformityStatus[i.key] === 'nao_conforme').length
+  if (filterId === 'bool')  return ai.filter(i => i.field.field_type === 'boolean').length
+  if (filterId === 'sel')   return ai.filter(i => i.field.field_type === 'select').length
   return 0
 }
 
-function fieldPosition(field: { key: string }): number {
-  return answerableFields.value.findIndex(f => f.key === field.key) + 1
-}
-
-function sectionFields(sectionKey: string) {
-  const all = filteredListFields.value
-  const secIdx = all.findIndex(f => f.field_type === 'section' && f.key === sectionKey)
+// Instâncias de uma seção (a partir das linhas filtradas, em ordem).
+function sectionInstances(sectionKey: string): FieldInstance[] {
+  const all = filteredRows.value
+  const secIdx = all.findIndex(r => r.kind === 'section' && r.field.key === sectionKey)
   if (secIdx === -1) return []
-  const result: typeof all = []
+  const result: FieldInstance[] = []
   for (let i = secIdx + 1; i < all.length; i++) {
-    if (all[i].field_type === 'section') break
-    result.push(all[i])
+    const r = all[i]
+    if (r.kind === 'section') break
+    result.push(r.instance)
   }
   return result
 }
 
 function sectionPct(sectionKey: string): number {
-  const sf = sectionFields(sectionKey)
+  const sf = sectionInstances(sectionKey)
   if (sf.length === 0) return 0
-  const done = sf.filter(f => !!conformityStatus[f.key]).length
+  const done = sf.filter(i => !!conformityStatus[i.key]).length
   return Math.round((done / sf.length) * 100)
 }
 
 function sectionProgress(sectionKey: string): string {
-  const sf = sectionFields(sectionKey)
-  const done = sf.filter(f => !!conformityStatus[f.key]).length
+  const sf = sectionInstances(sectionKey)
+  const done = sf.filter(i => !!conformityStatus[i.key]).length
   return `${done}/${sf.length}`
 }
 
@@ -634,7 +658,7 @@ function toggleListRow(key: string) {
 }
 
 function jumpNextPending(afterKey: string) {
-  const keys = answerableFields.value.map(f => f.key)
+  const keys = answerableInstances.value.map(i => i.key)
   const idx = keys.indexOf(afterKey)
   for (let i = idx + 1; i < keys.length; i++) {
     if (!conformityStatus[keys[i]]) {
@@ -681,20 +705,22 @@ function confirmJustification() {
 // ── Nearby dots for card ──────────────────────────────────────────────────────
 const nearbyDots = computed(() => {
   const idx   = inspectionIndex.value
-  const all   = answerableFields.value
+  const all   = answerableInstances.value
   const half  = 4
   const start = Math.max(0, idx - half)
   const end   = Math.min(all.length - 1, idx + half)
-  return all.slice(start, end + 1).map((f, i) => ({
-    key:       f.key,
-    status:    conformityStatus[f.key] ?? 'pending',
+  return all.slice(start, end + 1).map((inst, i) => ({
+    key:       inst.key,
+    status:    conformityStatus[inst.key] ?? 'pending',
     isCurrent: start + i === idx,
   }))
 })
 
-// ── Evidence count for current card field ─────────────────────────────────────
+// ── Evidence count for current card field (evidência por campo — Opção 1 T8) ───
 const currentFieldEvidenceCount = computed(() =>
-  inspectionField.value ? (evidenceAttachments[inspectionField.value.key]?.length ?? 0) : 0,
+  inspectionInstance.value
+    ? (evidenceAttachments[inspectionInstance.value.field.key]?.length ?? 0)
+    : 0,
 )
 </script>
 
@@ -835,35 +861,41 @@ const currentFieldEvidenceCount = computed(() =>
               <span v-else>Sem evidências registradas nesta inspeção</span>
             </div>
 
+            <!-- Avisos não-bloqueantes da expansão por componente (Q2/Q3, DR-0002 T8) -->
+            <div v-if="submission.warnings?.length" class="insp-warn-box">
+              <div v-for="(w, wi) in submission.warnings" :key="wi" class="insp-warn-line">⚠ {{ w }}</div>
+            </div>
+
             <div class="fpanel" style="margin-bottom:16px;">
-              <template v-for="field in displayedListFields">
-                <div v-if="field.field_type === 'section'" :key="`sec-${field.id}`" :id="`sec-${field.key}`" class="section-divider">
-                  <span>{{ field.label }}</span>
+              <template v-for="row in displayedListRows">
+                <div v-if="row.kind === 'section'" :key="`sec-${row.field.id}`" :id="`sec-${row.field.key}`" class="section-divider">
+                  <span>{{ row.field.label }}</span>
                 </div>
                 <InspectionFieldRow
                   v-else
-                  :key="field.id"
-                  :field="field"
-                  :answer="draftAnswers[field.key] ?? ''"
-                  :conformity-status="conformityStatus[field.key]"
-                  :conformity-justification="conformityJustification[field.key] ?? ''"
+                  :key="row.instance.key"
+                  :field="row.field"
+                  :component-label="row.instance.componentLabel"
+                  :answer="draftAnswers[row.instance.key] ?? ''"
+                  :conformity-status="conformityStatus[row.instance.key]"
+                  :conformity-justification="conformityJustification[row.instance.key] ?? ''"
                   :is-completed="isCompleted"
-                  :is-pending-required="pendingRequiredFields.includes(field.key)"
-                  :evidence-attachments="evidenceAttachments[field.key] ?? []"
-                  :evidence-uploading="evidenceUploading[field.key] ?? false"
-                  :evidence-error="evidenceErrors[field.key]"
-                  @update-answer="v => { draftAnswers[field.key] = v; triggerAutoSave() }"
-                  @set-conformity="s => setConformity(field.key, s)"
-                  @update-justification="v => { conformityJustification[field.key] = v; triggerConformitySave() }"
-                  @upload-evidence="e => handleEvidenceUpload(field.key, {}, e)"
-                  @delete-evidence="id => handleEvidenceDelete(field.key, id)"
+                  :is-pending-required="pendingRequiredFields.includes(row.instance.key)"
+                  :evidence-attachments="evidenceAttachments[row.field.key] ?? []"
+                  :evidence-uploading="evidenceUploading[row.field.key] ?? false"
+                  :evidence-error="evidenceErrors[row.field.key]"
+                  @update-answer="v => { draftAnswers[row.instance.key] = v; triggerAutoSave() }"
+                  @set-conformity="s => setConformity(row.instance.key, s)"
+                  @update-justification="v => { conformityJustification[row.instance.key] = v; triggerConformitySave() }"
+                  @upload-evidence="e => handleEvidenceUpload(row.field.key, {}, e)"
+                  @delete-evidence="id => handleEvidenceDelete(row.field.key, id)"
                 />
               </template>
             </div>
 
             <div v-if="hasMoreFields" style="display:flex;justify-content:center;margin-bottom:12px;">
               <button type="button" class="btn-secondary btn-sm" @click="loadMoreFields">
-                Carregar mais campos ({{ fields.length - listViewLimit }} restantes)
+                Carregar mais campos ({{ renderRows.length - listViewLimit }} restantes)
               </button>
             </div>
             <div style="margin-bottom:68px;"></div>
@@ -998,7 +1030,7 @@ const currentFieldEvidenceCount = computed(() =>
           </div>
 
           <!-- Swipe card -->
-          <template v-else-if="inspectionField">
+          <template v-else-if="inspectionInstance && inspectionField">
 
             <!-- Side indicators -->
             <div class="insp-find insp-find--left" :style="{ opacity: leftIndicatorOpacity }">
@@ -1037,7 +1069,7 @@ const currentFieldEvidenceCount = computed(() =>
                       v-if="fieldWeight(inspectionField.config_json) > 1"
                       class="card-weight"
                     >Peso {{ inspectionField.config_json.weight }}x</span>
-                    <span class="card-counter">{{ inspectionIndex + 1 }} / {{ answerableFields.length }}</span>
+                    <span class="card-counter">{{ inspectionIndex + 1 }} / {{ answerableInstances.length }}</span>
                     <span class="card-status" :class="{
                       'card-status--ok':   currentFieldStatus === 'conformes',
                       'card-status--err':  currentFieldStatus === 'nao_conformes',
@@ -1056,6 +1088,10 @@ const currentFieldEvidenceCount = computed(() =>
                   <!-- Type label + field label + required + instruction -->
                   <div class="card-type-lbl">{{ TYPE_LABEL[inspectionField.field_type] ?? 'Campo' }}</div>
                   <div class="card-label">{{ inspectionField.label }}</div>
+                  <!-- Componente (campo escopado, DR-0002 T8) -->
+                  <div v-if="inspectionInstance?.componentLabel" class="card-comp-chip" :title="inspectionInstance.componentPath ?? ''">
+                    🧩 {{ inspectionInstance.componentLabel }}
+                  </div>
                   <div v-if="inspectionField.required" class="card-req">Obrigatório</div>
                   <div v-if="inspectionField.instruction" class="card-instr">
                     {{ inspectionField.instruction }}
@@ -1068,39 +1104,39 @@ const currentFieldEvidenceCount = computed(() =>
                   <div v-if="inspectionField.field_type === 'boolean'" style="display:grid;gap:8px;">
                     <div class="bool-grid">
                       <button type="button" class="bool-btn bool-sim"
-                        :class="{ 'bool-btn--active': draftAnswers[inspectionField.key] === 'true' }"
-                        @click="answerBoolean(inspectionField.key, 'true')">
+                        :class="{ 'bool-btn--active': draftAnswers[inspKey] === 'true' }"
+                        @click="answerBoolean(inspKey, 'true')">
                         <span class="b-icon">✓</span><span class="b-lbl">Sim</span>
                       </button>
                       <button type="button" class="bool-btn bool-nao"
-                        :class="{ 'bool-btn--active': draftAnswers[inspectionField.key] === 'false' }"
-                        @click="answerBoolean(inspectionField.key, 'false')">
+                        :class="{ 'bool-btn--active': draftAnswers[inspKey] === 'false' }"
+                        @click="answerBoolean(inspKey, 'false')">
                         <span class="b-icon">✕</span><span class="b-lbl">Não</span>
                       </button>
                     </div>
                     <button v-if="inspectionField.config_json?.allow_na"
                       type="button" class="na-btn"
-                      :class="{ 'na-btn--active': draftAnswers[inspectionField.key] === 'na' }"
-                      @click="answerBoolean(inspectionField.key, 'na')">
+                      :class="{ 'na-btn--active': draftAnswers[inspKey] === 'na' }"
+                      @click="answerBoolean(inspKey, 'na')">
                       N/A — Não aplicável
                     </button>
                   </div>
 
                   <!-- Number -->
                   <input v-else-if="inspectionField.field_type === 'number'"
-                    v-model="draftAnswers[inspectionField.key]"
+                    v-model="draftAnswers[inspKey]"
                     class="field-input" type="number" step="any" placeholder="Informe um número"
                     @change="triggerAutoSave()" />
 
                   <!-- Date -->
                   <input v-else-if="inspectionField.field_type === 'date'"
-                    v-model="draftAnswers[inspectionField.key]"
+                    v-model="draftAnswers[inspKey]"
                     class="field-input" type="date"
                     @change="triggerAutoSave()" />
 
                   <!-- Select -->
                   <select v-else-if="inspectionField.field_type === 'select'"
-                    v-model="draftAnswers[inspectionField.key]"
+                    v-model="draftAnswers[inspKey]"
                     class="field-input"
                     @change="triggerAutoSave()">
                     <option value="">— Selecione —</option>
@@ -1111,7 +1147,7 @@ const currentFieldEvidenceCount = computed(() =>
 
                   <!-- Text -->
                   <input v-else-if="inspectionField.field_type === 'text'"
-                    v-model="draftAnswers[inspectionField.key]"
+                    v-model="draftAnswers[inspKey]"
                     class="field-input" type="text" placeholder="Informe o valor"
                     @change="triggerAutoSave()" />
 
@@ -1119,23 +1155,23 @@ const currentFieldEvidenceCount = computed(() =>
                   <div class="card-sep"><span class="card-sep-lbl">Conformidade</span></div>
                   <div class="conf-grid">
                     <button type="button" class="conf-btn conf-ok"
-                      :class="{ active: conformityStatus[inspectionField.key] === 'conforme' }"
-                      @click="setConformityCard(inspectionField.key, 'conforme')">
+                      :class="{ active: conformityStatus[inspKey] === 'conforme' }"
+                      @click="setConformityCard(inspKey, 'conforme')">
                       ✓ Conforme
                     </button>
                     <button type="button" class="conf-btn conf-err"
-                      :class="{ active: conformityStatus[inspectionField.key] === 'nao_conforme' }"
-                      @click="setNaoConformeCard(inspectionField.key)">
+                      :class="{ active: conformityStatus[inspKey] === 'nao_conforme' }"
+                      @click="setNaoConformeCard(inspKey)">
                       ✕ Não conforme
                     </button>
                   </div>
                   <!-- Justification preview (read-only) -->
                   <div
-                    v-if="conformityStatus[inspectionField.key] === 'nao_conforme' && conformityJustification[inspectionField.key]"
+                    v-if="conformityStatus[inspKey] === 'nao_conforme' && conformityJustification[inspKey]"
                     class="conf-just-preview"
-                    @click="setNaoConformeCard(inspectionField.key)"
+                    @click="setNaoConformeCard(inspKey)"
                   >
-                    ✎ {{ conformityJustification[inspectionField.key] }}
+                    ✎ {{ conformityJustification[inspKey] }}
                   </div>
                   <p
                     v-if="inspectionField.field_type === 'boolean'"
@@ -1299,45 +1335,51 @@ const currentFieldEvidenceCount = computed(() =>
           </div>
         </div>
 
+        <!-- Avisos não-bloqueantes da expansão por componente (Q2/Q3, DR-0002 T8) -->
+        <div v-if="submission.warnings?.length" class="insp-warn-box insp-warn-box--shell">
+          <div v-for="(w, wi) in submission.warnings" :key="wi" class="insp-warn-line">⚠ {{ w }}</div>
+        </div>
+
         <!-- ── LISTA scrollável (fundo cinza) ── -->
         <div id="list-scroll-container" class="insp-list-container">
-          <template v-for="field in filteredListFields">
+          <template v-for="row in filteredRows">
 
             <!-- Section header sticky -->
             <div
-              v-if="field.field_type === 'section'"
-              :key="`sec-${field.key}`"
-              v-show="visibleSectionKeys.has(field.key)"
-              :id="`sec-${field.key}`"
+              v-if="row.kind === 'section'"
+              :key="`sec-${row.field.key}`"
+              v-show="visibleSectionKeys.has(row.field.key)"
+              :id="`sec-${row.field.key}`"
               class="insp-list-sec-hdr"
             >
-              <div class="insp-list-sec-ring" :style="sectionRingStyle(field.key)">
+              <div class="insp-list-sec-ring" :style="sectionRingStyle(row.field.key)">
                 <div class="insp-list-sec-ring-inner">
-                  {{ sectionPct(field.key) === 100 ? '✓' : sectionPct(field.key) + '%' }}
+                  {{ sectionPct(row.field.key) === 100 ? '✓' : sectionPct(row.field.key) + '%' }}
                 </div>
               </div>
-              <span class="insp-list-sec-name">{{ field.label }}</span>
-              <span class="insp-list-sec-cnt">{{ sectionProgress(field.key) }}</span>
+              <span class="insp-list-sec-name">{{ row.field.label }}</span>
+              <span class="insp-list-sec-cnt">{{ sectionProgress(row.field.key) }}</span>
             </div>
 
-            <!-- Field row -->
-            <div v-else :key="`row-${field.key}`" :id="`list-row-${field.key}`">
+            <!-- Field row (uma por instância de componente) -->
+            <div v-else :key="`row-${row.instance.key}`" :id="`list-row-${row.instance.key}`">
               <InspectionListRow
-                :field="field"
-                :position="fieldPosition(field)"
-                :answer="draftAnswers[field.key] ?? ''"
-                :conformity-status="conformityStatus[field.key]"
-                :conformity-justification="conformityJustification[field.key] ?? ''"
+                :field="row.field"
+                :component-label="row.instance.componentLabel"
+                :position="instancePosition(row.instance)"
+                :answer="draftAnswers[row.instance.key] ?? ''"
+                :conformity-status="conformityStatus[row.instance.key]"
+                :conformity-justification="conformityJustification[row.instance.key] ?? ''"
                 :is-completed="isCompleted"
-                :is-pending-required="pendingRequiredFields.includes(field.key)"
-                :evidence-count="evidenceAttachments[field.key]?.length ?? 0"
-                :is-expanded="expandedListKey === field.key"
-                @toggle="toggleListRow(field.key)"
-                @update-answer="v => { draftAnswers[field.key] = v; triggerAutoSave() }"
-                @set-conformity="s => setConformityList(field.key, s)"
-                @update-justification="v => { conformityJustification[field.key] = v; triggerConformitySave() }"
-                @request-evidence="openEvidenceSheet(field.key)"
-                @request-justification="() => { setConformity(field.key, 'nao_conforme'); openJustificationSheet(field.key) }"
+                :is-pending-required="pendingRequiredFields.includes(row.instance.key)"
+                :evidence-count="evidenceAttachments[row.field.key]?.length ?? 0"
+                :is-expanded="expandedListKey === row.instance.key"
+                @toggle="toggleListRow(row.instance.key)"
+                @update-answer="v => { draftAnswers[row.instance.key] = v; triggerAutoSave() }"
+                @set-conformity="s => setConformityList(row.instance.key, s)"
+                @update-justification="v => { conformityJustification[row.instance.key] = v; triggerConformitySave() }"
+                @request-evidence="openEvidenceSheet(row.field.key)"
+                @request-justification="() => { setConformity(row.instance.key, 'nao_conforme'); openJustificationSheet(row.instance.key) }"
               />
             </div>
 
@@ -2004,6 +2046,36 @@ const currentFieldEvidenceCount = computed(() =>
   padding: 6px 9px;
   border-radius: 0 6px 6px 0;
   margin-top: 8px;
+  line-height: 1.5;
+}
+
+/* ── Component chip (campo escopado, DR-0002 T8) ── */
+.card-comp-chip {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 99px;
+  background: #f5f3ff;
+  color: #7c3aed;
+}
+
+/* ── Avisos não-bloqueantes da expansão (Q2/Q3) ── */
+.insp-warn-box {
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--sa-warn-bg);
+  border: 1px solid var(--sa-warn);
+}
+.insp-warn-box--shell {
+  margin: 8px 12px 0 12px;
+}
+.insp-warn-line {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--sa-warn);
   line-height: 1.5;
 }
 

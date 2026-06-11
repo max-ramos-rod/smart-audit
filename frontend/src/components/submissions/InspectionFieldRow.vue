@@ -13,6 +13,8 @@ const props = defineProps<{
   evidenceUploading: boolean
   evidenceError: string | undefined
   compact?: boolean
+  // Rótulo do componente quando o campo é escopado (DR-0002 T8); null = campo geral.
+  componentLabel?: string | null
 }>()
 
 defineEmits<{
@@ -60,6 +62,8 @@ function formatFileSize(bytes: number): string {
       <div>
         <div class="frow-type">{{ TYPE_LABEL[field.field_type] ?? field.field_type }}</div>
         <div class="frow-name">{{ field.label }}</div>
+        <!-- Component chip (campo escopado, DR-0002 T8) -->
+        <div v-if="componentLabel" class="frow-comp-chip">🧩 {{ componentLabel }}</div>
       </div>
       <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
         <span v-if="fieldWeight() > 1" style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;background:var(--sa-brand-soft);color:var(--sa-brand);">
@@ -237,4 +241,16 @@ function formatFileSize(bytes: number): string {
 .bool-btn-sm.bool-sim.bool-btn--active { border-color: var(--sa-ok); color: var(--sa-ok); background: var(--sa-ok-bg); }
 .bool-btn-sm.bool-nao.bool-btn--active { border-color: var(--sa-danger); color: var(--sa-danger); background: var(--sa-err-bg); }
 .bool-btn-sm.bool-na.bool-btn--active  { border-color: var(--sa-warn); color: var(--sa-warn); background: var(--sa-warn-bg); }
+
+/* Component chip (campo escopado) */
+.frow-comp-chip {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 99px;
+  background: #f5f3ff;
+  color: #7c3aed;
+}
 </style>

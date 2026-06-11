@@ -286,15 +286,39 @@ com resposta + conformidade + evidência próprias, reusando o padrão de lista 
 - Vitest + e2e
 
 **Critérios de aceite**
-- Ativo com 4 componentes → 4 sub-itens por campo escopado, cada um respondível/avaliável; evidência
-  por componente.
+- Ativo com 4 componentes → 4 sub-itens por campo escopado, cada um respondível/avaliável.
 - Campo geral inalterado; inspeção sem ativo inalterada.
 - Aviso não-bloqueante quando não há componentes (Q2); progresso/score refletem instâncias.
 - `build`/`test`/`format:check`/`lint` verdes.
 
+> **Escopo ajustado (2026-06-11 — Opção 1).** T8 fica **frontend-only**: respostas e conformidades
+> individualizadas por componente (`asset_id` enviado), **evidência permanece por `field_key`**
+> (compartilhada entre componentes do campo). A evidência por componente exige estender o módulo de
+> attachments e foi separada em **T8.5** para manter T8 ≤ 1 PR. Limitação documentada na SPEC §7.
+
 **Testes necessários**
-- Vitest: render por componente; envio de `asset_id`. E2E: responder 4 rodas; finalizar bloqueado
-  com 1 pendente.
+- Vitest: expansão por componente (`buildRenderRows`) + envio de `asset_id` no service. E2E:
+  renderiza 4 rodas; marca conforme enviando `asset_id`; finalizar bloqueado com 1 pendente.
+
+---
+
+## T8.5 — Backend: `asset_id` no fluxo de attachments (evidência por componente)
+
+**Objetivo.** Permitir evidência **por componente** (não só por campo), fechando a limitação
+temporária da Opção 1 do T8. A coluna `submission_values.asset_id` já existe (T1).
+
+**Arquivos impactados (esboço)**
+- `backend/app/modules/attachments/schemas.py` — `asset_id` opcional em `AttachmentCreateRequest`
+  e em `AttachmentResponse`.
+- `backend/app/modules/attachments/service.py` — lookup/criação do `submission_value` por
+  `(submission_id, form_field_id, asset_id)`; aninhar no `answers_json` por componente; validar
+  INV1 (asset na subárvore + tipo do campo).
+- `backend/app/modules/attachments/repository.py` — `get_submission_value` com `asset_id`.
+- Frontend: `attachments.service` + `SubmissionDetailView` re-chaveiam evidência por instância.
+
+**Critérios de aceite**
+- Evidência anexada a um componente fica isolada por `asset_id`; retrocompat (`asset_id` nulo) =
+  comportamento atual; INV1 rejeita asset fora da subárvore/tipo (400 RFC 7807).
 
 ---
 

@@ -29,6 +29,9 @@
     <!-- Field label -->
     <span class="ilr-label">{{ field.label }}</span>
 
+    <!-- Component chip (campo escopado, DR-0002 T8) -->
+    <span v-if="componentLabel" class="ilr-comp-chip">🧩 {{ componentLabel }}</span>
+
     <!-- Answer label (only when answered) -->
     <span
       v-if="ansLabel"
@@ -207,6 +210,8 @@ const props = defineProps<{
   isPendingRequired: boolean
   evidenceCount: number
   isExpanded: boolean
+  // Rótulo do componente quando o campo é escopado (DR-0002 T8); null = campo geral.
+  componentLabel?: string | null
 }>()
 
 const emit = defineEmits<{
@@ -356,6 +361,21 @@ function onNaoConforme() {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Component chip (campo escopado) */
+.ilr-comp-chip {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 99px;
+  background: #f5f3ff;
+  color: #7c3aed;
+  white-space: nowrap;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Expanded panel */

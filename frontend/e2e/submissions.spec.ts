@@ -189,6 +189,108 @@ test.describe('Submission detail', () => {
   })
 })
 
+test.describe('Submission detail — inspeção por componente (DR-0002 T8)', () => {
+  const SCOPED_VERSION = (required = false) => ({
+    id: 'v1',
+    version: 1,
+    status: 'published',
+    published_at: null,
+    fields: [
+      {
+        id: 'ff1',
+        key: 'pressao',
+        label: 'Pressão do pneu',
+        field_type: 'boolean',
+        required,
+        position: 1,
+        config_json: {},
+        component_type_id: 'ct1',
+      },
+    ],
+  })
+
+  const COMPONENT_DETAIL = {
+    ...MOCK_DETAIL,
+    asset_id: 'truck1',
+    asset_identifier: 'Caminhão 01',
+    checklist: [
+      {
+        field_key: 'pressao',
+        field_type: 'boolean',
+        component_type_id: 'ct1',
+        components: [
+          { asset_id: 'a1', label: 'Roda DD', type: 'Roda', path: 'Caminhão 01 > Roda DD' },
+          { asset_id: 'a2', label: 'Roda DE', type: 'Roda', path: 'Caminhão 01 > Roda DE' },
+          { asset_id: 'a3', label: 'Roda TD', type: 'Roda', path: 'Caminhão 01 > Roda TD' },
+          { asset_id: 'a4', label: 'Roda TE', type: 'Roda', path: 'Caminhão 01 > Roda TE' },
+        ],
+      },
+    ],
+    warnings: [],
+  }
+
+  // Rotas específicas são registradas DEPOIS do catch-all `/submissions/s1**` porque o
+  // Playwright prioriza a rota adicionada por último.
+  test('renders one row per component for a scoped field', async ({ authed: page }) => {
+    await page.route(`${API}/forms/f1/versions/v1**`, (r) =>
+      r.fulfill({ json: envelope(SCOPED_VERSION()) }),
+    )
+    await page.route(`${API}/submissions/s1**`, (r) =>
+      r.fulfill({ json: envelope(COMPONENT_DETAIL) }),
+    )
+    await page.route(`${API}/submissions/s1/attachments**`, (r) =>
+      r.fulfill({ json: paginated([]) }),
+    )
+    await page.goto('/app/submissions/s1')
+
+    for (const roda of ['Roda DD', 'Roda DE', 'Roda TD', 'Roda TE']) {
+      await expect(page.getByText(roda).first()).toBeVisible()
+    }
+  })
+
+  test('sends asset_id when marking a component conforme', async ({ authed: page }) => {
+    let conformityBody: { items?: Array<{ field_key: string; asset_id?: string }> } | undefined
+    await page.route(`${API}/forms/f1/versions/v1**`, (r) =>
+      r.fulfill({ json: envelope(SCOPED_VERSION()) }),
+    )
+    await page.route(`${API}/submissions/s1**`, (r) =>
+      r.fulfill({ json: envelope(COMPONENT_DETAIL) }),
+    )
+    await page.route(`${API}/submissions/s1/attachments**`, (r) =>
+      r.fulfill({ json: paginated([]) }),
+    )
+    await page.route(`${API}/submissions/s1/conformity**`, (r) => {
+      conformityBody = r.request().postDataJSON()
+      return r.fulfill({ json: envelope(COMPONENT_DETAIL) })
+    })
+    await page.goto('/app/submissions/s1')
+
+    // Expande a primeira instância (Roda DD) e marca Conforme.
+    // exact: true evita casar com o chip de filtro "✓ Conformes" (plural).
+    await page.getByText('Roda DD').first().click()
+    await page.getByRole('button', { name: '✓ Conforme', exact: true }).first().click()
+
+    await expect.poll(() => conformityBody?.items?.[0]?.asset_id, { timeout: 5000 }).toBe('a1')
+    expect(conformityBody?.items?.[0]?.field_key).toBe('pressao')
+  })
+
+  test('blocks finish while a required component instance is pending', async ({ authed: page }) => {
+    await page.route(`${API}/forms/f1/versions/v1**`, (r) =>
+      r.fulfill({ json: envelope(SCOPED_VERSION(true)) }),
+    )
+    await page.route(`${API}/submissions/s1**`, (r) =>
+      r.fulfill({ json: envelope(COMPONENT_DETAIL) }),
+    )
+    await page.route(`${API}/submissions/s1/attachments**`, (r) =>
+      r.fulfill({ json: paginated([]) }),
+    )
+    await page.goto('/app/submissions/s1')
+
+    await page.getByRole('button', { name: /finalizar inspeção/i }).click()
+    await expect(page.getByText(/Campos com pendências/i).first()).toBeVisible()
+  })
+})
+
 test.describe('Submission report', () => {
   test('shows completed submission report', async ({ authed: page }) => {
     const completed = {
