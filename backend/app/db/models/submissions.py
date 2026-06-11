@@ -57,6 +57,11 @@ class Submission(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         default=dict,
         server_default=text("'{}'::jsonb"),
     )
+    # Identidade congelada por componente (DR-0002 Fases 2-4 / ADR-0016, Q1.1):
+    # { <asset_id>: { label, type, path } }. NULL = inspeção sem componentes (atual).
+    # Gravado uma vez por componente em save_answers; preserva o laudo histórico
+    # contra renomeação/desativação do ativo.
+    components_snapshot: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
     company = relationship("Company", back_populates="submissions")
     creator = relationship("User", back_populates="submissions_created")

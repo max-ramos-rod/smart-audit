@@ -44,8 +44,12 @@ Status. Detalhe técnico em
   versão publicada imutável (ADR-0005).
 - **Dimensão na resposta:** adicionar `asset_id` (FK nullable → `assets`) a `submission_values` e a
   `submission_conformities`. A unicidade passa de `(submission_id, form_field_id)` para
-  **`(submission_id, form_field_id, asset_id)`**. Como o Postgres trata `NULL` como distinto, as
-  linhas históricas (`asset_id NULL`) permanecem únicas por campo — **retrocompatível**.
+  **`(submission_id, form_field_id, asset_id)`** com **`NULLS NOT DISTINCT`** (PG 15+). Tratar
+  `NULL` como **igual** mantém a garantia do constraint antigo: o histórico (`asset_id NULL`)
+  continua com **uma** linha por `(submission_id, form_field_id)`, enquanto componentes distintos
+  (`asset_id` não-nulo) coexistem no mesmo campo — **retrocompatível**. (O padrão `NULLS DISTINCT`
+  permitiria múltiplos `NULL` no mesmo campo e perderia essa garantia — regressão; ver Alternativas
+  descartadas.)
 - **Formato do snapshot (ratifica Q1 do DR-0002):** `answers_json` fica **aninhado** e carrega
   **apenas respostas** — campo geral continua **escalar**; campo escopado vira **mapa de valores
   puros por componente** `{ <asset_id>: valor }`. Ex.:
@@ -107,5 +111,11 @@ acrescenta a dimensão de componente a ambas.
 - **Escopo em `config_json`** em vez de coluna (`component_type_id`): sem FK enforced; referência
   cross-context "solta" e consultas mais frágeis — integridade importa demais aqui (cf. ADR-0007,
   que segue válido para configuração de campo, não para esse vínculo estrutural).
+- **`UNIQUE` de 3 colunas com `NULLS DISTINCT` (padrão do Postgres):** parecia retrocompatível, mas
+  trata cada `NULL` como distinto — permitiria **várias** linhas `(submission_id, form_field_id,
+  NULL)` para o mesmo campo geral, perdendo a garantia "uma resposta por campo" do constraint
+  antigo (regressão silenciosa, capturada por teste de retrocompat). Por isso `NULLS NOT DISTINCT`.
+  *Alternativa equivalente para PG < 15:* índice único parcial `WHERE asset_id IS NULL` (não
+  necessário — prod roda PG 17).
 - **Manter o ADR-0006 sem alteração:** impossível — a unicidade por campo impede mais de uma
   resposta por campo.

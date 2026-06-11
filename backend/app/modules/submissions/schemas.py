@@ -7,12 +7,15 @@ class ConformityItem(BaseModel):
     field_key: str
     status: str
     justification: str | None
+    asset_id: str | None = None
 
 
 class ConformityInput(BaseModel):
     field_key: str = Field(min_length=1, max_length=100)
     status: str = Field(min_length=1, max_length=20)
     justification: str | None = Field(default=None, max_length=2000)
+    # Componente avaliado (DR-0002 T4). NULL = campo geral.
+    asset_id: str | None = Field(default=None, min_length=1, max_length=36)
 
     @field_validator("status")
     @classmethod
@@ -35,6 +38,8 @@ class SubmissionCreateRequest(BaseModel):
 class SubmissionAnswerInput(BaseModel):
     field_key: str = Field(min_length=1, max_length=100)
     value: bool | int | float | str | date | dict | None
+    # Componente respondido (DR-0002 T4). NULL = campo geral.
+    asset_id: str | None = Field(default=None, min_length=1, max_length=36)
 
 
 class SubmissionAnswersUpdateRequest(BaseModel):
@@ -45,6 +50,7 @@ class SubmissionAnswerResponse(BaseModel):
     field_key: str
     field_type: str
     value: bool | float | str | date | dict | None
+    asset_id: str | None = None
 
 
 class ScoreBreakdown(BaseModel):
@@ -53,6 +59,24 @@ class ScoreBreakdown(BaseModel):
     nao_conformes: int
     sem_resposta: int
     na_count: int = 0
+
+
+class ComponentInstance(BaseModel):
+    """Componente expandido de um campo escopado (DR-0002 T3). Identidade vinda da árvore viva."""
+
+    asset_id: str
+    label: str
+    type: str
+    path: str
+
+
+class ChecklistField(BaseModel):
+    """Item do checklist expandido. ``components`` vazio = campo geral (uma instância)."""
+
+    field_key: str
+    field_type: str
+    component_type_id: str | None = None
+    components: list[ComponentInstance] = []
 
 
 class SubmissionResponse(BaseModel):
@@ -69,6 +93,10 @@ class SubmissionResponse(BaseModel):
     finished_at: datetime | None
     answers: list[SubmissionAnswerResponse]
     conformity: list[ConformityItem] = []
+    # Checklist expandido por componente (DR-0002 T3). Campos escopados viram N instâncias.
+    checklist: list[ChecklistField] = []
+    # Avisos não-bloqueantes da expansão (Q2: sem componentes; Q3: campo escopado sem ativo).
+    warnings: list[str] = []
 
 
 class SubmissionListItemResponse(BaseModel):

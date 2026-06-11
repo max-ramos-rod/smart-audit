@@ -33,5 +33,21 @@ class AssetTypeRepository(SQLAlchemyRepository[AssetType]):
         )
         return await self._get_one(db, statement)
 
+    async def filter_existing_ids(
+        self, db: AsyncSession, company_id: str, ids: set[str]
+    ) -> set[str]:
+        """Retorna, dentre ``ids``, os que existem como tipos da empresa.
+
+        Validação cross-context para o escopo de componente (DR-0002 T2): a diferença
+        entre ``ids`` e o retorno são os tipos inválidos/de outra empresa.
+        """
+        if not ids:
+            return set()
+        statement = select(AssetType.id).where(
+            AssetType.company_id == company_id, AssetType.id.in_(ids)
+        )
+        rows = await db.scalars(statement)
+        return {str(row) for row in rows}
+
     async def create_asset_type(self, db: AsyncSession, asset_type: AssetType) -> AssetType:
         return await self._save(db, asset_type)

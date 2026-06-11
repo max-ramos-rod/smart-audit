@@ -11,6 +11,9 @@ class FormFieldCreateRequest(BaseModel):
     position: int
     config_json: dict = Field(default_factory=dict)
     instruction: str | None = Field(default=None, min_length=1, max_length=1000)
+    # Escopo de componente (DR-0002 Fases 2-4 / ADR-0016). NULL = campo geral.
+    # A existência do tipo na empresa é validada no service (cross-context).
+    component_type_id: str | None = Field(default=None, min_length=1, max_length=36)
 
     @field_validator("config_json")
     @classmethod
@@ -43,6 +46,7 @@ class FormFieldResponse(BaseModel):
     position: int
     config_json: dict
     instruction: str | None
+    component_type_id: str | None = None
 
 
 class FormVersionResponse(BaseModel):

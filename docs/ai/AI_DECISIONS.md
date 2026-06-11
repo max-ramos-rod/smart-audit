@@ -106,7 +106,17 @@ contexto async. Não substitua por mocks/SQLite — testes de integração exige
 
 > Decididas no encerramento da discussão arquitetural das Fases 2–4. As estruturais (formato do
 > `answers_json`, chave UUID, `components_snapshot`, `component_type_id`) estão na **ADR-0016**;
-> abaixo, as de granularidade fina. **Decididas, ainda não implementadas.**
+> abaixo, as de granularidade fina. Q1.2 (abaixo) **já implementada** na T1; as demais decididas,
+> implementação em andamento.
+
+### Semântica de NULL na unicidade (Q1.2) — DECIDIDO 2026-06-11, IMPLEMENTADO
+A unicidade `(submission_id, form_field_id, asset_id)` usa **`NULLS NOT DISTINCT`**. Trata `NULL`
+como **igual**, preservando a garantia histórica de **uma** resposta para campos gerais
+(`asset_id NULL`) — retrocompatível com o constraint antigo — e permitindo **múltiplas** respostas
+por componente quando `asset_id` está preenchido. O padrão (`NULLS DISTINCT`) trataria cada `NULL`
+como distinto e perderia essa garantia (regressão). Requer **PostgreSQL 15+** (prod: PG 17 ✓; dev:
+PG 18 ✓). — migration `e3f4a5b6c7d8`; modelos `submission_values`/`submission_conformities`
+(`postgresql_nulls_not_distinct=True`); teste `test_submissions_component.py`.
 
 ### Campo escopado sem componentes correspondentes (Q2)
 Se o ativo alvo não tem componentes do tipo escopado, o campo é **omitido da execução** + **aviso

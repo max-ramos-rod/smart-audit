@@ -18,7 +18,9 @@ from app.modules.assets.repository import AssetRepository
 from app.modules.submissions.pdf import generate_submission_pdf
 from app.modules.submissions.repository import SubmissionRepository
 from app.modules.submissions.schemas import (
+    ChecklistField,
     CompanyStatsResponse,
+    ComponentInstance,
     ConformityItem,
     FormScoreStat,
     NotificationItem,
@@ -230,7 +232,7 @@ class SubmissionService:
             db, str(membership.company_id), str(submission.id)
         )
         assert created is not None
-        return self.serialize_submission(created)
+        return await self._serialize_detail(db, created)
 
     async def get_submission(
         self, db: AsyncSession, membership: Membership, submission_id: str
@@ -242,7 +244,7 @@ class SubmissionService:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Inspecao nao encontrada."
             )
-        return self.serialize_submission(submission)
+        return await self._serialize_detail(db, submission)
 
     async def save_answers(
         self,
@@ -265,6 +267,15 @@ class SubmissionService:
 
         fields_by_key = {field.key: field for field in submission.form_version.fields}
         answers_snapshot = dict(submission.answers_json or {})
+        components_snapshot = dict(submission.components_snapshot or {})
+
+        scoped_keys = {
+            f.key
+            for f in submission.form_version.fields
+            if f.component_type_id is not None and f.field_type != "section"
+        }
+        needs_components = any(a.field_key in scoped_keys for a in payload.answers)
+        components_by_id = await self._components_by_id(db, submission) if needs_components else {}
 
         for answer in payload.answers:
             field = fields_by_key.get(answer.field_key)
@@ -276,13 +287,17 @@ class SubmissionService:
             if field.field_type == "section":
                 continue
 
+            component = self._validate_component_scope(field, answer.asset_id, components_by_id)
+
             normalized_value = self.normalize_value(field, answer.value)
             submission_value = await self.repository.get_submission_value_by_field_id(
-                db, str(submission.id), str(field.id)
+                db, str(submission.id), str(field.id), answer.asset_id
             )
             if submission_value is None:
                 submission_value = SubmissionValue(
-                    submission_id=submission.id, form_field_id=field.id
+                    submission_id=submission.id,
+                    form_field_id=field.id,
+                    asset_id=answer.asset_id,
                 )
 
             submission_value.value_text = None
@@ -307,9 +322,28 @@ class SubmissionService:
 
             await self.repository.save_submission_value(db, submission_value)
             raw = self.serialize_raw_value(field.field_type, normalized_value)
-            answers_snapshot[field.key] = raw
+
+            if component is None:
+                # Campo geral: snapshot escalar (Q1).
+                answers_snapshot[field.key] = raw
+            else:
+                # Campo escopado: mapa de valores puros por componente (Q1).
+                bucket = answers_snapshot.get(field.key)
+                if not isinstance(bucket, dict):
+                    bucket = {}
+                bucket[answer.asset_id] = raw
+                answers_snapshot[field.key] = bucket
+                # Identidade congelada 1x por componente (Q1.1 / INV6) — nunca reescrita.
+                if answer.asset_id not in components_snapshot:
+                    components_snapshot[answer.asset_id] = {
+                        "label": component["identifier"],
+                        "type": component["type_name"],
+                        "path": component["path"],
+                    }
 
         submission.answers_json = answers_snapshot
+        if components_snapshot:
+            submission.components_snapshot = components_snapshot
         submission.status = "in_progress"
         db.add(submission)
         await db.commit()
@@ -318,7 +352,7 @@ class SubmissionService:
             db, str(membership.company_id), submission_id
         )
         assert updated is not None
-        return self.serialize_submission(updated)
+        return await self._serialize_detail(db, updated)
 
     async def save_conformity(
         self,
@@ -341,6 +375,14 @@ class SubmissionService:
 
         fields_by_key = {field.key: field for field in submission.form_version.fields}
 
+        scoped_keys = {
+            f.key
+            for f in submission.form_version.fields
+            if f.component_type_id is not None and f.field_type != "section"
+        }
+        needs_components = any(i.field_key in scoped_keys for i in payload.items)
+        components_by_id = await self._components_by_id(db, submission) if needs_components else {}
+
         for item in payload.items:
             field = fields_by_key.get(item.field_key)
             if field is None:
@@ -351,13 +393,16 @@ class SubmissionService:
             if field.field_type == "section":
                 continue
 
+            self._validate_component_scope(field, item.asset_id, components_by_id)
+
             conformity = await self.repository.get_conformity(
-                db, str(submission.id), str(field.id)
+                db, str(submission.id), str(field.id), item.asset_id
             )
             if conformity is None:
                 conformity = SubmissionConformity(
                     submission_id=submission.id,
                     form_field_id=field.id,
+                    asset_id=item.asset_id,
                 )
             conformity.status = item.status
             conformity.justification = item.justification
@@ -369,7 +414,7 @@ class SubmissionService:
             db, str(membership.company_id), submission_id
         )
         assert updated is not None
-        return self.serialize_submission(updated)
+        return await self._serialize_detail(db, updated)
 
     async def finish_submission(
         self, db: AsyncSession, membership: Membership, submission_id: str
@@ -382,13 +427,40 @@ class SubmissionService:
                 status_code=status.HTTP_404_NOT_FOUND, detail="Inspecao nao encontrada."
             )
 
-        answers_by_field_id = {str(value.form_field_id): value for value in submission.values}
-        missing_required = []
+        errors = []
 
+        # Q3: campo escopado em inspeção sem ativo é erro de configuração — bloqueia a
+        # finalização (o rascunho pôde ser salvo). build_checklist omite esses campos.
+        has_scoped = any(
+            f.component_type_id is not None and f.field_type != "section"
+            for f in submission.form_version.fields
+        )
+        if has_scoped and submission.asset_id is None:
+            errors.append(
+                "Campos com escopo de componente exigem um ativo vinculado a inspecao"
+            )
+
+        # Obrigatoriedade por instância expandida (RN4): cada componente de um campo escopado
+        # obrigatório precisa de resposta; campo geral obrigatório precisa de uma resposta.
+        checklist, _ = await self.build_checklist(db, submission)
+        checklist_by_key = {cf.field_key: cf for cf in checklist}
+        answered = {
+            (str(v.form_field_id), str(v.asset_id) if v.asset_id else None)
+            for v in submission.values
+        }
+        missing_required: list[str] = []
         for field in submission.form_version.fields:
-            if not field.required:
+            if not field.required or field.field_type == "section":
                 continue
-            if str(field.id) not in answers_by_field_id:
+            cf = checklist_by_key.get(field.key)
+            if cf is None:
+                # Omitido por Q2 (sem componentes do tipo) — não bloqueante; Q3 já tratado acima.
+                continue
+            if cf.components:
+                for comp in cf.components:
+                    if (str(field.id), comp.asset_id) not in answered:
+                        missing_required.append(f"{field.key} ({comp.label})")
+            elif (str(field.id), None) not in answered:
                 missing_required.append(field.key)
 
         fields_by_id = {str(f.id): f for f in submission.form_version.fields}
@@ -400,7 +472,6 @@ class SubmissionService:
             and str(c.form_field_id) in fields_by_id
         ]
 
-        errors = []
         if missing_required:
             errors.append(f"Campos obrigatorios pendentes: {', '.join(missing_required)}")
         if missing_justification:
@@ -423,7 +494,7 @@ class SubmissionService:
             db, str(membership.company_id), submission_id
         )
         assert updated is not None
-        return self.serialize_submission(updated)
+        return await self._serialize_detail(db, updated)
 
     async def export_pdf(
         self, db: AsyncSession, membership: Membership, submission_id: str
@@ -553,11 +624,21 @@ class SubmissionService:
         return value
 
     @staticmethod
-    def calculate_score_breakdown(submission: Submission) -> ScoreBreakdown | None:
+    def calculate_score_breakdown(
+        submission: Submission, total_units: int | None = None
+    ) -> ScoreBreakdown | None:
+        """Breakdown por unidade avaliável (DR-0002 T5).
+
+        ``conformes``/``nao_conformes`` contam linhas de conformidade — uma por par
+        (campo × componente). ``total_units``, quando informado, é a contagem de instâncias
+        esperadas (derivada do checklist expandido); sem ele, cai para a contagem de campos
+        não-section (comportamento legado, sem componentes).
+        """
         if not submission.conformities:
             return None
         fields_by_id = {str(f.id): f for f in submission.form_version.fields}
-        total_fields = sum(1 for f in submission.form_version.fields if f.field_type != "section")
+        legacy_total = sum(1 for f in submission.form_version.fields if f.field_type != "section")
+        total = total_units if total_units is not None else legacy_total
         conformes = 0
         nao_conformes = 0
         for c in submission.conformities:
@@ -568,9 +649,9 @@ class SubmissionService:
                 conformes += 1
             elif c.status == "nao_conforme":
                 nao_conformes += 1
-        sem_avaliacao = total_fields - conformes - nao_conformes
+        sem_avaliacao = total - conformes - nao_conformes
         return ScoreBreakdown(
-            total_boolean=total_fields,
+            total_boolean=total,
             conformes=conformes,
             nao_conformes=nao_conformes,
             sem_resposta=max(0, sem_avaliacao),
@@ -579,6 +660,9 @@ class SubmissionService:
 
     @staticmethod
     def calculate_score(submission: Submission) -> float | None:
+        # Itera por linha de conformidade — uma por par (campo × componente) no DR-0002.
+        # A fórmula ponderada do ADR-0008 é inalterada; só muda a cardinalidade das unidades
+        # (cada componente é uma unidade). weight vem do config_json do campo (Q6).
         fields_by_id = {str(f.id): f for f in submission.form_version.fields}
         weighted_conformes = 0.0
         weighted_total = 0.0
@@ -595,8 +679,124 @@ class SubmissionService:
             return None
         return round((weighted_conformes / weighted_total) * 100, 2)
 
+    async def build_checklist(
+        self, db: AsyncSession, submission: Submission
+    ) -> tuple[list[ChecklistField], list[str]]:
+        """Expande os campos escopados por componente da subárvore do ativo alvo (DR-0002 T3).
+
+        Campo geral → uma instância (``components`` vazio). Campo escopado → uma instância por
+        componente do tipo sob o ativo. Q2 (sem componentes do tipo) e Q3 (campo escopado em
+        inspeção sem ativo) viram avisos não-bloqueantes; o campo é omitido do checklist.
+        """
+        fields = sorted(submission.form_version.fields, key=lambda f: f.position)
+        has_scoped = any(
+            f.component_type_id is not None and f.field_type != "section" for f in fields
+        )
+
+        warnings: list[str] = []
+        components_by_type: dict[str, list[dict]] = {}
+        if has_scoped:
+            if submission.asset_id is None:
+                # Q3: campos escopados exigem ativo vinculado; não há como expandir.
+                warnings.append(
+                    "Campos com escopo de componente exigem um ativo vinculado a inspecao."
+                )
+            else:
+                rows = await self.asset_repository.list_subtree_components(
+                    db, str(submission.asset_id)
+                )
+                for row in rows:
+                    components_by_type.setdefault(str(row["asset_type_id"]), []).append(row)
+
+        checklist: list[ChecklistField] = []
+        for field in fields:
+            if field.field_type == "section":
+                continue
+            if field.component_type_id is None:
+                checklist.append(
+                    ChecklistField(field_key=field.key, field_type=field.field_type)
+                )
+                continue
+            # Campo escopado.
+            if submission.asset_id is None:
+                continue  # Q3: omitido; aviso de configuração já registrado.
+            comps = components_by_type.get(str(field.component_type_id), [])
+            if not comps:
+                # Q2: nenhum componente do tipo sob o ativo → omitir + avisar.
+                warnings.append(
+                    f"Campo '{field.key}' nao tem componentes do tipo escopado; omitido."
+                )
+                continue
+            checklist.append(
+                ChecklistField(
+                    field_key=field.key,
+                    field_type=field.field_type,
+                    component_type_id=str(field.component_type_id),
+                    components=[
+                        ComponentInstance(
+                            asset_id=str(c["id"]),
+                            label=c["identifier"],
+                            type=c["type_name"],
+                            path=c["path"],
+                        )
+                        for c in comps
+                    ],
+                )
+            )
+        return checklist, warnings
+
+    async def _serialize_detail(
+        self, db: AsyncSession, submission: Submission
+    ) -> SubmissionResponse:
+        """Serializa o detalhe incluindo o checklist expandido por componente (T3)."""
+        checklist, warnings = await self.build_checklist(db, submission)
+        return self.serialize_submission(submission, checklist=checklist, warnings=warnings)
+
+    async def _components_by_id(
+        self, db: AsyncSession, submission: Submission
+    ) -> dict[str, dict]:
+        """Mapa ``asset_id -> componente`` da subárvore do ativo alvo (vazio se sem ativo)."""
+        if submission.asset_id is None:
+            return {}
+        rows = await self.asset_repository.list_subtree_components(db, str(submission.asset_id))
+        return {str(row["id"]): row for row in rows}
+
     @staticmethod
-    def serialize_submission(submission: Submission) -> SubmissionResponse:
+    def _validate_component_scope(
+        field: FormField, asset_id: str | None, components_by_id: dict[str, dict]
+    ) -> dict | None:
+        """Valida o escopo de um item de resposta/conformidade (INV1/INV2 do DR-0002).
+
+        Retorna o componente resolvido (linha da subárvore) para campo escopado, ou ``None``
+        para campo geral. Levanta 400 quando o vínculo viola os invariantes.
+        """
+        if field.component_type_id is None:
+            if asset_id is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Campo {field.key} nao aceita escopo de componente.",
+                )
+            return None
+        # Campo escopado: exige um componente válido da subárvore, do tipo do campo (INV1).
+        if asset_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Campo {field.key} exige um componente.",
+            )
+        component = components_by_id.get(asset_id)
+        if component is None or str(component["asset_type_id"]) != str(field.component_type_id):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Componente invalido para o campo {field.key}.",
+            )
+        return component
+
+    @staticmethod
+    def serialize_submission(
+        submission: Submission,
+        checklist: list[ChecklistField] | None = None,
+        warnings: list[str] | None = None,
+    ) -> SubmissionResponse:
         fields_by_id = {str(field.id): field for field in submission.form_version.fields}
         answers = []
         for value in submission.values:
@@ -606,6 +806,7 @@ class SubmissionService:
                     field_key=field.key,
                     field_type=field.field_type,
                     value=SubmissionService.extract_value(value, field.field_type),
+                    asset_id=str(value.asset_id) if value.asset_id else None,
                 )
             )
 
@@ -615,12 +816,22 @@ class SubmissionService:
                 field_key=fields_by_id_key.get(str(c.form_field_id), ""),
                 status=c.status,
                 justification=c.justification,
+                asset_id=str(c.asset_id) if c.asset_id else None,
             )
             for c in submission.conformities
             if str(c.form_field_id) in fields_by_id_key
         ]
 
-        ordered_answers = sorted(answers, key=lambda item: item.field_key)
+        ordered_answers = sorted(
+            answers, key=lambda item: (item.field_key, item.asset_id or "")
+        )
+        # Total de unidades avaliáveis expandidas (campo geral = 1; escopado = nº de
+        # componentes). Mantém o breakdown coerente com o score por componente (T5).
+        total_units = (
+            sum(len(cf.components) if cf.components else 1 for cf in checklist)
+            if checklist
+            else None
+        )
         return SubmissionResponse(
             id=str(submission.id),
             form_id=str(submission.form_version.form.id),
@@ -630,11 +841,15 @@ class SubmissionService:
             asset_identifier=submission.asset.identifier if submission.asset else None,
             status=submission.status,
             score=float(submission.score) if submission.score is not None else None,
-            score_breakdown=SubmissionService.calculate_score_breakdown(submission),
+            score_breakdown=SubmissionService.calculate_score_breakdown(
+                submission, total_units=total_units
+            ),
             started_at=submission.started_at,
             finished_at=submission.finished_at,
             answers=ordered_answers,
             conformity=conformity_items,
+            checklist=checklist or [],
+            warnings=warnings or [],
         )
 
     @staticmethod
