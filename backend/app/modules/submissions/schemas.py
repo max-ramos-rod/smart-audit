@@ -55,6 +55,24 @@ class ScoreBreakdown(BaseModel):
     na_count: int = 0
 
 
+class ComponentInstance(BaseModel):
+    """Componente expandido de um campo escopado (DR-0002 T3). Identidade vinda da árvore viva."""
+
+    asset_id: str
+    label: str
+    type: str
+    path: str
+
+
+class ChecklistField(BaseModel):
+    """Item do checklist expandido. ``components`` vazio = campo geral (uma instância)."""
+
+    field_key: str
+    field_type: str
+    component_type_id: str | None = None
+    components: list[ComponentInstance] = []
+
+
 class SubmissionResponse(BaseModel):
     id: str
     form_id: str
@@ -69,6 +87,10 @@ class SubmissionResponse(BaseModel):
     finished_at: datetime | None
     answers: list[SubmissionAnswerResponse]
     conformity: list[ConformityItem] = []
+    # Checklist expandido por componente (DR-0002 T3). Campos escopados viram N instâncias.
+    checklist: list[ChecklistField] = []
+    # Avisos não-bloqueantes da expansão (Q2: sem componentes; Q3: campo escopado sem ativo).
+    warnings: list[str] = []
 
 
 class SubmissionListItemResponse(BaseModel):

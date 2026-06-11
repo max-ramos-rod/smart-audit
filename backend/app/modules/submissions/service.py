@@ -18,7 +18,9 @@ from app.modules.assets.repository import AssetRepository
 from app.modules.submissions.pdf import generate_submission_pdf
 from app.modules.submissions.repository import SubmissionRepository
 from app.modules.submissions.schemas import (
+    ChecklistField,
     CompanyStatsResponse,
+    ComponentInstance,
     ConformityItem,
     FormScoreStat,
     NotificationItem,
@@ -230,7 +232,7 @@ class SubmissionService:
             db, str(membership.company_id), str(submission.id)
         )
         assert created is not None
-        return self.serialize_submission(created)
+        return await self._serialize_detail(db, created)
 
     async def get_submission(
         self, db: AsyncSession, membership: Membership, submission_id: str
@@ -242,7 +244,7 @@ class SubmissionService:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Inspecao nao encontrada."
             )
-        return self.serialize_submission(submission)
+        return await self._serialize_detail(db, submission)
 
     async def save_answers(
         self,
@@ -318,7 +320,7 @@ class SubmissionService:
             db, str(membership.company_id), submission_id
         )
         assert updated is not None
-        return self.serialize_submission(updated)
+        return await self._serialize_detail(db, updated)
 
     async def save_conformity(
         self,
@@ -369,7 +371,7 @@ class SubmissionService:
             db, str(membership.company_id), submission_id
         )
         assert updated is not None
-        return self.serialize_submission(updated)
+        return await self._serialize_detail(db, updated)
 
     async def finish_submission(
         self, db: AsyncSession, membership: Membership, submission_id: str
@@ -423,7 +425,7 @@ class SubmissionService:
             db, str(membership.company_id), submission_id
         )
         assert updated is not None
-        return self.serialize_submission(updated)
+        return await self._serialize_detail(db, updated)
 
     async def export_pdf(
         self, db: AsyncSession, membership: Membership, submission_id: str
@@ -595,8 +597,85 @@ class SubmissionService:
             return None
         return round((weighted_conformes / weighted_total) * 100, 2)
 
+    async def build_checklist(
+        self, db: AsyncSession, submission: Submission
+    ) -> tuple[list[ChecklistField], list[str]]:
+        """Expande os campos escopados por componente da subárvore do ativo alvo (DR-0002 T3).
+
+        Campo geral → uma instância (``components`` vazio). Campo escopado → uma instância por
+        componente do tipo sob o ativo. Q2 (sem componentes do tipo) e Q3 (campo escopado em
+        inspeção sem ativo) viram avisos não-bloqueantes; o campo é omitido do checklist.
+        """
+        fields = sorted(submission.form_version.fields, key=lambda f: f.position)
+        has_scoped = any(
+            f.component_type_id is not None and f.field_type != "section" for f in fields
+        )
+
+        warnings: list[str] = []
+        components_by_type: dict[str, list[dict]] = {}
+        if has_scoped:
+            if submission.asset_id is None:
+                # Q3: campos escopados exigem ativo vinculado; não há como expandir.
+                warnings.append(
+                    "Campos com escopo de componente exigem um ativo vinculado a inspecao."
+                )
+            else:
+                rows = await self.asset_repository.list_subtree_components(
+                    db, str(submission.asset_id)
+                )
+                for row in rows:
+                    components_by_type.setdefault(str(row["asset_type_id"]), []).append(row)
+
+        checklist: list[ChecklistField] = []
+        for field in fields:
+            if field.field_type == "section":
+                continue
+            if field.component_type_id is None:
+                checklist.append(
+                    ChecklistField(field_key=field.key, field_type=field.field_type)
+                )
+                continue
+            # Campo escopado.
+            if submission.asset_id is None:
+                continue  # Q3: omitido; aviso de configuração já registrado.
+            comps = components_by_type.get(str(field.component_type_id), [])
+            if not comps:
+                # Q2: nenhum componente do tipo sob o ativo → omitir + avisar.
+                warnings.append(
+                    f"Campo '{field.key}' nao tem componentes do tipo escopado; omitido."
+                )
+                continue
+            checklist.append(
+                ChecklistField(
+                    field_key=field.key,
+                    field_type=field.field_type,
+                    component_type_id=str(field.component_type_id),
+                    components=[
+                        ComponentInstance(
+                            asset_id=str(c["id"]),
+                            label=c["identifier"],
+                            type=c["type_name"],
+                            path=c["path"],
+                        )
+                        for c in comps
+                    ],
+                )
+            )
+        return checklist, warnings
+
+    async def _serialize_detail(
+        self, db: AsyncSession, submission: Submission
+    ) -> SubmissionResponse:
+        """Serializa o detalhe incluindo o checklist expandido por componente (T3)."""
+        checklist, warnings = await self.build_checklist(db, submission)
+        return self.serialize_submission(submission, checklist=checklist, warnings=warnings)
+
     @staticmethod
-    def serialize_submission(submission: Submission) -> SubmissionResponse:
+    def serialize_submission(
+        submission: Submission,
+        checklist: list[ChecklistField] | None = None,
+        warnings: list[str] | None = None,
+    ) -> SubmissionResponse:
         fields_by_id = {str(field.id): field for field in submission.form_version.fields}
         answers = []
         for value in submission.values:
@@ -635,6 +714,8 @@ class SubmissionService:
             finished_at=submission.finished_at,
             answers=ordered_answers,
             conformity=conformity_items,
+            checklist=checklist or [],
+            warnings=warnings or [],
         )
 
     @staticmethod

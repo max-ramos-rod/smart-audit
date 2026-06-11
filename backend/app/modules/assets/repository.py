@@ -60,6 +60,35 @@ class AssetRepository(SQLAlchemyRepository[Asset]):
     async def create_asset(self, db: AsyncSession, asset: Asset) -> Asset:
         return await self._save(db, asset)
 
+    async def list_subtree_components(
+        self, db: AsyncSession, root_asset_id: str
+    ) -> list[dict]:
+        """Componentes ativos da subárvore de ``root_asset_id`` (exclui a raiz), via CTE.
+
+        Usado pelo motor de expansão do checklist (DR-0002 T3): retorna, para cada
+        componente, ``id``, ``identifier``, ``asset_type_id``, ``type_name`` e ``path``
+        (cadeia de ancestrais a partir da raiz). Ordenado por ``path`` para render estável.
+        """
+        statement = text(
+            """
+            WITH RECURSIVE subtree AS (
+                SELECT a.id, a.identifier, a.asset_type_id, a.parent_asset_id, a.status,
+                       a.identifier::text AS path, 0 AS depth
+                FROM assets a WHERE a.id = CAST(:root AS uuid)
+                UNION ALL
+                SELECT c.id, c.identifier, c.asset_type_id, c.parent_asset_id, c.status,
+                       s.path || ' > ' || c.identifier, s.depth + 1
+                FROM assets c JOIN subtree s ON c.parent_asset_id = s.id
+            )
+            SELECT s.id, s.identifier, s.asset_type_id, t.name AS type_name, s.path
+            FROM subtree s JOIN asset_types t ON t.id = s.asset_type_id
+            WHERE s.depth > 0 AND s.status = 'active'
+            ORDER BY s.path
+            """
+        )
+        result = await db.execute(statement, {"root": root_asset_id})
+        return [dict(row) for row in result.mappings()]
+
     async def deactivate_subtree(self, db: AsyncSession, root_asset_id: str) -> int:
         """Desativa o no e toda a subarvore via CTE recursiva (M4/V6).
 
