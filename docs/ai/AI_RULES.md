@@ -107,3 +107,19 @@ quebra testes ou contratos. Os caminhos citados existem no repositório.
   **crie branch antes**.
 - Mensagens de commit terminam com `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`.
 - Mensagens de erro do backend evitam acentos (encoding de logs).
+
+## Governança documental (sincronização obrigatória)
+
+Regra permanente do projeto, formalizada na
+[ADR-0017](../adr/0017-modelo-unificado-de-evidencias.md) (§Governança).
+
+- **Toda ADR usa o template oficial [`docs/adr/ADR_TEMPLATE.md`](../adr/ADR_TEMPLATE.md)** e
+  **DEVE conter uma _Checklist de Sincronização Documental_.** ADRs que alterarem domínio de
+  negócio, modelo de dados, contratos de API ou arquitetura de módulos preenchem e resolvem a
+  checklist; as demais marcam `N/A — não altera domínio/dados/API/módulos`.
+- A checklist identifica e leva à atualização, quando aplicável: ADRs · DRs · SPECs · DER ·
+  diagramas arquiteturais · `CLAUDE.md` · `docs/ai/*` · planos de implementação · relatórios de
+  auditoria arquitetural · qualquer documento que deixe de refletir a arquitetura vigente.
+- **Definition of Done:** nenhuma implementação derivada de uma ADR é concluída enquanto a sua
+  Checklist de Sincronização Documental não estiver integralmente resolvida.
+- Objetivo: evitar drift entre ADR, SPEC, código e documentação operacional.

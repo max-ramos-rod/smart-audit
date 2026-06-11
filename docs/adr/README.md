@@ -9,7 +9,9 @@ registram decisões acordadas mas ainda não implementadas — tipicamente origi
 Record em [`docs/design-records/`](../design-records/README.md); ao implementar, mudam para
 **Aceita** e passam a citar os pontos do código que as sustentam.
 
-Novos ADRs partem de [`template.md`](template.md). Registro inicial em 2026-06-08.
+Novos ADRs partem do template oficial [`ADR_TEMPLATE.md`](ADR_TEMPLATE.md) — núcleo + seções de
+impacto "se aplicável" + **Checklist de Sincronização Documental obrigatória** (Q7.4 / ADR-0017).
+Registro inicial em 2026-06-08.
 
 ## Ciclo de vida (Status)
 
@@ -42,6 +44,7 @@ campos `Supersedes`/`Superseded-by` no cabeçalho dos ADRs envolvidos**.
 | [0014](0014-convite-reaproveita-reset-de-senha.md) | Convite de usuário reaproveita a máquina de reset de senha | Aceita | — | — |
 | [0015](0015-modelo-de-ativos-genericos.md) | Modelo de ativos genéricos (árvore de componentes + `client_id` discriminador) | Aceita | — | — |
 | [0016](0016-inspecao-por-componente-revisao-modelo-hibrido.md) | Inspeção por componente: dimensão `asset_id` no modelo híbrido (revisa 0006) | Proposta | — | — |
+| [0017](0017-modelo-unificado-de-evidencias.md) | Modelo unificado de evidências (anexo polimórfico por escopo; remove `submission_value_id`; revisa 0006/0016) | Proposta | — | — |
 
 > Decisões de granularidade mais fina (tetos de CSV, janela de notificações, isolamento de
 > testes, `field_type` validado pela CHECK, etc.) estão catalogadas em
