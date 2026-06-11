@@ -427,13 +427,40 @@ class SubmissionService:
                 status_code=status.HTTP_404_NOT_FOUND, detail="Inspecao nao encontrada."
             )
 
-        answers_by_field_id = {str(value.form_field_id): value for value in submission.values}
-        missing_required = []
+        errors = []
 
+        # Q3: campo escopado em inspeção sem ativo é erro de configuração — bloqueia a
+        # finalização (o rascunho pôde ser salvo). build_checklist omite esses campos.
+        has_scoped = any(
+            f.component_type_id is not None and f.field_type != "section"
+            for f in submission.form_version.fields
+        )
+        if has_scoped and submission.asset_id is None:
+            errors.append(
+                "Campos com escopo de componente exigem um ativo vinculado a inspecao"
+            )
+
+        # Obrigatoriedade por instância expandida (RN4): cada componente de um campo escopado
+        # obrigatório precisa de resposta; campo geral obrigatório precisa de uma resposta.
+        checklist, _ = await self.build_checklist(db, submission)
+        checklist_by_key = {cf.field_key: cf for cf in checklist}
+        answered = {
+            (str(v.form_field_id), str(v.asset_id) if v.asset_id else None)
+            for v in submission.values
+        }
+        missing_required: list[str] = []
         for field in submission.form_version.fields:
-            if not field.required:
+            if not field.required or field.field_type == "section":
                 continue
-            if str(field.id) not in answers_by_field_id:
+            cf = checklist_by_key.get(field.key)
+            if cf is None:
+                # Omitido por Q2 (sem componentes do tipo) — não bloqueante; Q3 já tratado acima.
+                continue
+            if cf.components:
+                for comp in cf.components:
+                    if (str(field.id), comp.asset_id) not in answered:
+                        missing_required.append(f"{field.key} ({comp.label})")
+            elif (str(field.id), None) not in answered:
                 missing_required.append(field.key)
 
         fields_by_id = {str(f.id): f for f in submission.form_version.fields}
@@ -445,7 +472,6 @@ class SubmissionService:
             and str(c.form_field_id) in fields_by_id
         ]
 
-        errors = []
         if missing_required:
             errors.append(f"Campos obrigatorios pendentes: {', '.join(missing_required)}")
         if missing_justification:
