@@ -112,7 +112,8 @@ async def test_save_answers_per_component(client, auth_headers, db_session):
     assert sample["path"].startswith("Caminhao ABC > Roda ")
 
     # API expõe asset_id por resposta.
-    detail = (await client.get(f"/api/v1/submissions/{sub_id}", headers=auth_headers)).json()["data"]
+    got = await client.get(f"/api/v1/submissions/{sub_id}", headers=auth_headers)
+    detail = got.json()["data"]
     pressao_answers = [a for a in detail["answers"] if a["field_key"] == "pressao"]
     assert {a["asset_id"] for a in pressao_answers} == set(rodas)
 
@@ -132,7 +133,8 @@ async def test_save_conformity_per_component(client, auth_headers):
         },
     )
     assert res.status_code == 200, res.text
-    detail = (await client.get(f"/api/v1/submissions/{sub_id}", headers=auth_headers)).json()["data"]
+    got = await client.get(f"/api/v1/submissions/{sub_id}", headers=auth_headers)
+    detail = got.json()["data"]
     pressao = [c for c in detail["conformity"] if c["field_key"] == "pressao"]
     assert {c["asset_id"] for c in pressao} == set(rodas)
 

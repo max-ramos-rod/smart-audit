@@ -598,11 +598,21 @@ class SubmissionService:
         return value
 
     @staticmethod
-    def calculate_score_breakdown(submission: Submission) -> ScoreBreakdown | None:
+    def calculate_score_breakdown(
+        submission: Submission, total_units: int | None = None
+    ) -> ScoreBreakdown | None:
+        """Breakdown por unidade avaliável (DR-0002 T5).
+
+        ``conformes``/``nao_conformes`` contam linhas de conformidade — uma por par
+        (campo × componente). ``total_units``, quando informado, é a contagem de instâncias
+        esperadas (derivada do checklist expandido); sem ele, cai para a contagem de campos
+        não-section (comportamento legado, sem componentes).
+        """
         if not submission.conformities:
             return None
         fields_by_id = {str(f.id): f for f in submission.form_version.fields}
-        total_fields = sum(1 for f in submission.form_version.fields if f.field_type != "section")
+        legacy_total = sum(1 for f in submission.form_version.fields if f.field_type != "section")
+        total = total_units if total_units is not None else legacy_total
         conformes = 0
         nao_conformes = 0
         for c in submission.conformities:
@@ -613,9 +623,9 @@ class SubmissionService:
                 conformes += 1
             elif c.status == "nao_conforme":
                 nao_conformes += 1
-        sem_avaliacao = total_fields - conformes - nao_conformes
+        sem_avaliacao = total - conformes - nao_conformes
         return ScoreBreakdown(
-            total_boolean=total_fields,
+            total_boolean=total,
             conformes=conformes,
             nao_conformes=nao_conformes,
             sem_resposta=max(0, sem_avaliacao),
@@ -624,6 +634,9 @@ class SubmissionService:
 
     @staticmethod
     def calculate_score(submission: Submission) -> float | None:
+        # Itera por linha de conformidade — uma por par (campo × componente) no DR-0002.
+        # A fórmula ponderada do ADR-0008 é inalterada; só muda a cardinalidade das unidades
+        # (cada componente é uma unidade). weight vem do config_json do campo (Q6).
         fields_by_id = {str(f.id): f for f in submission.form_version.fields}
         weighted_conformes = 0.0
         weighted_total = 0.0
@@ -786,6 +799,13 @@ class SubmissionService:
         ordered_answers = sorted(
             answers, key=lambda item: (item.field_key, item.asset_id or "")
         )
+        # Total de unidades avaliáveis expandidas (campo geral = 1; escopado = nº de
+        # componentes). Mantém o breakdown coerente com o score por componente (T5).
+        total_units = (
+            sum(len(cf.components) if cf.components else 1 for cf in checklist)
+            if checklist
+            else None
+        )
         return SubmissionResponse(
             id=str(submission.id),
             form_id=str(submission.form_version.form.id),
@@ -795,7 +815,9 @@ class SubmissionService:
             asset_identifier=submission.asset.identifier if submission.asset else None,
             status=submission.status,
             score=float(submission.score) if submission.score is not None else None,
-            score_breakdown=SubmissionService.calculate_score_breakdown(submission),
+            score_breakdown=SubmissionService.calculate_score_breakdown(
+                submission, total_units=total_units
+            ),
             started_at=submission.started_at,
             finished_at=submission.finished_at,
             answers=ordered_answers,
