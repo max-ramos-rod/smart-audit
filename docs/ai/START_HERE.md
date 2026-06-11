@@ -47,7 +47,7 @@ operacionais, com formulários versionados, score ponderado por conformidade, ev
 | Auth | JWT bearer + PBKDF2-SHA256 customizado (`backend/app/core/security.py`) |
 | Uploads | disco local (`settings.upload_dir/<company_id>/<uuid>.<ext>`) |
 
-## Os 7 fatos que mais importam
+## Os 8 fatos que mais importam
 
 1. **Fluxo de camadas obrigatório:** `api → service → repository → db`. Endpoints são finos.
 2. **Tudo é async.** `db.add()`/`db.add_all()` são síncronos; o resto exige `await`. **Sem lazy loading** — use `selectinload`.
@@ -56,6 +56,7 @@ operacionais, com formulários versionados, score ponderado por conformidade, ev
 5. **Score** vem de `submission_conformities` (ponderado), não de `submission_values`.
 6. **Não recrie** os tipos de campo removidos (`photo`, `evidence`). Evidência é capacidade via `attachments`.
 7. **Git:** só comite/pushe quando pedido; se estiver em `main`, crie branch antes.
+8. **Governança documental:** toda ADR que mude domínio/dados/API/módulos **deve** produzir uma _Checklist de Sincronização Documental_ e resolvê-la antes do "concluído" (regra em `AI_RULES.md` / [ADR-0017](../adr/0017-modelo-unificado-de-evidencias.md)).
 
 ## Papéis (roles)
 
