@@ -38,4 +38,3 @@ class SubmissionValue(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     submission = relationship("Submission", back_populates="values")
     form_field = relationship("FormField", back_populates="submission_values")
-    attachments = relationship("Attachment", back_populates="submission_value")

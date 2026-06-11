@@ -6,7 +6,6 @@ from app.core.pagination import PaginationParams
 from app.core.repositories import SQLAlchemyRepository
 from app.db.models.attachments import Attachment
 from app.db.models.form_versions import FormVersion
-from app.db.models.submission_values import SubmissionValue
 from app.db.models.submissions import Submission
 
 
@@ -21,24 +20,9 @@ class AttachmentRepository(SQLAlchemyRepository[Attachment]):
             .where(Submission.company_id == company_id, Submission.id == submission_id)
             .options(
                 selectinload(Submission.form_version).selectinload(FormVersion.fields),
-                selectinload(Submission.values).selectinload(SubmissionValue.attachments),
             )
         )
         return await self._get_one(db, statement)
-
-    async def get_submission_value(
-        self, db: AsyncSession, submission_id: str, form_field_id: str
-    ) -> SubmissionValue | None:
-        statement = select(SubmissionValue).where(
-            SubmissionValue.submission_id == submission_id,
-            SubmissionValue.form_field_id == form_field_id,
-        )
-        return await self._get_one(db, statement)
-
-    async def save_submission_value(
-        self, db: AsyncSession, submission_value: SubmissionValue
-    ) -> SubmissionValue:
-        return await self._save(db, submission_value)
 
     async def save_attachment(self, db: AsyncSession, attachment: Attachment) -> Attachment:
         return await self._save(db, attachment)
@@ -48,14 +32,12 @@ class AttachmentRepository(SQLAlchemyRepository[Attachment]):
     ) -> Attachment | None:
         statement = (
             select(Attachment)
-            .join(Attachment.submission_value)
-            .join(SubmissionValue.submission)
             .where(
-                Submission.company_id == company_id,
-                Submission.id == submission_id,
+                Attachment.company_id == company_id,
+                Attachment.submission_id == submission_id,
                 Attachment.id == attachment_id,
             )
-            .options(selectinload(Attachment.submission_value).selectinload(SubmissionValue.form_field))
+            .options(selectinload(Attachment.form_field))
         )
         return await self._get_one(db, statement)
 
@@ -71,10 +53,34 @@ class AttachmentRepository(SQLAlchemyRepository[Attachment]):
     ) -> tuple[list[Attachment], int]:
         statement = (
             select(Attachment)
-            .join(Attachment.submission_value)
-            .join(SubmissionValue.submission)
-            .where(Submission.company_id == company_id, Submission.id == submission_id)
-            .options(selectinload(Attachment.submission_value).selectinload(SubmissionValue.form_field))
+            .where(
+                Attachment.company_id == company_id,
+                Attachment.submission_id == submission_id,
+            )
+            .options(selectinload(Attachment.form_field))
             .order_by(Attachment.created_at.asc())
         )
         return await self._paginate_select(db, statement, params)
+
+    async def list_for_anchor(
+        self,
+        db: AsyncSession,
+        company_id: str,
+        submission_id: str,
+        form_field_id: str | None,
+        asset_id: str | None,
+    ) -> list[Attachment]:
+        """Evidências de uma instância exata (DR-0017). Helper único com ``IS NOT DISTINCT FROM``
+        para tratar `NULL` (campo geral / sem componente) como igual sem o footgun do `=`."""
+        statement = (
+            select(Attachment)
+            .where(
+                Attachment.company_id == company_id,
+                Attachment.submission_id == submission_id,
+                Attachment.form_field_id.is_not_distinct_from(form_field_id),
+                Attachment.asset_id.is_not_distinct_from(asset_id),
+            )
+            .options(selectinload(Attachment.form_field))
+            .order_by(Attachment.created_at.asc())
+        )
+        return await self._list_from_stmt(db, statement)

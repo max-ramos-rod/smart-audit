@@ -17,7 +17,6 @@ class Attachment(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     __tablename__ = "attachments"
     __table_args__ = (
-        Index("ix_attachments_submission_value_id", "submission_value_id"),
         Index("ix_attachments_uploaded_by", "uploaded_by"),
         # Índices NÃO-ÚNICOS da âncora (INV-E1) — nenhum UNIQUE pode tocar a âncora.
         Index("ix_attachments_submission_id", "submission_id"),
@@ -32,9 +31,9 @@ class Attachment(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
 
     # ── Âncora polimórfica (DR-0017) ─────────────────────────────────────────────
-    company_id: Mapped[str | None] = mapped_column(ForeignKey("companies.id"), nullable=True)
-    # 'component' | 'field' | 'submission' | 'asset' (CHECK entra na fase CONTRACT).
-    scope: Mapped[str | None] = mapped_column(Text, nullable=True)
+    company_id: Mapped[str] = mapped_column(ForeignKey("companies.id"), nullable=False)
+    # 'component' | 'field' | 'submission' | 'asset' (consistência via CHECK no banco).
+    scope: Mapped[str] = mapped_column(Text, nullable=False)
     submission_id: Mapped[str | None] = mapped_column(
         ForeignKey("submissions.id", ondelete="CASCADE"), nullable=True
     )
@@ -44,22 +43,15 @@ class Attachment(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     component_label: Mapped[str | None] = mapped_column(Text, nullable=True)
     metadata_json: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
-    # ── Vínculo legado (deprecado; removido na fase CONTRACT) ─────────────────────
-    submission_value_id: Mapped[str | None] = mapped_column(
-        ForeignKey("submission_values.id", ondelete="CASCADE"),
-        nullable=True,
-    )
-
     file_url: Mapped[str] = mapped_column(Text, nullable=False)
     thumbnail_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     mime_type: Mapped[str] = mapped_column(String(120), nullable=False)
     file_size: Mapped[int] = mapped_column(BigInteger, nullable=False)
     uploaded_by: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False)
 
-    # Relationships diretas da âncora (forward; back_populates entra na fase CONTRACT).
+    # Relationships diretas da âncora (forward).
     company = relationship("Company")
     submission = relationship("Submission")
     form_field = relationship("FormField")
     asset = relationship("Asset")
-    submission_value = relationship("SubmissionValue", back_populates="attachments")
     uploader = relationship("User", back_populates="attachments_uploaded")
