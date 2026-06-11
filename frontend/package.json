@@ -18,7 +18,7 @@
     "format:check": "prettier --check \"src/**/*.ts\" \"e2e/**/*.ts\""
   },
   "dependencies": {
-    "@tailwindcss/vite": "^4.2.4",
+    "@tailwindcss/vite": "^4.3.0",
     "axios": "^1.8.4",
     "pinia": "^3.0.2",
     "radix-vue": "^1.9.17",
@@ -28,7 +28,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0",
-    "@vitejs/plugin-vue": "^5.2.3",
+    "@vitejs/plugin-vue": "^6.0.7",
     "@vitest/coverage-v8": "^4.1.8",
     "@vue/eslint-config-prettier": "^10.2.0",
     "@vue/eslint-config-typescript": "^14.8.0",
@@ -37,8 +37,8 @@
     "jsdom": "^29.1.1",
     "prettier": "^3.8.3",
     "typescript": "^5.8.3",
-    "vite": "^6.3.5",
+    "vite": "^8.0.16",
     "vitest": "^4.1.7",
-    "vue-tsc": "^2.2.8"
+    "vue-tsc": "^3.3.4"
   }
 }
