@@ -66,7 +66,9 @@ attachments
   thumbnail_url    text   NULL
   mime_type        text   NOT NULL
   file_size        bigint NOT NULL
-  metadata         jsonb  NULL                              -- escopo-específico (validade de cert, tipo de doc, ART…)
+  metadata_json    jsonb  NULL                              -- escopo-específico (validade de cert, tipo de doc, ART…)
+                                                            -- NÃO usar o nome `metadata` (reservado no SQLAlchemy declarativo);
+                                                            -- segue a convenção do projeto (`answers_json`, `config_json`, `attributes_json`).
   uploaded_by      uuid   NOT NULL  FK users
   created_at, updated_at
 
@@ -93,11 +95,15 @@ Materialização por cenário:
 | Nota fiscal / certificado | `asset` | — | — | ✓ | (lido do ativo vivo) |
 | 3 fotos do mesmo pneu | `component` ×3 | ✓ | ✓ | ✓ | "Pneu DD" |
 
-`metadata jsonb` é a válvula que cumpre "sem migração estrutural futura sobre dados existentes":
+`metadata_json` (jsonb) é a válvula que cumpre "sem migração estrutural futura sobre dados existentes":
 novos atributos de documento (validade, tipo, versão) entram como chave; novo escopo entra como
 valor de enum + ramo de CHECK — nenhum dos dois reescreve linhas existentes.
 
-#### INV-E1 — Cardinalidade 1:N de evidências por item inspecionado (invariante protegida)
+### Q7.3 — Cardinalidade 1:N de evidências por item inspecionado (invariante INV-E1, protegida)
+
+> Ledger de decisões: Q7 (modelo) · Q7.1 (remoção de `submission_value_id`) · Q7.2 (retenção) ·
+> **Q7.3 (cardinalidade 1:N = INV-E1)** · Q7.4 (governança). A numeração é um catálogo, não uma
+> ordem posicional.
 
 **Um item inspecionado — `(submission, field, component)` ou qualquer escopo — admite N evidências.
 Esta cardinalidade é uma garantia de negócio permanente e não pode ser limitada por acidente.**
@@ -175,10 +181,33 @@ registrada aqui como gatilho, **não antecipada**.
    anexos com âncora idêntica e exigir sucesso (cardinalidade **1:N** por item inspecionado).
 7. `create_attachment` valida o escopo reusando a **INV1** do T4 (asset ∈ subárvore do alvo + tipo
    bate com `component_type_id` do campo; field ∈ versão) e **não** escreve em `answers_json`.
+8. **INV-E2 — coerência de tenant.** O `CHECK` não consegue validar tenancy; o service **deve**
+   garantir que `company_id` do anexo = `company_id` da submission (escopos de evento) ou do asset
+   (`scope='asset'`), senão 400/403. Teste de cross-tenant obrigatório (anexo não pode referenciar
+   submission/asset de outra empresa).
+9. **Efeitos colaterais a tratar (regressões conhecidas):**
+   (a) `AttachmentService.serialize_attachment` resolve `field_key` via
+   `attachment.submission_value.form_field.key` — esse caminho **morre** com a remoção de
+   `submission_value_id`; passa a resolver via `attachment.form_field.key` (FK direto) ou
+   `form_field_id`→key. (b) **Arquivo órfão no disco:** `submission_id ON DELETE CASCADE` apaga as
+   **linhas**, mas o arquivo físico só é removido em `delete_attachment` (não dispara em cascade DB);
+   enquanto não houver hard-delete de submission no código (hoje **não há** — confirmado), o risco é
+   latente — registrar como follow-up de limpeza (job/outbox) para quando surgir o expurgo de
+   inspeção. (c) Remover os relationships `SubmissionValue.attachments` e `Attachment.submission_value`.
 
 A implementação ocorre **antes do go-live** (pré-produção), por preferência explícita, para evitar
 migração futura sobre evidência real. Substitui e amplia o escopo do item **T8.5** do
 `PLANO-DR-0002`, e fecha a limitação Opção-1 do T8.
+
+**Segurança da migration (Parte 8 da revisão de gate):** `ADD COLUMN` nullable é metadata-only
+(rápido); `SET NOT NULL` e o `CHECK` validam a tabela — em produção usar `ADD CONSTRAINT … NOT
+VALID` seguido de `VALIDATE CONSTRAINT` (evita lock `ACCESS EXCLUSIVE` prolongado); índices em
+tabela populada via `CREATE INDEX CONCURRENTLY` (fora de transação — incompatível com a transação
+default do Alembic, exige `op.execute` com autocommit). Pré-produção a tabela é pequena → custo
+negligível, mas o padrão seguro fica registrado. **Sem perda de dados** (aditivo + backfill;
+`DROP submission_value_id` só após backfill verificado). **Rollback:** recria `submission_value_id`
+re-derivando o value por `(submission_id, form_field_id, asset_id)` — ambíguo apenas se um
+`submission_value` tiver sido deletado após a migração (não ocorre no fluxo atual).
 
 ## Consequências
 
