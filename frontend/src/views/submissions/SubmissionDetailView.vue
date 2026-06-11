@@ -441,13 +441,26 @@ function populateDraft() {
   }
 }
 
+// Evidência por instância (DR-0017): chaveada por (field_key, asset_id). Evidência de inspeção
+// (sem field_key) não é renderizada na lista por campo.
+function evidenceInstanceKey(att: AttachmentItem): string | null {
+  if (!att.field_key) return null
+  return instanceKey(att.field_key, att.asset_id ?? null)
+}
+
+function instanceByKey(key: string): FieldInstance | undefined {
+  return answerableInstances.value.find((i) => i.key === key)
+}
+
 async function loadEvidenceAttachments() {
   if (!submission.value) return
   try {
     const all = await listAttachments(submissionId.value)
     for (const att of all) {
-      if (!evidenceAttachments[att.field_key]) evidenceAttachments[att.field_key] = []
-      evidenceAttachments[att.field_key].push(att)
+      const key = evidenceInstanceKey(att)
+      if (!key) continue
+      if (!evidenceAttachments[key]) evidenceAttachments[key] = []
+      evidenceAttachments[key].push(att)
     }
   } catch (err) {
     console.error('[SubmissionDetail] loadEvidenceAttachments failed:', err)
@@ -478,39 +491,66 @@ watch(fields, () => { listViewLimit.value = LIST_PAGE })
 
 // ── Upload handlers ───────────────────────────────────────────────────────────
 
-async function handleEvidenceUpload(fieldKey: string, configJson: Record<string, unknown>, event: Event) {
+async function handleEvidenceUpload(
+  fieldKey: string,
+  assetId: string | null,
+  configJson: Record<string, unknown>,
+  event: Event,
+) {
   const input = event.target as HTMLInputElement
   const file  = input.files?.[0]
   if (!file) return
-  if (!evidenceCanAddMore(fieldKey, configJson)) {
-    evidenceErrors[fieldKey] = `Limite de ${evidenceMaxFiles(configJson)} evidências atingido.`
+  const key = instanceKey(fieldKey, assetId)
+  if (!evidenceCanAddMore(key, configJson)) {
+    evidenceErrors[key] = `Limite de ${evidenceMaxFiles(configJson)} evidências atingido.`
     input.value = ''
     return
   }
-  evidenceUploading[fieldKey] = true
-  delete evidenceErrors[fieldKey]
+  evidenceUploading[key] = true
+  delete evidenceErrors[key]
   try {
     const result = await uploadFile(file)
-    const att    = await createAttachment(submissionId.value, { field_key: fieldKey, file_url: result.url, mime_type: result.mime_type, file_size: result.file_size })
-    if (!evidenceAttachments[fieldKey]) evidenceAttachments[fieldKey] = []
-    evidenceAttachments[fieldKey].push(att)
+    const att    = await createAttachment(submissionId.value, {
+      field_key: fieldKey,
+      ...(assetId ? { asset_id: assetId } : {}),
+      file_url: result.url,
+      mime_type: result.mime_type,
+      file_size: result.file_size,
+    })
+    if (!evidenceAttachments[key]) evidenceAttachments[key] = []
+    evidenceAttachments[key].push(att)
   } catch (err) {
-    evidenceErrors[fieldKey] = extractProblemMessage(err, 'Erro ao enviar evidência.')
+    evidenceErrors[key] = extractProblemMessage(err, 'Erro ao enviar evidência.')
   } finally {
-    evidenceUploading[fieldKey] = false
+    evidenceUploading[key] = false
     input.value = ''
   }
 }
 
-async function handleEvidenceDelete(fieldKey: string, attachmentId: string) {
+async function handleEvidenceDelete(instKey: string, attachmentId: string) {
   try {
     await deleteAttachment(submissionId.value, attachmentId)
-    if (evidenceAttachments[fieldKey]) {
-      evidenceAttachments[fieldKey] = evidenceAttachments[fieldKey].filter((a) => a.id !== attachmentId)
+    if (evidenceAttachments[instKey]) {
+      evidenceAttachments[instKey] = evidenceAttachments[instKey].filter((a) => a.id !== attachmentId)
     }
   } catch (err) {
-    evidenceErrors[fieldKey] = extractProblemMessage(err, 'Erro ao remover evidência.')
+    evidenceErrors[instKey] = extractProblemMessage(err, 'Erro ao remover evidência.')
   }
+}
+
+// A bottom sheet de evidência opera por instância (DR-0017): resolve field_key + asset_id da chave.
+const evidenceSheetLabel = computed(() => {
+  if (!evidenceSheetKey.value) return ''
+  const inst = instanceByKey(evidenceSheetKey.value)
+  if (!inst) return evidenceSheetKey.value
+  return inst.componentLabel ? `${inst.field.label} · ${inst.componentLabel}` : inst.field.label
+})
+
+function uploadEvidenceFromSheet(event: Event) {
+  if (!evidenceSheetKey.value) return
+  const inst = instanceByKey(evidenceSheetKey.value)
+  if (!inst) return
+  void handleEvidenceUpload(inst.field.key, inst.asset_id, inst.field.config_json ?? {}, event)
 }
 
 // ── Save / finish ─────────────────────────────────────────────────────────────
@@ -716,10 +756,10 @@ const nearbyDots = computed(() => {
   }))
 })
 
-// ── Evidence count for current card field (evidência por campo — Opção 1 T8) ───
+// ── Evidence count for current card instance (evidência por componente — DR-0017) ───
 const currentFieldEvidenceCount = computed(() =>
   inspectionInstance.value
-    ? (evidenceAttachments[inspectionInstance.value.field.key]?.length ?? 0)
+    ? (evidenceAttachments[inspectionInstance.value.key]?.length ?? 0)
     : 0,
 )
 </script>
@@ -881,14 +921,14 @@ const currentFieldEvidenceCount = computed(() =>
                   :conformity-justification="conformityJustification[row.instance.key] ?? ''"
                   :is-completed="isCompleted"
                   :is-pending-required="pendingRequiredFields.includes(row.instance.key)"
-                  :evidence-attachments="evidenceAttachments[row.field.key] ?? []"
-                  :evidence-uploading="evidenceUploading[row.field.key] ?? false"
-                  :evidence-error="evidenceErrors[row.field.key]"
+                  :evidence-attachments="evidenceAttachments[row.instance.key] ?? []"
+                  :evidence-uploading="evidenceUploading[row.instance.key] ?? false"
+                  :evidence-error="evidenceErrors[row.instance.key]"
                   @update-answer="v => { draftAnswers[row.instance.key] = v; triggerAutoSave() }"
                   @set-conformity="s => setConformity(row.instance.key, s)"
                   @update-justification="v => { conformityJustification[row.instance.key] = v; triggerConformitySave() }"
-                  @upload-evidence="e => handleEvidenceUpload(row.field.key, {}, e)"
-                  @delete-evidence="id => handleEvidenceDelete(row.field.key, id)"
+                  @upload-evidence="e => handleEvidenceUpload(row.field.key, row.instance.asset_id, {}, e)"
+                  @delete-evidence="id => handleEvidenceDelete(row.instance.key, id)"
                 />
               </template>
             </div>
@@ -1178,25 +1218,25 @@ const currentFieldEvidenceCount = computed(() =>
                     class="swipe-hint"
                   >← Não conforme · Conforme →</p>
 
-                  <!-- ── EVIDÊNCIAS DESTE CAMPO ── -->
-                  <div class="card-sep"><span class="card-sep-lbl">Evidências deste campo</span></div>
+                  <!-- ── EVIDÊNCIAS DESTA INSTÂNCIA ── -->
+                  <div class="card-sep"><span class="card-sep-lbl">Evidências{{ inspectionInstance?.componentLabel ? ' · ' + inspectionInstance.componentLabel : '' }}</span></div>
                   <div class="evid-row">
                     <button
                       type="button"
                       class="evid-btn"
-                      :disabled="!!evidenceUploading[inspectionField.key]"
-                      @click="openEvidenceSheet(inspectionField.key)"
+                      :disabled="!!evidenceUploading[inspKey]"
+                      @click="openEvidenceSheet(inspKey)"
                     >
                       <span>📎</span>
                       <span
                         v-if="currentFieldEvidenceCount > 0"
                         class="evid-badge"
                       >{{ currentFieldEvidenceCount }}</span>
-                      <span>{{ evidenceUploading[inspectionField.key] ? 'Enviando…' : 'Adicionar evidência' }}</span>
+                      <span>{{ evidenceUploading[inspKey] ? 'Enviando…' : 'Adicionar evidência' }}</span>
                     </button>
                     <div class="evid-thumbs">
                       <div
-                        v-for="att in (evidenceAttachments[inspectionField.key] ?? []).slice(0, 3)"
+                        v-for="att in (evidenceAttachments[inspKey] ?? []).slice(0, 3)"
                         :key="att.id"
                         class="evid-thumb"
                       >
@@ -1209,8 +1249,8 @@ const currentFieldEvidenceCount = computed(() =>
                       </div>
                     </div>
                   </div>
-                  <p v-if="evidenceErrors[inspectionField.key]" style="font-size:11px;color:var(--sa-danger);margin-top:4px;">
-                    {{ evidenceErrors[inspectionField.key] }}
+                  <p v-if="evidenceErrors[inspKey]" style="font-size:11px;color:var(--sa-danger);margin-top:4px;">
+                    {{ evidenceErrors[inspKey] }}
                   </p>
 
                 </div><!-- /card-body -->
@@ -1372,13 +1412,13 @@ const currentFieldEvidenceCount = computed(() =>
                 :conformity-justification="conformityJustification[row.instance.key] ?? ''"
                 :is-completed="isCompleted"
                 :is-pending-required="pendingRequiredFields.includes(row.instance.key)"
-                :evidence-count="evidenceAttachments[row.field.key]?.length ?? 0"
+                :evidence-count="evidenceAttachments[row.instance.key]?.length ?? 0"
                 :is-expanded="expandedListKey === row.instance.key"
                 @toggle="toggleListRow(row.instance.key)"
                 @update-answer="v => { draftAnswers[row.instance.key] = v; triggerAutoSave() }"
                 @set-conformity="s => setConformityList(row.instance.key, s)"
                 @update-justification="v => { conformityJustification[row.instance.key] = v; triggerConformitySave() }"
-                @request-evidence="openEvidenceSheet(row.field.key)"
+                @request-evidence="openEvidenceSheet(row.instance.key)"
                 @request-justification="() => { setConformity(row.instance.key, 'nao_conforme'); openJustificationSheet(row.instance.key) }"
               />
             </div>
@@ -1457,7 +1497,7 @@ const currentFieldEvidenceCount = computed(() =>
           <div class="sheet-hdr">
             <div class="sheet-title">Evidências</div>
             <div v-if="evidenceSheetKey" class="sheet-sub">
-              {{ fields.find(f => f.key === evidenceSheetKey)?.label ?? evidenceSheetKey }}
+              {{ evidenceSheetLabel }}
             </div>
           </div>
           <div class="sheet-body">
@@ -1486,7 +1526,7 @@ const currentFieldEvidenceCount = computed(() =>
                   style="display:none;"
                   accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/x-msvideo,audio/mpeg,audio/wav,audio/ogg,audio/mp4,application/pdf"
                   :disabled="!!evidenceUploading[evidenceSheetKey]"
-                  @change="(e) => evidenceSheetKey && handleEvidenceUpload(evidenceSheetKey, inspectionField?.config_json ?? {}, e)"
+                  @change="uploadEvidenceFromSheet"
                 />
               </label>
               <p v-if="evidenceErrors[evidenceSheetKey]" style="color:var(--sa-danger);font-size:12px;margin-top:8px;">

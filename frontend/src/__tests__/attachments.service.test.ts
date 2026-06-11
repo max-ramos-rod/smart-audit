@@ -34,5 +34,18 @@ describe('attachments.service', () => {
       expect(http.post).toHaveBeenCalledWith('/submissions/s1/attachments', payload)
       expect(result).toEqual(mockAttachment)
     })
+
+    it('forwards asset_id for per-component evidence (DR-0017)', async () => {
+      vi.mocked(http.post).mockResolvedValue({ data: { data: mockAttachment } })
+      const payload = {
+        field_key: 'pressao',
+        asset_id: 'roda-dd',
+        file_url: 'https://files.example.com/pneu.jpg',
+        mime_type: 'image/jpeg',
+        file_size: 1024,
+      }
+      await createAttachment('s1', payload)
+      expect(http.post).toHaveBeenCalledWith('/submissions/s1/attachments', payload)
+    })
   })
 })
