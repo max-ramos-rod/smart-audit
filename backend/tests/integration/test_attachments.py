@@ -121,7 +121,9 @@ async def test_create_attachment_without_thumbnail(client, auth_headers):
     assert resp.json()["data"]["thumbnail_url"] is None
 
 
-async def test_create_attachment_updates_answers_json(client, auth_headers):
+async def test_create_attachment_does_not_inject_answer(client, auth_headers):
+    # DR-0017: attachments é a fonte da verdade; criar evidência NÃO escreve answers_json
+    # (revisa o efeito colateral do ADR-0006/0016).
     submission_id = await _create_form_and_submission(client, auth_headers)
 
     await client.post(
@@ -137,7 +139,7 @@ async def test_create_attachment_updates_answers_json(client, auth_headers):
     assert detail_resp.status_code == 200
     answers = detail_resp.json()["data"]["answers"]
     keys = [a["field_key"] for a in answers]
-    assert "foto_extintor" in keys
+    assert "foto_extintor" not in keys  # evidência não vira resposta
 
 
 async def test_create_two_attachments_on_different_fields(client, auth_headers):

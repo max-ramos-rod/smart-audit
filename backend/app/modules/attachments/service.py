@@ -7,16 +7,23 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.pagination import PageMeta, PaginationMetaBuilder, PaginationParams
 from app.db.models.attachments import Attachment
+from app.db.models.form_fields import FormField
 from app.db.models.memberships import Membership
-from app.db.models.submission_values import SubmissionValue
+from app.db.models.submissions import Submission
 from app.db.models.users import User
+from app.modules.assets.repository import AssetRepository
 from app.modules.attachments.repository import AttachmentRepository
 from app.modules.attachments.schemas import AttachmentCreateRequest, AttachmentResponse
 
 
 class AttachmentService:
-    def __init__(self, repository: AttachmentRepository | None = None) -> None:
+    def __init__(
+        self,
+        repository: AttachmentRepository | None = None,
+        asset_repository: AssetRepository | None = None,
+    ) -> None:
         self.repository = repository or AttachmentRepository()
+        self.asset_repository = asset_repository or AssetRepository()
 
     async def list_attachments(
         self,
@@ -50,26 +57,18 @@ class AttachmentService:
                 status_code=status.HTTP_404_NOT_FOUND, detail="Inspecao nao encontrada."
             )
 
-        field = next(
-            (item for item in submission.form_version.fields if item.key == payload.field_key), None
-        )
-        if field is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Campo da evidencia nao encontrado.",
-            )
-
-        submission_value = await self.repository.get_submission_value(
-            db, str(submission.id), str(field.id)
-        )
-        if submission_value is None:
-            submission_value = SubmissionValue(
-                submission_id=submission.id, form_field_id=field.id
-            )
-            await self.repository.save_submission_value(db, submission_value)
+        # Deriva o escopo e valida (INV1); attachments é a fonte da verdade — não escreve
+        # answers_json (revisa o efeito colateral do ADR-0006/0016 — ADR-0017).
+        scope, field, asset_id, component_label = await self._resolve_scope(db, submission, payload)
 
         attachment = Attachment(
-            submission_value_id=submission_value.id,
+            company_id=membership.company_id,
+            scope=scope,
+            submission_id=submission.id,
+            form_field_id=field.id if field is not None else None,
+            asset_id=asset_id,
+            component_label=component_label,
+            metadata_json=payload.metadata_json,
             file_url=payload.file_url,
             thumbnail_url=payload.thumbnail_url,
             mime_type=payload.mime_type,
@@ -77,22 +76,63 @@ class AttachmentService:
             uploaded_by=current_user.id,
         )
         await self.repository.save_attachment(db, attachment)
-
-        answers_snapshot = dict(submission.answers_json or {})
-        answers_snapshot[field.key] = payload.file_url
-        submission.answers_json = answers_snapshot
-        db.add(submission)
-
         await db.commit()
 
-        attachments, _ = await self.repository.list_attachments_for_submission(
-            db,
-            str(membership.company_id),
-            submission_id,
-            PaginationParams(page=1, page_size=100),
+        created = await self.repository.get_attachment_by_id(
+            db, str(membership.company_id), submission_id, str(attachment.id)
         )
-        created = next(item for item in attachments if str(item.id) == str(attachment.id))
+        assert created is not None
         return self.serialize_attachment(created)
+
+    async def _resolve_scope(
+        self, db: AsyncSession, submission: Submission, payload: AttachmentCreateRequest
+    ) -> tuple[str, FormField | None, str | None, str | None]:
+        """Deriva (scope, field, asset_id, component_label) e valida INV1 (DR-0017)."""
+        if payload.field_key is None:
+            if payload.asset_id is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Evidencia por componente exige um campo.",
+                )
+            return "submission", None, None, None
+
+        field = next(
+            (f for f in submission.form_version.fields if f.key == payload.field_key), None
+        )
+        if field is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Campo da evidencia nao encontrado.",
+            )
+        if payload.asset_id is None:
+            return "field", field, None, None
+
+        component = await self._validate_component(db, submission, field, payload.asset_id)
+        return "component", field, payload.asset_id, component["identifier"]
+
+    async def _validate_component(
+        self, db: AsyncSession, submission: Submission, field: FormField, asset_id: str
+    ) -> dict:
+        """INV1: o componente pertence à subárvore do ativo da inspeção e seu tipo bate com
+        o ``component_type_id`` do campo. Senão 400 (RFC 7807)."""
+        if field.component_type_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Campo nao aceita escopo de componente.",
+            )
+        if submission.asset_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Inspecao sem ativo vinculado nao aceita evidencia por componente.",
+            )
+        rows = await self.asset_repository.list_subtree_components(db, str(submission.asset_id))
+        component = next((r for r in rows if str(r["id"]) == str(asset_id)), None)
+        if component is None or str(component["asset_type_id"]) != str(field.component_type_id):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Componente invalido para o campo (fora da arvore ou tipo divergente).",
+            )
+        return component
 
     async def delete_attachment(
         self,
@@ -134,11 +174,15 @@ class AttachmentService:
     def serialize_attachment(attachment: Attachment) -> AttachmentResponse:
         return AttachmentResponse(
             id=str(attachment.id),
-            submission_id=str(attachment.submission_value.submission_id),
-            field_key=attachment.submission_value.form_field.key,
+            submission_id=str(attachment.submission_id) if attachment.submission_id else None,
+            scope=attachment.scope,
+            field_key=attachment.form_field.key if attachment.form_field else None,
+            asset_id=str(attachment.asset_id) if attachment.asset_id else None,
+            component_label=attachment.component_label,
             file_url=attachment.file_url,
             thumbnail_url=attachment.thumbnail_url,
             mime_type=attachment.mime_type,
             file_size=attachment.file_size,
+            metadata_json=attachment.metadata_json,
             created_at=attachment.created_at,
         )
