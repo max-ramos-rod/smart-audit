@@ -102,7 +102,37 @@ O header é opcional quando o usuário tem exatamente 1 membership; obrigatório
 `expire_on_commit=False` e `populate_existing=True` nos reads garantem correção pós-mutação em
 contexto async. Não substitua por mocks/SQLite — testes de integração exigem Postgres real.
 
+## Inspeção por componente (DR-0002 / ADR-0016) — decisões finas (2026-06-10)
+
+> Decididas no encerramento da discussão arquitetural das Fases 2–4. As estruturais (formato do
+> `answers_json`, chave UUID, `components_snapshot`, `component_type_id`) estão na **ADR-0016**;
+> abaixo, as de granularidade fina. **Decididas, ainda não implementadas.**
+
+### Campo escopado sem componentes correspondentes (Q2)
+Se o ativo alvo não tem componentes do tipo escopado, o campo é **omitido da execução** + **aviso
+não-bloqueante**. Não bloquear — inspecionar um ativo sem aquele componente é legítimo.
+
+### Campo escopado em inspeção sem `asset_id` (Q3)
+**Erro de configuração**: a **finalização é bloqueada** com mensagem clara; o rascunho ainda pode
+ser salvo. Não ignorar silenciosamente.
+
+### Peso por componente (Q6)
+O `weight` vem sempre do `config_json` do **campo**, igual para todas as instâncias expandidas. Sem
+peso por componente. A fórmula do ADR-0008 não muda — só a cardinalidade.
+
+### Papel para cadastrar ativo (DR-0001, Q7)
+Escrita de `assets`/`asset_types`/`clients` permanece **MANAGER+** (`get_manager_membership`). Não
+relaxar para INSPECTOR — cadastro é estrutural, não execução de inspeção.
+
+### Excluir tipo de ativo em uso (DR-0001, Q8)
+**Soft delete simples** (`is_active = false`), sempre; tipo arquivado bloqueia novas instâncias
+(V8); instâncias existentes permanecem. Sem hard delete (ADR-0009) e sem bloqueio/aviso obrigatório.
+
 ## Marcadas como evolução futura (não implementadas)
 
 Apenas para evitar retrabalho: `corrective_actions` e storage externo (S3/R2) **não existem**
 no código — não há tabela/módulo. Tratar como ausentes, não como parcialmente prontos.
+
+Inspeção por componente (DR-0002 Fases 2–4) está **decidida** (ADR-0016 / SPEC) mas **não
+implementada**. Seção repetível inteira (Q4) e peso por componente (Q6) ficaram como evolução
+futura.
