@@ -1,6 +1,7 @@
 # ADR-0006 — Modelo híbrido de respostas (relacional + snapshot JSON)
 
 **Status:** Aceita · **Data:** 2026-06-08
+**Revisão prevista:** [ADR-0016](0016-inspecao-por-componente-revisao-modelo-hibrido.md) (Proposta) — estende este modelo com a dimensão de componente (`asset_id`); o modelo híbrido permanece.
 
 ## Contexto
 
