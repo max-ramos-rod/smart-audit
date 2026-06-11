@@ -51,6 +51,13 @@ refletidas na ADR-0016; o catálogo fino fica em [`docs/ai/AI_DECISIONS.md`](../
   componente**, gravada no `save_answers`. *Descartado:* identidade por campo (Alt. A — duplica
   label × campos), mapa-irmão no `answers_json` (Alt. B — mistura/colisão de chave), `identifier`
   como chave (mutável/não-único).
+- **Q1.2 — semântica de `NULL` na unicidade. DECIDIDO (2026-06-11, IMPLEMENTADO):** a unicidade
+  `(submission_id, form_field_id, asset_id)` usa **`NULLS NOT DISTINCT`** (PG 15+). Trata `NULL`
+  como igual: preserva a garantia histórica de **uma** resposta por campo geral (`asset_id NULL`),
+  mantém a retrocompat do modelo anterior e permite **múltiplas** respostas por componente quando
+  `asset_id` está preenchido. *Descartado:* `NULLS DISTINCT` (padrão — permitiria vários `NULL` no
+  mesmo campo, regressão) e índice único parcial `WHERE asset_id IS NULL` (alternativa para PG < 15,
+  desnecessária: prod PG 17, dev PG 18). Implementado na T1 (migration `e3f4a5b6c7d8`).
 - **Q2 — campo escopado sem componentes. DECIDIDO:** **omitir** da execução + **aviso
   não-bloqueante** (builder/inspeção). *Descartado:* erro bloqueante (impediria inspeção legítima).
 - **Q3 — campo escopado em inspeção sem `asset_id`. DECIDIDO:** **erro de configuração** — bloquear
