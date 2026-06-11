@@ -507,20 +507,57 @@ class SubmissionService:
                 status_code=status.HTTP_404_NOT_FOUND, detail="Inspecao nao encontrada."
             )
 
-        values_by_field_id = {str(v.form_field_id): v for v in submission.values}
+        # Campo escopado tem múltiplos valores (um por componente); agrupa por campo (DR-0002 T9).
+        values_by_field_id: dict[str, list] = {}
+        for v in submission.values:
+            values_by_field_id.setdefault(str(v.form_field_id), []).append(v)
+
+        # Identidade congelada por componente (Q1.1): rótulo imune a renomeação do ativo.
+        snapshot = submission.components_snapshot or {}
+
+        def _component_label(asset_id) -> str | None:
+            if asset_id is None:
+                return None
+            entry = snapshot.get(str(asset_id))
+            return entry.get("label") if entry else str(asset_id)
 
         sorted_fields = sorted(submission.form_version.fields, key=lambda f: f.position)
-        fields_with_answers = [
-            {
-                "position": f.position,
-                "label": f.label,
-                "field_type": f.field_type,
-                "value": self.extract_value(values_by_field_id[str(f.id)], f.field_type)
-                if str(f.id) in values_by_field_id
-                else None,
-            }
-            for f in sorted_fields
-        ]
+        fields_with_answers: list[dict] = []
+        for f in sorted_fields:
+            if f.field_type == "section":
+                fields_with_answers.append(
+                    {
+                        "position": f.position,
+                        "label": f.label,
+                        "field_type": "section",
+                        "value": None,
+                    }
+                )
+                continue
+            values = values_by_field_id.get(str(f.id), [])
+            scoped = [v for v in values if v.asset_id is not None]
+            if scoped:
+                # Uma linha por componente, ordenada pelo rótulo congelado.
+                for v in sorted(scoped, key=lambda v: _component_label(v.asset_id) or ""):
+                    fields_with_answers.append(
+                        {
+                            "position": f.position,
+                            "label": f.label,
+                            "component": _component_label(v.asset_id),
+                            "field_type": f.field_type,
+                            "value": self.extract_value(v, f.field_type),
+                        }
+                    )
+            else:
+                general = values[0] if values else None
+                fields_with_answers.append(
+                    {
+                        "position": f.position,
+                        "label": f.label,
+                        "field_type": f.field_type,
+                        "value": self.extract_value(general, f.field_type) if general else None,
+                    }
+                )
 
         breakdown = self.calculate_score_breakdown(submission)
         score_breakdown_dict = (
@@ -536,14 +573,15 @@ class SubmissionService:
         )
 
         fields_by_id_label = {str(f.id): f.label for f in submission.form_version.fields}
-        non_conformities = [
-            {
-                "label": fields_by_id_label.get(str(c.form_field_id), ""),
-                "justification": c.justification or "",
-            }
-            for c in submission.conformities
-            if c.status == "nao_conforme"
-        ]
+        non_conformities = []
+        for c in submission.conformities:
+            if c.status != "nao_conforme":
+                continue
+            label = fields_by_id_label.get(str(c.form_field_id), "")
+            comp_label = _component_label(c.asset_id)
+            if comp_label:
+                label = f"{label} · {comp_label}"
+            non_conformities.append({"label": label, "justification": c.justification or ""})
 
         return generate_submission_pdf(
             company_name=submission.company.name,
@@ -850,6 +888,7 @@ class SubmissionService:
             conformity=conformity_items,
             checklist=checklist or [],
             warnings=warnings or [],
+            components_snapshot=submission.components_snapshot or None,
         )
 
     @staticmethod

@@ -268,9 +268,12 @@ def generate_submission_pdf(
             elif value == "na":
                 pdf.set_text_color(*_C_MUTED)
 
+        # Campo escopado: sufixa o rótulo do componente congelado (DR-0002 T9).
+        component = row.get("component")
+        label = f"{row['label']} · {component}" if component else row["label"]
         row_data = [
             str(row["position"]),
-            row["label"][:40] + ("..." if len(row["label"]) > 40 else ""),
+            label[:40] + ("..." if len(label) > 40 else ""),
             _TYPE_LABELS.get(field_type, field_type),
             answer_text[:55] + ("..." if len(answer_text) > 55 else ""),
         ]
