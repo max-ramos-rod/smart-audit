@@ -159,7 +159,14 @@ async function reactivate(c: Client) {
               </thead>
               <tbody>
                 <tr v-for="c in clientsStore.items" :key="c.id">
-                  <td class="tbl-name">{{ c.name }}</td>
+                  <td class="tbl-name">
+                    <RouterLink
+                      :to="{ name: 'client-detail', params: { id: c.id } }"
+                      style="color: var(--sa-primary); text-decoration: none; font-weight: 600;"
+                    >
+                      {{ c.name }}
+                    </RouterLink>
+                  </td>
                   <td>
                     <span class="status-chip" :class="{ 'status-chip--inactive': !c.is_active }">
                       {{ c.is_active ? 'Ativo' : 'Inativo' }}

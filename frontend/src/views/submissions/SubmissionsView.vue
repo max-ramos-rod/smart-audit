@@ -3,22 +3,15 @@ import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import AppShell from '@/components/layout/AppShell.vue'
-import { extractProblemMessage } from '@/services/api/problem'
+import InspectionComposer from '@/components/submissions/InspectionComposer.vue'
 import { exportSubmissionsCSV } from '@/services/submissions.service'
 import { scoreClass } from '@/utils/score'
-import { useAssetsStore } from '@/stores/assets/assets.store'
-import { useFormsStore } from '@/stores/forms/forms.store'
 import { useSubmissionsStore } from '@/stores/submissions/submissions.store'
 
 const router = useRouter()
 const submissionsStore = useSubmissionsStore()
-const formsStore = useFormsStore()
-const assetsStore = useAssetsStore()
 
 const showComposer = ref(false)
-const selectedFormId = ref('')
-const selectedAssetId = ref('')
-const createError = ref<string | null>(null)
 
 const currentPage = ref(1)
 const activeStatus = ref<string | undefined>(undefined)
@@ -53,39 +46,18 @@ onMounted(() => {
   loadPage(1)
 })
 
-async function openComposer() {
-  createError.value = null
-  selectedFormId.value = ''
-  selectedAssetId.value = ''
-  await Promise.all([
-    formsStore.items.length ? Promise.resolve() : formsStore.load(),
-    // Ativos ativos para o vínculo opcional (DR-0002).
-    assetsStore.load(1, 100, { status: 'active' }),
-  ])
+function openComposer() {
   showComposer.value = true
 }
 
 function closeComposer() {
   showComposer.value = false
-  selectedFormId.value = ''
-  selectedAssetId.value = ''
-  createError.value = null
 }
 
-async function handleCreate() {
-  if (!selectedFormId.value) return
-  createError.value = null
-  try {
-    const created = await submissionsStore.create({
-      form_id: selectedFormId.value,
-      asset_id: selectedAssetId.value || null,
-    })
-    closeComposer()
-    await loadPage(1)
-    router.push({ name: 'submission-detail', params: { id: created.id } })
-  } catch (err) {
-    createError.value = extractProblemMessage(err, 'Não foi possível criar a inspeção.')
-  }
+async function onInspectionCreated(submissionId: string) {
+  closeComposer()
+  await loadPage(1)
+  router.push({ name: 'submission-detail', params: { id: submissionId } })
 }
 
 function statusLabel(status: string) {
@@ -122,55 +94,9 @@ function statusLabel(status: string) {
         </div>
       </div>
 
-      <!-- composer -->
+      <!-- composer (wizard extraído — Sprint 2) -->
       <div v-if="showComposer" class="card card-p" style="margin-bottom:16px;">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;">
-          <div>
-            <div class="eyebrow">Nova inspeção</div>
-            <div style="font-size:17px;font-weight:700;color:var(--sa-text);margin-top:3px;">Selecione o formulário</div>
-          </div>
-          <button type="button" class="btn-secondary btn-sm" @click="closeComposer">Fechar</button>
-        </div>
-
-        <form style="display:grid;gap:12px;" @submit.prevent="handleCreate">
-          <div v-if="formsStore.isLoading" style="font-size:13px;color:var(--sa-muted);">
-            Carregando formulários...
-          </div>
-          <div v-else-if="!formsStore.items.length" style="font-size:13px;color:var(--sa-muted);">
-            Nenhum formulário disponível. Crie um formulário antes de iniciar uma inspeção.
-          </div>
-          <template v-else>
-            <label style="display:grid;gap:6px;">
-              <span>Formulário</span>
-              <select v-model="selectedFormId" required>
-                <option value="" disabled>Selecione um formulário</option>
-                <option v-for="form in formsStore.items" :key="form.id" :value="form.id">
-                  {{ form.name }} — v{{ form.current_version_number }}
-                </option>
-              </select>
-            </label>
-            <label style="display:grid;gap:6px;">
-              <span>Ativo (opcional)</span>
-              <select v-model="selectedAssetId">
-                <option value="">Sem ativo vinculado</option>
-                <option v-for="asset in assetsStore.items" :key="asset.id" :value="asset.id">
-                  {{ asset.identifier }}
-                </option>
-              </select>
-            </label>
-            <div>
-              <button
-                type="submit"
-                class="btn-primary"
-                :disabled="submissionsStore.isSaving || !selectedFormId"
-              >
-                {{ submissionsStore.isSaving ? 'Criando...' : 'Iniciar inspeção' }}
-              </button>
-            </div>
-          </template>
-
-          <p v-if="createError" style="font-size:13px;font-weight:600;color:var(--sa-danger);">{{ createError }}</p>
-        </form>
+        <InspectionComposer @created="onInspectionCreated" @close="closeComposer" />
       </div>
 
       <p v-if="submissionsStore.error" style="font-size:13px;font-weight:600;color:var(--sa-danger);margin-bottom:8px;">
