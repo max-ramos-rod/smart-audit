@@ -6,6 +6,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core.pagination import PaginationParams
 from app.core.repositories import SQLAlchemyRepository
+from app.db.models.assets import Asset
 from app.db.models.form_versions import FormVersion
 from app.db.models.forms import Form
 from app.db.models.submission_conformities import SubmissionConformity
@@ -54,6 +55,7 @@ class SubmissionRepository(SQLAlchemyRepository[Submission]):
         form_id: str | None = None,
         created_by: str | None = None,
         asset_id: str | None = None,
+        client_id: str | None = None,
     ) -> tuple[list[Submission], int]:
         statement = (
             select(Submission)
@@ -75,6 +77,12 @@ class SubmissionRepository(SQLAlchemyRepository[Submission]):
             statement = statement.where(Submission.created_by == created_by)
         if asset_id:
             statement = statement.where(Submission.asset_id == asset_id)
+        if client_id:
+            # Inspeções cujo ativo vinculado pertence ao cliente (DR-0002 / ClientDetailView).
+            # Join via assets: inspeções sem ativo (asset_id NULL) são naturalmente excluídas.
+            statement = statement.join(Asset, Submission.asset_id == Asset.id).where(
+                Asset.client_id == client_id
+            )
         return await self._paginate_select(db, statement, params)
 
     async def get_submission_for_export(

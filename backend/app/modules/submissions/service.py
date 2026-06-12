@@ -172,6 +172,7 @@ class SubmissionService:
         form_id: str | None = None,
         created_by: str | None = None,
         asset_id: str | None = None,
+        client_id: str | None = None,
     ) -> tuple[list[SubmissionListItemResponse], PageMeta]:
         submissions, total = await self.repository.list_submissions(
             db,
@@ -181,6 +182,7 @@ class SubmissionService:
             form_id=form_id,
             created_by=created_by,
             asset_id=asset_id,
+            client_id=client_id,
         )
         meta = PaginationMetaBuilder.build(total, params)
         return [self.serialize_submission_list_item(item) for item in submissions], meta
