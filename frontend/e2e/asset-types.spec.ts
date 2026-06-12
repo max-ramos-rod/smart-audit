@@ -42,19 +42,37 @@ test.describe('Asset types', () => {
     await expect(page.getByText(/tipo salvo com sucesso/i)).toBeVisible()
   })
 
-  test('rejects invalid JSON schema before submitting', async ({ authed: page }) => {
+  test('builds attributes_schema via the visual builder (zero JSON)', async ({ authed: page }) => {
+    // Sprint 1: o textarea de JSON foi substituído pelo AttributeSchemaBuilder.
+    // Não há mais "JSON inválido"; o schema é montado de forma estruturada.
+    let postedSchema: Record<string, { type?: string; required?: boolean }> | null | undefined
+    await page.route(`${API}/asset-types`, (r) => {
+      if (r.request().method() === 'POST') {
+        postedSchema = r.request().postDataJSON()?.attributes_schema
+        return r.fulfill({
+          json: envelope({
+            id: 'at3',
+            name: 'Equipamento',
+            description: null,
+            attributes_schema: postedSchema ?? null,
+            is_active: true,
+          }),
+        })
+      }
+      return r.fulfill({ json: paginated(MOCK_TYPES) })
+    })
+
     await page
       .locator('.field')
       .filter({ hasText: /nome do tipo/i })
       .locator('input')
       .fill('Equipamento')
-    await page
-      .locator('.field')
-      .filter({ hasText: /schema de atributos/i })
-      .locator('textarea')
-      .fill('{ invalid json')
+    await page.getByRole('button', { name: /adicionar atributo/i }).click()
+    await page.locator('.asb-input').first().fill('placa')
     await page.getByRole('button', { name: /criar tipo/i }).click()
-    await expect(page.getByText(/json inválido/i)).toBeVisible()
+
+    await expect(page.getByText(/tipo salvo com sucesso/i)).toBeVisible()
+    expect(postedSchema?.placa?.type).toBe('string')
   })
 
   test('shows empty state when no asset types', async ({ authed: page }) => {

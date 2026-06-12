@@ -88,7 +88,13 @@ test.describe('Submissions list', () => {
 })
 
 test.describe('Create submission', () => {
-  test('opens composer with form select after clicking Nova inspeção', async ({ authed: page }) => {
+  // Sprint 2: o composer inline (selects) foi substituído pelo InspectionComposer,
+  // um wizard de 3 passos (formulário → cliente → ativo) com itens clicáveis.
+  const MOCK_CLIENTS = [{ id: 'c1', name: 'Cliente X', is_active: true }]
+
+  test('opens composer wizard on the form step after clicking Nova inspeção', async ({
+    authed: page,
+  }) => {
     await page.route(`${API}/submissions**`, (r) => r.fulfill({ json: paginated([]) }))
     await page.route(`${API}/assets**`, (r) => r.fulfill({ json: paginated(MOCK_ASSETS) }))
     await page.route(`${API}/forms**`, (r) =>
@@ -99,7 +105,8 @@ test.describe('Create submission', () => {
     await page.goto('/app/submissions')
     await page.getByRole('button', { name: /nova inspeção/i }).click()
     await expect(page.getByText('Selecione o formulário')).toBeVisible()
-    await expect(page.getByText('Ativo (opcional)')).toBeVisible()
+    // O passo de formulário lista os formulários como itens clicáveis.
+    await expect(page.getByRole('button', { name: /Safety Check/ })).toBeVisible()
   })
 
   test('creates submission and navigates to detail', async ({ authed: page }) => {
@@ -107,6 +114,7 @@ test.describe('Create submission', () => {
       r.fulfill({ json: envelope(MOCK_VERSION) }),
     )
     await page.route(`${API}/assets**`, (r) => r.fulfill({ json: paginated(MOCK_ASSETS) }))
+    await page.route(`${API}/clients**`, (r) => r.fulfill({ json: paginated(MOCK_CLIENTS) }))
     await page.route(`${API}/forms**`, (r) =>
       r.fulfill({
         json: paginated([{ id: 'f1', name: 'Safety Check', current_version_number: 1 }]),
@@ -120,7 +128,13 @@ test.describe('Create submission', () => {
 
     await page.goto('/app/submissions')
     await page.getByRole('button', { name: /nova inspeção/i }).click()
-    await page.locator('select').first().selectOption('f1')
+    // Passo 1: formulário
+    await page.getByRole('button', { name: /Safety Check/ }).click()
+    await page.getByRole('button', { name: /avançar/i }).click()
+    // Passo 2: cliente (sem cliente)
+    await page.getByRole('button', { name: /sem cliente/i }).click()
+    await page.getByRole('button', { name: /avançar/i }).click()
+    // Passo 3: ativo (sem ativo) → iniciar
     await page.getByRole('button', { name: /iniciar inspeção/i }).click()
     await expect(page).toHaveURL('/app/submissions/s1')
   })
@@ -131,6 +145,7 @@ test.describe('Create submission', () => {
       r.fulfill({ json: envelope(MOCK_VERSION) }),
     )
     await page.route(`${API}/assets**`, (r) => r.fulfill({ json: paginated(MOCK_ASSETS) }))
+    await page.route(`${API}/clients**`, (r) => r.fulfill({ json: paginated(MOCK_CLIENTS) }))
     await page.route(`${API}/forms**`, (r) =>
       r.fulfill({
         json: paginated([{ id: 'f1', name: 'Safety Check', current_version_number: 1 }]),
@@ -147,9 +162,14 @@ test.describe('Create submission', () => {
 
     await page.goto('/app/submissions')
     await page.getByRole('button', { name: /nova inspeção/i }).click()
-    await page.locator('select').first().selectOption('f1')
-    // segundo select = ativo (opcional)
-    await page.locator('select').nth(1).selectOption('a1')
+    // Passo 1: formulário
+    await page.getByRole('button', { name: /Safety Check/ }).click()
+    await page.getByRole('button', { name: /avançar/i }).click()
+    // Passo 2: cliente (sem cliente) → carrega ativos
+    await page.getByRole('button', { name: /sem cliente/i }).click()
+    await page.getByRole('button', { name: /avançar/i }).click()
+    // Passo 3: seleciona o ativo Caminhão 01 e inicia
+    await page.getByRole('button', { name: /Caminhão 01/ }).click()
     await page.getByRole('button', { name: /iniciar inspeção/i }).click()
     await expect(page).toHaveURL('/app/submissions/s1')
     expect(postedAssetId).toBe('a1')
