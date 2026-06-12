@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/auth/auth.store'
 import { useContextStore } from '@/stores/context/context.store'
 import AssetTypesView from '@/views/asset-types/AssetTypesView.vue'
 import AssetsView from '@/views/assets/AssetsView.vue'
+import ClientDetailView from '@/views/clients/ClientDetailView.vue'
 import ClientsView from '@/views/clients/ClientsView.vue'
 import CompanySelectView from '@/views/auth/CompanySelectView.vue'
 import ForgotPasswordView from '@/views/auth/ForgotPasswordView.vue'
@@ -140,6 +141,12 @@ const router = createRouter({
       path: '/clients',
       name: 'clients',
       component: ClientsView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/clients/:id',
+      name: 'client-detail',
+      component: ClientDetailView,
       meta: { requiresAuth: true },
     },
     {
