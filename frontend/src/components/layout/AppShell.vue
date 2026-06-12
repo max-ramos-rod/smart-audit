@@ -41,21 +41,56 @@ function logout() {
       </div>
 
       <nav class="sb-nav">
-        <div class="sb-sec">Principal</div>
-        <RouterLink to="/" class="nav-btn" exact-active-class="active"><SvgIcon name="home" />Resumo</RouterLink>
-        <RouterLink to="/forms" class="nav-btn" active-class="active"><SvgIcon name="forms" />Formulários</RouterLink>
-        <RouterLink to="/submissions" class="nav-btn" active-class="active"><SvgIcon name="submissions" />Inspeções</RouterLink>
-        <RouterLink to="/teams" class="nav-btn" active-class="active"><SvgIcon name="teams" />Equipes</RouterLink>
-        <RouterLink to="/clients" class="nav-btn" active-class="active"><SvgIcon name="users" />Clientes</RouterLink>
-        <RouterLink to="/asset-types" class="nav-btn" active-class="active"><SvgIcon name="forms" />Tipos de ativo</RouterLink>
-        <RouterLink to="/assets" class="nav-btn" active-class="active"><SvgIcon name="submissions" />Ativos</RouterLink>
-        <RouterLink to="/users" class="nav-btn" active-class="active"><SvgIcon name="users" />Usuários</RouterLink>
+        <!-- ── Visão Geral ── -->
+        <div class="sb-sec">Visão Geral</div>
+        <RouterLink to="/" class="nav-btn" exact-active-class="active">
+          <SvgIcon name="home" />Resumo
+        </RouterLink>
 
+        <!-- ── Operacional (uso diário) ── -->
+        <div class="sb-sec">Operacional</div>
+        <RouterLink to="/clients" class="nav-btn" active-class="active">
+          <SvgIcon name="clients" />Clientes
+        </RouterLink>
+        <RouterLink to="/submissions" class="nav-btn" active-class="active">
+          <SvgIcon name="submissions" />Inspeções
+        </RouterLink>
+
+        <!-- ── Configuração (setup, uso esporádico) ── -->
+        <div class="sb-sec">Configuração</div>
+        <RouterLink to="/forms" class="nav-btn" active-class="active">
+          <SvgIcon name="forms" />Formulários
+        </RouterLink>
+        <RouterLink to="/asset-types" class="nav-btn" active-class="active">
+          <SvgIcon name="assetTypes" />Tipos de ativo
+        </RouterLink>
+        <RouterLink to="/assets" class="nav-btn" active-class="active">
+          <SvgIcon name="assets" />Ativos
+        </RouterLink>
+
+        <!-- ── Administração (raramente usada em campo) ── -->
+        <div class="sb-sec">Administração</div>
+        <RouterLink to="/users" class="nav-btn" active-class="active">
+          <SvgIcon name="users" />Usuários
+        </RouterLink>
+        <RouterLink to="/teams" class="nav-btn" active-class="active">
+          <SvgIcon name="teams" />Equipes
+        </RouterLink>
+        <RouterLink to="/company-settings" class="nav-btn" active-class="active">
+          <SvgIcon name="settings" />Configurações
+        </RouterLink>
+
+        <!-- ── Ferramentas ── -->
         <div class="sb-sec" style="margin-top: 8px">Ferramentas</div>
-        <RouterLink to="/search" class="nav-btn" active-class="active"><SvgIcon name="search" />Buscar</RouterLink>
-        <RouterLink to="/notifications" class="nav-btn" active-class="active"><SvgIcon name="bell" />Notificações</RouterLink>
-        <RouterLink to="/audit" class="nav-btn" active-class="active"><SvgIcon name="search" />Auditoria</RouterLink>
-        <RouterLink to="/company-settings" class="nav-btn" active-class="active"><SvgIcon name="settings" />Config. empresa</RouterLink>
+        <RouterLink to="/search" class="nav-btn" active-class="active">
+          <SvgIcon name="search" />Buscar
+        </RouterLink>
+        <RouterLink to="/notifications" class="nav-btn" active-class="active">
+          <SvgIcon name="bell" />Notificações
+        </RouterLink>
+        <RouterLink to="/audit" class="nav-btn" active-class="active">
+          <SvgIcon name="search" />Auditoria
+        </RouterLink>
       </nav>
 
       <div class="sb-bottom">
@@ -74,7 +109,9 @@ function logout() {
           <div class="sb-av">{{ initials }}</div>
           <div class="sb-user-name">{{ authStore.user?.name ?? 'Minha conta' }}</div>
         </RouterLink>
-        <button class="nav-btn" type="button" @click="logout"><SvgIcon name="logout" />Sair</button>
+        <button class="nav-btn" type="button" @click="logout">
+          <SvgIcon name="logout" />Sair
+        </button>
       </div>
     </aside>
 
@@ -90,12 +127,72 @@ function logout() {
       <slot />
     </div>
 
+    <!--
+      Bottom nav mobile — Sprint 1
+      Antes: Resumo | Formulários | Inspeções | Equipes | Usuários
+      Depois: Início | Clientes | [+ Nova] | Inspeções | Perfil
+    -->
     <nav class="bot-nav">
-      <RouterLink to="/" class="bn-item" exact-active-class="active"><SvgIcon name="home" :size="21" />Resumo</RouterLink>
-      <RouterLink to="/forms" class="bn-item" active-class="active"><SvgIcon name="forms" :size="21" />Formulários</RouterLink>
-      <RouterLink to="/submissions" class="bn-item" active-class="active"><SvgIcon name="submissions" :size="21" />Inspeções</RouterLink>
-      <RouterLink to="/teams" class="bn-item" active-class="active"><SvgIcon name="teams" :size="21" />Equipes</RouterLink>
-      <RouterLink to="/users" class="bn-item" active-class="active"><SvgIcon name="users" :size="21" />Usuários</RouterLink>
+      <RouterLink to="/" class="bn-item" exact-active-class="active">
+        <SvgIcon name="home" :size="21" />Início
+      </RouterLink>
+      <RouterLink to="/clients" class="bn-item" active-class="active">
+        <SvgIcon name="clients" :size="21" />Clientes
+      </RouterLink>
+      <!-- FAB central: atalho de Nova Inspeção -->
+      <RouterLink to="/submissions" class="bn-item bn-fab-wrap" active-class="">
+        <span class="bn-fab" aria-label="Nova inspeção">
+          <SvgIcon name="plus" :size="22" />
+        </span>
+        <span class="bn-fab-lbl">Nova</span>
+      </RouterLink>
+      <RouterLink to="/submissions" class="bn-item" active-class="active">
+        <SvgIcon name="submissions" :size="21" />Inspeções
+      </RouterLink>
+      <RouterLink to="/profile" class="bn-item" active-class="active">
+        <SvgIcon name="profile" :size="21" />Perfil
+      </RouterLink>
     </nav>
   </div>
 </template>
+
+<style scoped>
+/* ── FAB central no bottom nav ──────────────────────────── */
+.bn-fab-wrap {
+  /* Cancela o estilo padrão de .bn-item para o wrapper do FAB */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 0;
+  /* Empurra o FAB para cima do nav */
+  margin-top: -14px;
+}
+
+.bn-fab {
+  width: 48px;
+  height: 48px;
+  background: var(--sa-primary, #2563eb);
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.45);
+  transition: background 0.15s, transform 0.15s;
+  flex-shrink: 0;
+}
+
+.bn-fab-wrap:active .bn-fab,
+.bn-fab-wrap:hover .bn-fab {
+  background: #1d4ed8;
+  transform: scale(0.96);
+}
+
+.bn-fab-lbl {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--sa-primary, #2563eb);
+  margin-top: 2px;
+}
+</style>
