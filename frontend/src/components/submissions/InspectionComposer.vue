@@ -234,10 +234,7 @@ function selectClient(c: Client) {
           type="button"
           class="ic-item ic-item--neutral"
           :class="{ 'ic-item--sel': selectedClientId === '' }"
-          @click="
-            selectedClientId = ''
-            selectedAssetId = ''
-          "
+          @click="selectedClientId = ''; selectedAssetId = ''"
         >
           <div class="ic-item-name">Sem cliente / patrimônio próprio</div>
           <div class="ic-item-sub">A inspeção não será vinculada a um cliente</div>
