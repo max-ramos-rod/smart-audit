@@ -267,6 +267,18 @@ function weightDisplay(field: FormFieldCreatePayload): string {
   return typeof w === 'number' && w > 1 ? '×' + w : ''
 }
 
+// ── DR-0002: resumo de campos com escopo de componente (Sprint 4) ──
+function getScopeTypeName(typeId: string | null | undefined): string {
+  if (!typeId || !assetTypes.value.length) return ''
+  return assetTypes.value.find((t) => t.id === typeId)?.name ?? '—'
+}
+
+/** Número de campos com escopo de componente na versão sendo editada. */
+const scopedFieldsCount = computed(
+  () =>
+    versionFields.value.filter((f) => f.field_type !== 'section' && !!f.component_type_id).length,
+)
+
 // ── Helper: toggle checkbox selection for a field index ──
 function toggleFieldSelection(e: Event, fieldIdx: number) {
   if ((e.target as HTMLInputElement).checked) selectedDetail.add(fieldIdx)
@@ -441,6 +453,13 @@ async function submitVersion() {
             {{ fieldCount }} campo{{ fieldCount !== 1 ? 's' : '' }}
             <template v-if="sectionCount > 0"> · {{ sectionCount }} seção{{ sectionCount !== 1 ? 'ões' : '' }}</template>
           </span>
+          <span
+            v-if="scopedFieldsCount > 0"
+            class="fd-scope-summary-chip"
+            :title="`${scopedFieldsCount} campo(s) repetem por componente ao executar a inspeção (DR-0002)`"
+          >
+            ⚙ {{ scopedFieldsCount }} por componente
+          </span>
           <button type="button" class="btn-secondary btn-sm" style="flex-shrink:0;" @click="addSection">
             + Seção
           </button>
@@ -538,6 +557,11 @@ async function submitVersion() {
                       <span v-if="field.required" class="f-rdot" title="Obrigatório"></span>
                     </span>
                     <span class="f-wt">{{ weightDisplay(field) }}</span>
+                    <span
+                      v-if="field.component_type_id"
+                      class="f-scope-tag"
+                      :title="'Repete por: ' + getScopeTypeName(field.component_type_id)"
+                    >⚙</span>
                     <span class="f-arr">›</span>
                   </div>
                   <div v-show="expandedDetailIndex === fieldIdx">
@@ -605,6 +629,11 @@ async function submitVersion() {
                         <span v-if="field.required" class="f-rdot" title="Obrigatório"></span>
                       </span>
                       <span class="f-wt">{{ weightDisplay(field) }}</span>
+                      <span
+                        v-if="field.component_type_id"
+                        class="f-scope-tag"
+                        :title="'Repete por: ' + getScopeTypeName(field.component_type_id)"
+                      >⚙</span>
                       <span class="f-arr">›</span>
                     </div>
                     <div v-show="expandedDetailIndex === fieldIdx">
@@ -668,6 +697,11 @@ async function submitVersion() {
                       <span v-if="field.required" class="f-rdot" title="Obrigatório"></span>
                     </span>
                     <span class="f-wt">{{ weightDisplay(field) }}</span>
+                    <span
+                      v-if="field.component_type_id"
+                      class="f-scope-tag"
+                      :title="'Repete por: ' + getScopeTypeName(field.component_type_id)"
+                    >⚙</span>
                     <span class="f-arr">›</span>
                   </div>
                   <div v-show="expandedDetailIndex === fieldIdx">
@@ -1232,6 +1266,21 @@ async function submitVersion() {
 .f-wt   { font-family: var(--mono, monospace); font-size: 11px; color: #94a3b8; width: 28px; text-align: right; flex-shrink: 0; margin-right: 4px; }
 .f-arr  { font-size: 13px; color: var(--sa-muted); flex-shrink: 0; transition: transform .2s; width: 18px; text-align: center; }
 .fd-field-row.expanded .f-arr { transform: rotate(90deg); }
+
+/* DR-0002 — escopo de componente (Sprint 4) */
+.f-scope-tag { font-size: 11px; color: var(--sa-brand, #2563eb); flex-shrink: 0; width: 16px; text-align: center; cursor: default; user-select: none; }
+.fd-scope-summary-chip {
+  font-family: var(--mono, monospace);
+  font-size: 11px;
+  font-weight: 600;
+  color: #1d4ed8;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 100px;
+  padding: 2px 8px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
 .f-chk { width: 22px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-left: 12px; }
 .f-chk input[type=checkbox] { width: 16px; height: 16px; cursor: pointer; accent-color: var(--sa-brand); }
 
