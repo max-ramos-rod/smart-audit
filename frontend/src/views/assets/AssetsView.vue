@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 
 import AppShell from '@/components/layout/AppShell.vue'
+import AttributeValueEditor from '@/components/ui/AttributeValueEditor.vue'
 import { extractProblemMessage } from '@/services/api/problem'
 import { fetchAssetTypes } from '@/services/asset-types.service'
 import { fetchClients } from '@/services/clients.service'
@@ -25,15 +26,36 @@ const actionError = ref<string | null>(null)
 const savedOnce = ref(false)
 
 // kind=root → client_id opcional; kind=component → parent obrigatório, sem client (V3/M6).
-const form = reactive({
+// `attributesJson` substitui o antigo `schemaText` (JSON manual). Contrato do store mantido:
+// `attributes_json: Record<string, unknown> | null` (Sprint 1 — Zero JSON).
+const form = reactive<{
+  id: string
+  kind: 'root' | 'component'
+  asset_type_id: string
+  identifier: string
+  parent_asset_id: string
+  client_id: string
+  attributesJson: Record<string, unknown>
+}>({
   id: '',
-  kind: 'root' as 'root' | 'component',
+  kind: 'root',
   asset_type_id: '',
   identifier: '',
   parent_asset_id: '',
   client_id: '',
-  schemaText: '',
+  attributesJson: {},
 })
+
+// Schema do tipo selecionado — alimenta o AttributeValueEditor (campos dinâmicos por tipo).
+const selectedTypeSchema = computed<Record<string, unknown> | null>(() => {
+  const t = assetTypes.value.find((x) => x.id === form.asset_type_id)
+  return (t?.attributes_schema as Record<string, unknown> | null) ?? null
+})
+
+// Ao trocar o tipo de ativo, os atributos antigos não fazem mais sentido — limpa-os (V/Q).
+function onTypeChange() {
+  form.attributesJson = {}
+}
 
 const typeName = computed(() => {
   const map = new Map(assetTypes.value.map((t) => [t.id, t.name]))
@@ -88,7 +110,7 @@ function resetForm() {
   form.identifier = ''
   form.parent_asset_id = ''
   form.client_id = ''
-  form.schemaText = ''
+  form.attributesJson = {}
   isEditing.value = false
   formError.value = null
 }
@@ -107,34 +129,17 @@ function editAsset(a: Asset) {
   form.identifier = a.identifier
   form.parent_asset_id = a.parent_asset_id ?? ''
   form.client_id = a.client_id ?? ''
-  form.schemaText = Object.keys(a.attributes_json).length
-    ? JSON.stringify(a.attributes_json, null, 2)
-    : ''
+  form.attributesJson = { ...a.attributes_json }
   isEditing.value = true
   formError.value = null
 }
 
-// M1: attributes_json é livre; aqui só garantimos objeto JSON válido.
-function parseSchema(): Record<string, unknown> | null {
-  const text = form.schemaText.trim()
-  if (!text) return null
-  const parsed = JSON.parse(text)
-  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-    throw new Error('Os atributos devem ser um objeto JSON.')
-  }
-  return parsed as Record<string, unknown>
-}
-
 async function submit() {
   formError.value = null
-  let attributes_json: Record<string, unknown> | null
-  try {
-    attributes_json = parseSchema()
-  } catch (err) {
-    formError.value =
-      err instanceof SyntaxError ? 'JSON inválido nos atributos.' : (err as Error).message
-    return
-  }
+  // Os atributos já vêm estruturados do AttributeValueEditor — sem parse de JSON.
+  const attributes_json: Record<string, unknown> | null = Object.keys(form.attributesJson).length
+    ? form.attributesJson
+    : null
 
   try {
     if (isEditing.value) {
@@ -281,7 +286,7 @@ async function reactivate(a: Asset) {
 
             <label class="field">
               <span class="flabel">Tipo de ativo</span>
-              <select v-model="form.asset_type_id" :disabled="isEditing" required>
+              <select v-model="form.asset_type_id" :disabled="isEditing" required @change="onTypeChange">
                 <option value="" disabled>Selecione o tipo</option>
                 <option v-for="t in assetTypes" :key="t.id" :value="t.id">{{ t.name }}</option>
               </select>
@@ -301,16 +306,10 @@ async function reactivate(a: Asset) {
               </select>
             </label>
 
-            <label class="field">
-              <span class="flabel">Atributos (JSON, opcional)</span>
-              <textarea
-                v-model="form.schemaText"
-                rows="4"
-                spellcheck="false"
-                placeholder='{ "placa": "ABC-1234" }'
-                style="font-family:monospace;font-size:12px;"
-              ></textarea>
-            </label>
+            <div v-if="form.asset_type_id" class="field">
+              <span class="flabel">Atributos do ativo</span>
+              <AttributeValueEditor v-model="form.attributesJson" :schema="selectedTypeSchema" />
+            </div>
 
             <p v-if="savedOnce" style="font-size:13px;font-weight:600;color:var(--sa-ok);padding:6px 0;">
               ✓ Ativo salvo com sucesso.

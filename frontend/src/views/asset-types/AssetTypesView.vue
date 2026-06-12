@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 
 import AppShell from '@/components/layout/AppShell.vue'
+import AttributeSchemaBuilder from '@/components/ui/AttributeSchemaBuilder.vue'
 import { extractProblemMessage } from '@/services/api/problem'
 import { useAssetTypesStore } from '@/stores/asset-types/asset-types.store'
 import type { AssetType } from '@/types/asset-types'
@@ -12,7 +13,14 @@ const isEditing = ref(false)
 const formError = ref<string | null>(null)
 const actionError = ref<string | null>(null)
 const savedOnce = ref(false)
-const form = reactive({ id: '', name: '', description: '', schemaText: '' })
+// `schema` substitui o antigo `schemaText` (JSON manual). O contrato do store
+// permanece `attributes_schema: Record<string, unknown> | null` (Sprint 1 — Zero JSON).
+const form = reactive<{
+  id: string
+  name: string
+  description: string
+  schema: Record<string, unknown> | null
+}>({ id: '', name: '', description: '', schema: null })
 
 const title = computed(() => (isEditing.value ? 'Editar tipo' : 'Novo tipo'))
 const submitLabel = computed(() => {
@@ -26,7 +34,7 @@ function resetForm() {
   form.id = ''
   form.name = ''
   form.description = ''
-  form.schemaText = ''
+  form.schema = null
   isEditing.value = false
   formError.value = null
 }
@@ -41,35 +49,16 @@ function editType(t: AssetType) {
   form.id = t.id
   form.name = t.name
   form.description = t.description ?? ''
-  // attributes_schema e JSON livre (M1): exibimos formatado para edicao.
-  form.schemaText = t.attributes_schema ? JSON.stringify(t.attributes_schema, null, 2) : ''
+  // O AttributeSchemaBuilder lê o objeto direto (e normaliza formato antigo M1 internamente).
+  form.schema = t.attributes_schema ?? null
   isEditing.value = true
   formError.value = null
 }
 
-// M1: o schema e aceito livre; aqui so garantimos que o texto e um JSON de objeto valido.
-function parseSchema(): Record<string, unknown> | null {
-  const text = form.schemaText.trim()
-  if (!text) return null
-  const parsed = JSON.parse(text)
-  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-    throw new Error('O schema de atributos deve ser um objeto JSON.')
-  }
-  return parsed as Record<string, unknown>
-}
-
 async function submit() {
   formError.value = null
-  let attributes_schema: Record<string, unknown> | null
-  try {
-    attributes_schema = parseSchema()
-  } catch (err) {
-    formError.value =
-      err instanceof SyntaxError
-        ? 'JSON inválido no schema de atributos.'
-        : (err as Error).message
-    return
-  }
+  // O schema já é um objeto estruturado produzido pelo AttributeSchemaBuilder — sem parse de JSON.
+  const attributes_schema: Record<string, unknown> | null = form.schema
 
   const description = form.description.trim() || null
   try {
@@ -164,19 +153,13 @@ async function reactivate(t: AssetType) {
               <textarea v-model="form.description" rows="2" maxlength="2000"></textarea>
             </label>
 
-            <label class="field">
-              <span class="flabel">Schema de atributos (JSON, opcional)</span>
-              <textarea
-                v-model="form.schemaText"
-                rows="5"
-                spellcheck="false"
-                placeholder='{ "placa": "string", "eixos": "number" }'
-                style="font-family:monospace;font-size:12px;"
-              ></textarea>
+            <div class="field">
+              <span class="flabel">Atributos do tipo (opcional)</span>
+              <AttributeSchemaBuilder :key="form.id || 'new'" v-model="form.schema" />
               <span style="font-size:11px;color:var(--sa-muted);">
-                Aceito livre nesta fase — não há validação de conteúdo.
+                Defina os atributos que cada ativo deste tipo poderá preencher.
               </span>
-            </label>
+            </div>
 
             <p v-if="savedOnce" style="font-size:13px;font-weight:600;color:var(--sa-ok);padding:6px 0;">
               ✓ Tipo salvo com sucesso.
