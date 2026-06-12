@@ -6,83 +6,41 @@ import AppShell from '@/components/layout/AppShell.vue'
 import InspectionFieldRow from '@/components/submissions/InspectionFieldRow.vue'
 import InspectionListRow from '@/components/submissions/InspectionListRow.vue'
 import SvgIcon from '@/components/ui/SvgIcon.vue'
+import { useConformity } from '@/composables/useConformity'
+import { useEvidence } from '@/composables/useEvidence'
+import { useInspectionProgress } from '@/composables/useInspectionProgress'
+import { useInspectionSwipe } from '@/composables/useInspectionSwipe'
 import { scoreColorVar } from '@/utils/score'
-import { createAttachment, deleteAttachment, listAttachments } from '@/services/attachments.service'
 import { extractProblemMessage } from '@/services/api/problem'
 import { fetchFormVersion } from '@/services/forms.service'
 import { saveConformity } from '@/services/submissions.service'
-import { uploadFile } from '@/services/uploads.service'
 import { useSubmissionsStore } from '@/stores/submissions/submissions.store'
 import { buildRenderRows, instanceKey } from '@/utils/inspectionInstances'
 import type { FieldInstance, RenderRow } from '@/utils/inspectionInstances'
-import type { AttachmentItem } from '@/types/attachments'
 import type { FormVersion } from '@/types/forms'
 
-const route = useRoute()
+const route  = useRoute()
 const router = useRouter()
 const submissionsStore = useSubmissionsStore()
 
-// ── State ─────────────────────────────────────────────────────────────────────
+// ── Core state ───────────────────────────────────────────────────────────────
 
-const formVersion    = ref<FormVersion | null>(null)
-const draftAnswers   = reactive<Record<string, string>>({})
-const saveError      = ref<string | null>(null)
-const finishError    = ref<string | null>(null)
-const savedOnce      = ref(false)
+const formVersion  = ref<FormVersion | null>(null)
+const draftAnswers = reactive<Record<string, string>>({})
+const saveError    = ref<string | null>(null)
+const finishError  = ref<string | null>(null)
+const savedOnce    = ref(false)
 
-// Inspection mode
 const inspectionMode  = ref(false)
 const inspectionIndex = ref(0)
-
-// View mode inside inspection: 'card' | 'list'
-const viewMode = ref<'card' | 'list'>('card')
-
-// Swipe state
-const swipeDeltaX  = ref(0)
-const swipeStartX  = ref(0)
-const isSwiping    = ref(false)
-const swipeExiting = ref<'left' | 'right' | null>(null)
-
-// Progressive list loading
-const LIST_PAGE    = 50
-const listViewLimit = ref(LIST_PAGE)
-
-// Evidence per field
-const evidenceAttachments = reactive<Record<string, AttachmentItem[]>>({})
-const evidenceUploading   = reactive<Record<string, boolean>>({})
-const evidenceErrors      = reactive<Record<string, string>>({})
-const evidenceLoaded      = ref(false)
-
-// Conformity per field
-const conformityStatus        = reactive<Record<string, 'conforme' | 'nao_conforme'>>({})
-const conformityJustification = reactive<Record<string, string>>({})
-
-// Justification bottom sheet
-const showJustificationSheet = ref(false)
-const justificationFieldKey  = ref<string | null>(null)
-
-// Evidence bottom sheet
-const showEvidenceSheet = ref(false)
-const evidenceSheetKey  = ref<string | null>(null)
+const viewMode        = ref<'card' | 'list'>('card')
 
 const pendingRequiredFields = ref<string[]>([])
 
-// ── List-mode filter state ─────────────────────────────────────────────────────
+const LIST_PAGE     = 50
+const listViewLimit = ref(LIST_PAGE)
 
-const FILTERS = [
-  { id: 'all',   label: 'Todos',       cls: ''     },
-  { id: 'pend',  label: '⚡ Pendentes', cls: 'warn' },
-  { id: 'conf',  label: '✓ Conformes', cls: 'ok'   },
-  { id: 'nconf', label: '✕ Não conf.', cls: 'err'  },
-  { id: 'bool',  label: 'S/N',         cls: ''     },
-  { id: 'sel',   label: 'Seleção',     cls: ''     },
-] as const
-
-type ListFilter = typeof FILTERS[number]['id']
-const listFilter = ref<ListFilter>('all')
-const expandedListKey = ref<string | null>(null)
-
-// ── Derived ───────────────────────────────────────────────────────────────────
+// ── Core computed ────────────────────────────────────────────────────────────
 
 const submissionId = computed(() => route.params.id as string)
 const submission   = computed(() => submissionsStore.current)
@@ -92,150 +50,20 @@ const fields = computed(() =>
   [...(formVersion.value?.fields ?? [])].sort((a, b) => a.position - b.position),
 )
 
-// ── Component expansion (DR-0002 T8) ────────────────────────────────────────────
-// Lógica pura em utils/inspectionInstances (testada em unidade). A fonte de verdade é o
-// `checklist` expandido pelo backend (T3); ausente (respostas legadas/sem ativo) = modo geral.
-const renderRows = computed(() => buildRenderRows(fields.value, submission.value?.checklist ?? null))
+const renderRows = computed(() =>
+  buildRenderRows(fields.value, submission.value?.checklist ?? null),
+)
 
-// Todas as instâncias respondíveis (substitui answerableFields na expansão por componente).
-const answerableInstances = computed(() =>
+const answerableInstances = computed<FieldInstance[]>(() =>
   renderRows.value.flatMap((r) => (r.kind === 'instance' ? [r.instance] : [])),
 )
 
-function instancePosition(inst: FieldInstance): number {
-  return answerableInstances.value.findIndex((i) => i.key === inst.key) + 1
-}
+// ── Navigation ───────────────────────────────────────────────────────────────
 
-// Rótulo amigável de uma instância pendente (campo + componente quando escopado).
-function pendingLabel(key: string): string {
-  const inst = answerableInstances.value.find((i) => i.key === key)
-  if (!inst) return key
-  return inst.componentLabel ? `${inst.field.label} (${inst.componentLabel})` : inst.field.label
-}
-
-// ── Progress counters ─────────────────────────────────────────────────────────
-
-const progressStats = computed(() => {
-  let conformes    = 0
-  let naoConformes = 0
-
-  for (const inst of answerableInstances.value) {
-    const s = conformityStatus[inst.key]
-    if (s === 'conforme') conformes++
-    else if (s === 'nao_conforme') naoConformes++
-  }
-
-  const total      = answerableInstances.value.length
-  const evaluated  = conformes + naoConformes
-  const pending    = total - evaluated
-  const percentage = total === 0 ? 0 : Math.round((evaluated / total) * 100)
-
-  return { conformes, naoConformes, evaluated, pending, total, percentage }
-})
-
-// Real-time weighted score based on conformity status (mirrors backend calculate_score logic).
-// Itera por (campo × componente); o weight é o do campo, igual para todas as instâncias (Q6).
-const liveScore = computed((): number | null => {
-  let wConformes = 0
-  let wTotal     = 0
-  for (const inst of answerableInstances.value) {
-    const s      = conformityStatus[inst.key]
-    if (!s) continue
-    const weight = (inst.field.config_json?.weight as number | undefined) ?? 1
-    wTotal += weight
-    if (s === 'conforme') wConformes += weight
-  }
-  return wTotal === 0 ? null : Math.round((wConformes / wTotal) * 100)
-})
-
-// All answerable fields have a conformity status
-const allAnswered = computed(() => progressStats.value.pending === 0 && progressStats.value.total > 0)
-
-// Score ring style (conic-gradient based on liveScore)
-const scoreRingStyle = computed(() => {
-  if (liveScore.value === null) return { background: 'conic-gradient(#e2e8f0 100%, #e2e8f0 0)' }
-  const pct   = liveScore.value
-  const color = scoreColorVar(pct)
-  return { background: `conic-gradient(${color} ${pct}%, #e2e8f0 0)`, transition: 'background .5s' }
-})
-
-// Total evidence files across all fields
-const totalEvidenceCount = computed(() =>
-  Object.values(evidenceAttachments).reduce((sum, arr) => sum + arr.length, 0),
-)
-
-// ── Sections ──────────────────────────────────────────────────────────────────
-
-const formSections = computed(() =>
-  fields.value
-    .filter((f) => f.field_type === 'section')
-    .map((section, idx, arr) => {
-      const nextSectionPos = arr[idx + 1]?.position ?? Infinity
-      const sectionItems   = answerableInstances.value.filter(
-        (i) => i.field.position > section.position && i.field.position < nextSectionPos,
-      )
-      const evaluated = sectionItems.filter((i) => conformityStatus[i.key]).length
-      const pct = sectionItems.length === 0 ? 100 : Math.round((evaluated / sectionItems.length) * 100)
-      return { key: section.key, label: section.label, pct }
-    }),
-)
-
-// ── List-mode filtered rows (sections + expanded instances) ─────────────────────
-
-const filteredRows = computed<RenderRow[]>(() => {
-  return renderRows.value.filter((r) => {
-    if (r.kind === 'section') return true
-    const inst = r.instance
-    if (listFilter.value === 'pend')  return !conformityStatus[inst.key]
-    if (listFilter.value === 'conf')  return conformityStatus[inst.key] === 'conforme'
-    if (listFilter.value === 'nconf') return conformityStatus[inst.key] === 'nao_conforme'
-    if (listFilter.value === 'bool')  return inst.field.field_type === 'boolean'
-    if (listFilter.value === 'sel')   return inst.field.field_type === 'select'
-    return true
-  })
-})
-
-const visibleSectionKeys = computed(() => {
-  const keys = new Set<string>()
-  let currentSec: string | null = null
-  for (const r of filteredRows.value) {
-    if (r.kind === 'section') { currentSec = r.field.key; continue }
-    if (currentSec) keys.add(currentSec)
-  }
-  return keys
-})
-
-// ── Inspection card (current instance) ────────────────────────────────────────
-
-const inspectionInstance = computed(() => answerableInstances.value[inspectionIndex.value] ?? null)
-// Alias para o campo (metadados) e a chave de instância (resposta/conformidade) do cartão atual.
-const inspectionField = computed(() => inspectionInstance.value?.field ?? null)
-const inspKey         = computed(() => inspectionInstance.value?.key ?? '')
-
-const inspectionSectionLabel = computed(() => {
-  const inst = inspectionInstance.value
-  if (!inst) return ''
-  const allVisible = fields.value
-  const idx = allVisible.findIndex((f) => f.key === inst.field.key)
-  for (let i = idx - 1; i >= 0; i--) {
-    if (allVisible[i].field_type === 'section') return allVisible[i].label
-  }
-  return ''
-})
-
-function fieldConformityStatus(fieldKey: string): 'pending' | 'conformes' | 'nao_conformes' {
-  const s = conformityStatus[fieldKey]
-  if (s === 'conforme') return 'conformes'
-  if (s === 'nao_conforme') return 'nao_conformes'
-  return 'pending'
-}
-
-const currentFieldStatus = computed(() => {
-  if (!inspectionInstance.value) return 'pending'
-  return fieldConformityStatus(inspectionInstance.value.key)
-})
-
-// ── Navigation ────────────────────────────────────────────────────────────────
+// NOTA: inspectionNext é declarado ANTES dos composables pois é passado
+// como callback para useConformity e useInspectionSwipe.
+// Usa swipeExiting que vem de useInspectionSwipe — referência tardia OK
+// porque a função só é chamada em runtime, não em setup.
 
 function inspectionNext() {
   if (inspectionIndex.value < answerableInstances.value.length - 1) {
@@ -258,148 +86,239 @@ function jumpToSection(sectionKey: string) {
   if (idx !== -1) inspectionIndex.value = idx
 }
 
-// ── Touch / swipe ─────────────────────────────────────────────────────────────
+// ── Composables ──────────────────────────────────────────────────────────────
 
-function onTouchStart(e: TouchEvent) {
-  swipeStartX.value = e.touches[0].clientX
-  isSwiping.value   = true
-  swipeDeltaX.value = 0
-}
+const {
+  conformityStatus,
+  conformityJustification,
+  showJustificationSheet,
+  justificationFieldKey,
+  justificationError,
+  setConformity,
+  setNaoConformeCard,
+  openJustificationSheet,
+  closeJustificationSheet,
+  confirmJustification,
+  buildConformityItems,
+  triggerConformitySave,
+} = useConformity(submissionId, answerableInstances, inspectionNext)
 
-function onTouchMove(e: TouchEvent) {
-  if (!isSwiping.value) return
-  swipeDeltaX.value = e.touches[0].clientX - swipeStartX.value
-}
+const {
+  evidenceAttachments,
+  evidenceUploading,
+  evidenceErrors,
+  evidenceLoaded,
+  showEvidenceSheet,
+  evidenceSheetKey,
+  evidenceSheetLabel,
+  totalEvidenceCount,
+  loadEvidenceAttachments,
+  handleEvidenceUpload,
+  handleEvidenceDelete,
+  openEvidenceSheet,
+  closeEvidenceSheet,
+  uploadEvidenceFromSheet,
+} = useEvidence(submissionId, answerableInstances)
 
-function onTouchEnd() {
-  if (!isSwiping.value) return
-  isSwiping.value = false
+const {
+  progressStats,
+  liveScore,
+  scoreRingStyle,
+  allAnswered,
+  formSections,
+  nearbyDots,
+} = useInspectionProgress(answerableInstances, conformityStatus, fields, inspectionIndex)
 
-  const inst = inspectionInstance.value
-  const delta = swipeDeltaX.value
-  swipeDeltaX.value = 0
-
-  if (!inst || Math.abs(delta) < 80) return
-
-  if (delta > 0) {
-    setConformity(inst.key, 'conforme')
-  } else {
-    setConformity(inst.key, 'nao_conforme')
-    openJustificationSheet(inst.key)
-  }
-}
-
-// Card transform style driven by swipe delta
-const cardSwipeStyle = computed(() => {
-  if (!isSwiping.value && swipeDeltaX.value === 0) {
-    if (swipeExiting.value === 'right') return { transform: 'translateX(120%) rotate(12deg)', opacity: '0', transition: 'transform .22s ease, opacity .22s ease' }
-    if (swipeExiting.value === 'left')  return { transform: 'translateX(-120%) rotate(-12deg)', opacity: '0', transition: 'transform .22s ease, opacity .22s ease' }
-    return {}
-  }
-  const rotate  = (swipeDeltaX.value / 400) * 12
-  const opacity = Math.max(0.5, 1 - Math.abs(swipeDeltaX.value) / 400)
-  return {
-    transform: `translateX(${swipeDeltaX.value}px) rotate(${rotate}deg)`,
-    opacity: String(opacity),
-    transition: isSwiping.value ? 'none' : 'transform .22s ease, opacity .22s ease',
-  }
+// swipeExiting necessário em inspectionNext — declarado aqui, usado acima
+const {
+  swipeExiting,
+  cardSwipeStyle,
+  rightIndicatorOpacity,
+  leftIndicatorOpacity,
+  onTouchStart,
+  onTouchMove,
+  onTouchEnd,
+} = useInspectionSwipe({
+  getCurrentInstanceKey: () => inspKey.value,
+  onConformeSwipe:       (key) => setConformityCard(key, 'conforme'),
+  onNaoConformeSwipe:    (key) => setNaoConformeCard(key),
 })
 
-// Swipe indicator opacity (right = Conforme, left = Não conforme)
-const rightIndicatorOpacity = computed(() => Math.min(1, Math.max(0, swipeDeltaX.value / 100)))
-const leftIndicatorOpacity  = computed(() => Math.min(1, Math.max(0, -swipeDeltaX.value / 100)))
+// ── Card inspection helpers ───────────────────────────────────────────────────
 
-// ── Boolean quick-answer buttons ──────────────────────────────────────────────
+const inspectionInstance = computed(() => answerableInstances.value[inspectionIndex.value] ?? null)
+const inspectionField    = computed(() => inspectionInstance.value?.field ?? null)
+const inspKey            = computed(() => inspectionInstance.value?.key ?? '')
 
-function answerBoolean(fieldKey: string, value: 'true' | 'false' | 'na') {
-  draftAnswers[fieldKey] = value
-  triggerAutoSave()
-}
+const inspectionSectionLabel = computed(() => {
+  const inst = inspectionInstance.value
+  if (!inst) return ''
+  const idx = fields.value.findIndex((f) => f.key === inst.field.key)
+  for (let i = idx - 1; i >= 0; i--) {
+    if (fields.value[i].field_type === 'section') return fields.value[i].label
+  }
+  return ''
+})
 
-// Used only in card view: sets conformity and advances for 'conforme', stays for 'nao_conforme'
+const currentFieldStatus = computed(() => {
+  if (!inspectionInstance.value) return 'pending'
+  const s = conformityStatus[inspectionInstance.value.key]
+  if (s === 'conforme') return 'conformes'
+  if (s === 'nao_conforme') return 'nao_conformes'
+  return 'pending'
+})
+
+const currentFieldEvidenceCount = computed(() =>
+  inspectionInstance.value
+    ? (evidenceAttachments[inspectionInstance.value.key]?.length ?? 0)
+    : 0,
+)
+
 function setConformityCard(fieldKey: string, status: 'conforme' | 'nao_conforme') {
   setConformity(fieldKey, status)
-  if (status === 'conforme') {
-    setTimeout(() => inspectionNext(), 300)
-  }
+  if (status === 'conforme') setTimeout(() => inspectionNext(), 300)
 }
 
-// ── Sheet helpers ─────────────────────────────────────────────────────────────
-
-function openJustificationSheet(fieldKey: string) {
-  justificationFieldKey.value = fieldKey
-  showJustificationSheet.value = true
-}
-function closeJustificationSheet() {
-  showJustificationSheet.value = false
-}
-
-function openEvidenceSheet(fieldKey: string) {
-  evidenceSheetKey.value = fieldKey
-  showEvidenceSheet.value = true
-}
-function closeEvidenceSheet() {
-  showEvidenceSheet.value = false
-}
-
-// ── Conformity ────────────────────────────────────────────────────────────────
-
-let conformitySaveTimer: ReturnType<typeof setTimeout> | null = null
-
-function setConformity(fieldKey: string, status: 'conforme' | 'nao_conforme') {
-  conformityStatus[fieldKey] = status
-  triggerConformitySave()
-}
-
-// Itens de conformidade derivados das instâncias (carrega asset_id por componente — T8).
-function buildConformityItems() {
-  return answerableInstances.value
-    .filter((inst) => conformityStatus[inst.key])
-    .map((inst) => ({
-      field_key: inst.field.key,
-      status: conformityStatus[inst.key],
-      justification: conformityJustification[inst.key] || null,
-      ...(inst.asset_id ? { asset_id: inst.asset_id } : {}),
-    }))
-}
-
-function triggerConformitySave() {
-  if (conformitySaveTimer) clearTimeout(conformitySaveTimer)
-  conformitySaveTimer = setTimeout(async () => {
-    const items = buildConformityItems()
-    if (items.length === 0) return
-    try {
-      await saveConformity(submissionId.value, { items })
-    } catch { /* silent */ }
-  }, 800)
-}
-
-// ── Auto-save (debounced) ─────────────────────────────────────────────────────
+// ── Auto-save ─────────────────────────────────────────────────────────────────
 
 let autoSaveTimer: ReturnType<typeof setTimeout> | null = null
+
 function triggerAutoSave() {
   if (autoSaveTimer) clearTimeout(autoSaveTimer)
   autoSaveTimer = setTimeout(async () => {
     try {
       await submissionsStore.updateAnswers(submissionId.value, { answers: buildPayload() })
       savedOnce.value = true
-    } catch { /* silent — user can manually save */ }
+    } catch { /* silent */ }
   }, 1200)
+}
+
+function answerBoolean(fieldKey: string, value: 'true' | 'false' | 'na') {
+  draftAnswers[fieldKey] = value
+  triggerAutoSave()
+}
+
+// ── List mode ─────────────────────────────────────────────────────────────────
+
+const FILTERS = [
+  { id: 'all',   label: 'Todos',       cls: ''     },
+  { id: 'pend',  label: '⚡ Pendentes', cls: 'warn' },
+  { id: 'conf',  label: '✓ Conformes', cls: 'ok'   },
+  { id: 'nconf', label: '✕ Não conf.', cls: 'err'  },
+  { id: 'bool',  label: 'S/N',         cls: ''     },
+  { id: 'sel',   label: 'Seleção',     cls: ''     },
+] as const
+
+type ListFilter = typeof FILTERS[number]['id']
+const listFilter      = ref<ListFilter>('all')
+const expandedListKey = ref<string | null>(null)
+
+const filteredRows = computed<RenderRow[]>(() =>
+  renderRows.value.filter((r) => {
+    if (r.kind === 'section') return true
+    const inst = r.instance
+    if (listFilter.value === 'pend')  return !conformityStatus[inst.key]
+    if (listFilter.value === 'conf')  return conformityStatus[inst.key] === 'conforme'
+    if (listFilter.value === 'nconf') return conformityStatus[inst.key] === 'nao_conforme'
+    if (listFilter.value === 'bool')  return inst.field.field_type === 'boolean'
+    if (listFilter.value === 'sel')   return inst.field.field_type === 'select'
+    return true
+  }),
+)
+
+const visibleSectionKeys = computed(() => {
+  const keys = new Set<string>()
+  let currentSec: string | null = null
+  for (const r of filteredRows.value) {
+    if (r.kind === 'section') { currentSec = r.field.key; continue }
+    if (currentSec) keys.add(currentSec)
+  }
+  return keys
+})
+
+const displayedListRows = computed(() => renderRows.value.slice(0, listViewLimit.value))
+const hasMoreFields      = computed(() => listViewLimit.value < renderRows.value.length)
+function loadMoreFields() { listViewLimit.value += LIST_PAGE }
+function doSkip()         { inspectionNext() }
+
+function filterCount(filterId: ListFilter): number {
+  const ai = answerableInstances.value
+  if (filterId === 'all')   return ai.length
+  if (filterId === 'pend')  return ai.filter(i => !conformityStatus[i.key]).length
+  if (filterId === 'conf')  return ai.filter(i => conformityStatus[i.key] === 'conforme').length
+  if (filterId === 'nconf') return ai.filter(i => conformityStatus[i.key] === 'nao_conforme').length
+  if (filterId === 'bool')  return ai.filter(i => i.field.field_type === 'boolean').length
+  if (filterId === 'sel')   return ai.filter(i => i.field.field_type === 'select').length
+  return 0
+}
+
+function sectionInstances(sectionKey: string): FieldInstance[] {
+  const all    = filteredRows.value
+  const secIdx = all.findIndex(r => r.kind === 'section' && r.field.key === sectionKey)
+  if (secIdx === -1) return []
+  const result: FieldInstance[] = []
+  for (let i = secIdx + 1; i < all.length; i++) {
+    const r = all[i]
+    if (r.kind === 'section') break
+    result.push(r.instance)
+  }
+  return result
+}
+
+function sectionPct(sectionKey: string): number {
+  const sf = sectionInstances(sectionKey)
+  if (sf.length === 0) return 0
+  return Math.round((sf.filter(i => !!conformityStatus[i.key]).length / sf.length) * 100)
+}
+
+function sectionProgress(sectionKey: string): string {
+  const sf   = sectionInstances(sectionKey)
+  const done = sf.filter(i => !!conformityStatus[i.key]).length
+  return `${done}/${sf.length}`
+}
+
+function sectionRingStyle(sectionKey: string): Record<string, string> {
+  const pct = sectionPct(sectionKey)
+  const col = pct === 100 ? 'var(--sa-ok)' : pct > 0 ? 'var(--sa-brand)' : 'var(--sa-line)'
+  return { background: `conic-gradient(${col} ${pct}%, var(--sa-line) 0)` }
+}
+
+function toggleListRow(key: string) {
+  expandedListKey.value = expandedListKey.value === key ? null : key
+  if (expandedListKey.value === key) {
+    nextTick(() => {
+      const el        = document.getElementById(`list-row-${key}`)
+      const container = document.getElementById('list-scroll-container')
+      if (el && container) container.scrollTo({ top: el.offsetTop - 64, behavior: 'smooth' })
+    })
+  }
+}
+
+function jumpNextPending(afterKey: string) {
+  const keys = answerableInstances.value.map(i => i.key)
+  const idx  = keys.indexOf(afterKey)
+  for (let i = idx + 1; i < keys.length; i++) {
+    if (!conformityStatus[keys[i]]) {
+      const el        = document.getElementById(`list-row-${keys[i]}`)
+      const container = document.getElementById('list-scroll-container')
+      if (el && container) container.scrollTo({ top: el.offsetTop - 64, behavior: 'smooth' })
+      return
+    }
+  }
+}
+
+function setConformityList(key: string, status: 'conforme' | 'nao_conforme') {
+  setConformity(key, status)
+  if (status === 'conforme') {
+    expandedListKey.value = null
+    nextTick(() => setTimeout(() => jumpNextPending(key), 400))
+  }
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const TYPE_LABEL: Record<string, string> = {
   boolean: 'Sim/Não', text: 'Texto', number: 'Número', date: 'Data', select: 'Seleção',
-}
-
-function evidenceMaxFiles(configJson: Record<string, unknown>): number {
-  const v = configJson.max_files
-  return typeof v === 'number' ? v : 20
-}
-
-function evidenceCanAddMore(fieldKey: string, configJson: Record<string, unknown>): boolean {
-  return (evidenceAttachments[fieldKey]?.length ?? 0) < evidenceMaxFiles(configJson)
 }
 
 function selectOptions(configJson: Record<string, unknown>): string[] {
@@ -418,12 +337,23 @@ function statusLabel(status: string) {
   return map[status] ?? status
 }
 
+function pendingLabel(key: string): string {
+  const inst = answerableInstances.value.find((i) => i.key === key)
+  if (!inst) return key
+  return inst.componentLabel ? `${inst.field.label} (${inst.componentLabel})` : inst.field.label
+}
+
+function instancePosition(inst: FieldInstance): number {
+  return answerableInstances.value.findIndex((i) => i.key === inst.key) + 1
+}
+
 // ── Data init ─────────────────────────────────────────────────────────────────
 
 function populateDraft() {
   if (!submission.value) return
+  // Respostas
   for (const ans of submission.value.answers) {
-    const key = instanceKey(ans.field_key, ans.asset_id)
+    const key = instanceKey(ans.field_key, ans.asset_id ?? null)
     if (ans.value === null || ans.value === undefined) {
       draftAnswers[key] = ''
     } else if (ans.field_type === 'boolean') {
@@ -434,48 +364,23 @@ function populateDraft() {
       draftAnswers[key] = String(ans.value)
     }
   }
+  // Conformidade — mutação direta no reactive do useConformity
   for (const c of submission.value.conformity ?? []) {
-    const key = instanceKey(c.field_key, c.asset_id)
+    const key = instanceKey(c.field_key, c.asset_id ?? null)
     conformityStatus[key] = c.status
     if (c.justification) conformityJustification[key] = c.justification
-  }
-}
-
-// Evidência por instância (DR-0017): chaveada por (field_key, asset_id). Evidência de inspeção
-// (sem field_key) não é renderizada na lista por campo.
-function evidenceInstanceKey(att: AttachmentItem): string | null {
-  if (!att.field_key) return null
-  return instanceKey(att.field_key, att.asset_id ?? null)
-}
-
-function instanceByKey(key: string): FieldInstance | undefined {
-  return answerableInstances.value.find((i) => i.key === key)
-}
-
-async function loadEvidenceAttachments() {
-  if (!submission.value) return
-  try {
-    const all = await listAttachments(submissionId.value)
-    for (const att of all) {
-      const key = evidenceInstanceKey(att)
-      if (!key) continue
-      if (!evidenceAttachments[key]) evidenceAttachments[key] = []
-      evidenceAttachments[key].push(att)
-    }
-  } catch (err) {
-    console.error('[SubmissionDetail] loadEvidenceAttachments failed:', err)
-  } finally {
-    evidenceLoaded.value = true
   }
 }
 
 onMounted(async () => {
   await submissionsStore.loadOne(submissionId.value)
   if (submission.value) {
-    formVersion.value = await fetchFormVersion(submission.value.form_id, submission.value.form_version_id)
+    formVersion.value = await fetchFormVersion(
+      submission.value.form_id,
+      submission.value.form_version_id,
+    )
     populateDraft()
     await loadEvidenceAttachments()
-    // Inspeções em andamento entram direto no modo lista
     if (submission.value.status === 'in_progress') {
       inspectionMode.value = true
       viewMode.value = 'list'
@@ -489,97 +394,30 @@ watch(() => submissionsStore.current?.id, (newId) => {
 
 watch(fields, () => { listViewLimit.value = LIST_PAGE })
 
-// ── Upload handlers ───────────────────────────────────────────────────────────
-
-async function handleEvidenceUpload(
-  fieldKey: string,
-  assetId: string | null,
-  configJson: Record<string, unknown>,
-  event: Event,
-) {
-  const input = event.target as HTMLInputElement
-  const file  = input.files?.[0]
-  if (!file) return
-  const key = instanceKey(fieldKey, assetId)
-  if (!evidenceCanAddMore(key, configJson)) {
-    evidenceErrors[key] = `Limite de ${evidenceMaxFiles(configJson)} evidências atingido.`
-    input.value = ''
-    return
-  }
-  evidenceUploading[key] = true
-  delete evidenceErrors[key]
-  try {
-    const result = await uploadFile(file)
-    const att    = await createAttachment(submissionId.value, {
-      field_key: fieldKey,
-      ...(assetId ? { asset_id: assetId } : {}),
-      file_url: result.url,
-      mime_type: result.mime_type,
-      file_size: result.file_size,
-    })
-    if (!evidenceAttachments[key]) evidenceAttachments[key] = []
-    evidenceAttachments[key].push(att)
-  } catch (err) {
-    evidenceErrors[key] = extractProblemMessage(err, 'Erro ao enviar evidência.')
-  } finally {
-    evidenceUploading[key] = false
-    input.value = ''
-  }
-}
-
-async function handleEvidenceDelete(instKey: string, attachmentId: string) {
-  try {
-    await deleteAttachment(submissionId.value, attachmentId)
-    if (evidenceAttachments[instKey]) {
-      evidenceAttachments[instKey] = evidenceAttachments[instKey].filter((a) => a.id !== attachmentId)
-    }
-  } catch (err) {
-    evidenceErrors[instKey] = extractProblemMessage(err, 'Erro ao remover evidência.')
-  }
-}
-
-// A bottom sheet de evidência opera por instância (DR-0017): resolve field_key + asset_id da chave.
-const evidenceSheetLabel = computed(() => {
-  if (!evidenceSheetKey.value) return ''
-  const inst = instanceByKey(evidenceSheetKey.value)
-  if (!inst) return evidenceSheetKey.value
-  return inst.componentLabel ? `${inst.field.label} · ${inst.componentLabel}` : inst.field.label
-})
-
-function uploadEvidenceFromSheet(event: Event) {
-  if (!evidenceSheetKey.value) return
-  const inst = instanceByKey(evidenceSheetKey.value)
-  if (!inst) return
-  void handleEvidenceUpload(inst.field.key, inst.asset_id, inst.field.config_json ?? {}, event)
-}
-
-// ── Save / finish ─────────────────────────────────────────────────────────────
+// ── Payload builder ───────────────────────────────────────────────────────────
 
 function buildPayload() {
   return answerableInstances.value
     .map((inst) => {
-      const field = inst.field
       const raw = draftAnswers[inst.key] ?? ''
       if (raw === '') return null
       let value: boolean | number | string | null = null
-      if (field.field_type === 'boolean') {
+      if (inst.field.field_type === 'boolean') {
         value = raw === 'na' ? 'na' : raw === 'true'
-      } else if (field.field_type === 'number') {
+      } else if (inst.field.field_type === 'number') {
         const n = parseFloat(raw)
         value = isNaN(n) ? null : n
       } else {
         value = raw
       }
       if (value === null) return null
-      return { field_key: field.key, value, ...(inst.asset_id ? { asset_id: inst.asset_id } : {}) }
+      return { field_key: inst.field.key, value, ...(inst.asset_id ? { asset_id: inst.asset_id } : {}) }
     })
     .filter((ans): ans is NonNullable<typeof ans> => ans !== null)
 }
 
 function validateRequiredFields(): boolean {
   const missing = new Set<string>()
-
-  // Cada instância (campo × componente) obrigatória precisa de resposta + conformidade (RN4).
   for (const inst of answerableInstances.value) {
     if (inst.field.required) {
       const val = draftAnswers[inst.key]
@@ -591,14 +429,14 @@ function validateRequiredFields(): boolean {
       missing.add(inst.key)
     }
   }
-
   pendingRequiredFields.value = [...missing]
   return missing.size === 0
 }
 
+// ── Save / Finish ─────────────────────────────────────────────────────────────
+
 async function handleSave() {
-  saveError.value = null
-  finishError.value = null
+  saveError.value = null; finishError.value = null
   try {
     await submissionsStore.updateAnswers(submissionId.value, { answers: buildPayload() })
     savedOnce.value = true
@@ -609,159 +447,22 @@ async function handleSave() {
 }
 
 async function handleFinish() {
-  finishError.value = null
-  saveError.value   = null
-  savedOnce.value   = false
+  finishError.value = null; saveError.value = null; savedOnce.value = false
   pendingRequiredFields.value = []
   if (!validateRequiredFields()) {
-    const labels = pendingRequiredFields.value.map(pendingLabel)
-    finishError.value = `Campos com pendências: ${labels.join(', ')}`
+    finishError.value = `Campos com pendências: ${pendingRequiredFields.value.map(pendingLabel).join(', ')}`
     return
   }
   try {
     await submissionsStore.updateAnswers(submissionId.value, { answers: buildPayload() })
     const items = buildConformityItems()
-    if (items.length > 0) {
-      await saveConformity(submissionId.value, { items })
-    }
+    if (items.length > 0) await saveConformity(submissionId.value, { items })
     await submissionsStore.finish(submissionId.value)
     inspectionMode.value = false
   } catch (err) {
     finishError.value = extractProblemMessage(err, 'Não foi possível finalizar a inspeção.')
   }
 }
-
-// ── List progressive loading ──────────────────────────────────────────────────
-
-const displayedListRows = computed(() => renderRows.value.slice(0, listViewLimit.value))
-const hasMoreFields      = computed(() => listViewLimit.value < renderRows.value.length)
-function loadMoreFields() { listViewLimit.value += LIST_PAGE }
-
-// ── Skip ──────────────────────────────────────────────────────────────────────
-function doSkip() { inspectionNext() }
-
-// ── List-mode helpers ─────────────────────────────────────────────────────────
-
-function filterCount(filterId: ListFilter): number {
-  const ai = answerableInstances.value
-  if (filterId === 'all')   return ai.length
-  if (filterId === 'pend')  return ai.filter(i => !conformityStatus[i.key]).length
-  if (filterId === 'conf')  return ai.filter(i => conformityStatus[i.key] === 'conforme').length
-  if (filterId === 'nconf') return ai.filter(i => conformityStatus[i.key] === 'nao_conforme').length
-  if (filterId === 'bool')  return ai.filter(i => i.field.field_type === 'boolean').length
-  if (filterId === 'sel')   return ai.filter(i => i.field.field_type === 'select').length
-  return 0
-}
-
-// Instâncias de uma seção (a partir das linhas filtradas, em ordem).
-function sectionInstances(sectionKey: string): FieldInstance[] {
-  const all = filteredRows.value
-  const secIdx = all.findIndex(r => r.kind === 'section' && r.field.key === sectionKey)
-  if (secIdx === -1) return []
-  const result: FieldInstance[] = []
-  for (let i = secIdx + 1; i < all.length; i++) {
-    const r = all[i]
-    if (r.kind === 'section') break
-    result.push(r.instance)
-  }
-  return result
-}
-
-function sectionPct(sectionKey: string): number {
-  const sf = sectionInstances(sectionKey)
-  if (sf.length === 0) return 0
-  const done = sf.filter(i => !!conformityStatus[i.key]).length
-  return Math.round((done / sf.length) * 100)
-}
-
-function sectionProgress(sectionKey: string): string {
-  const sf = sectionInstances(sectionKey)
-  const done = sf.filter(i => !!conformityStatus[i.key]).length
-  return `${done}/${sf.length}`
-}
-
-function sectionRingStyle(sectionKey: string): Record<string, string> {
-  const pct = sectionPct(sectionKey)
-  const col = pct === 100 ? 'var(--sa-ok)' : pct > 0 ? 'var(--sa-brand)' : 'var(--sa-line)'
-  return { background: `conic-gradient(${col} ${pct}%, var(--sa-line) 0)` }
-}
-
-function toggleListRow(key: string) {
-  expandedListKey.value = expandedListKey.value === key ? null : key
-  if (expandedListKey.value === key) {
-    nextTick(() => {
-      const el = document.getElementById(`list-row-${key}`)
-      const container = document.getElementById('list-scroll-container')
-      if (el && container) container.scrollTo({ top: el.offsetTop - 64, behavior: 'smooth' })
-    })
-  }
-}
-
-function jumpNextPending(afterKey: string) {
-  const keys = answerableInstances.value.map(i => i.key)
-  const idx = keys.indexOf(afterKey)
-  for (let i = idx + 1; i < keys.length; i++) {
-    if (!conformityStatus[keys[i]]) {
-      const el = document.getElementById(`list-row-${keys[i]}`)
-      const container = document.getElementById('list-scroll-container')
-      if (el && container) container.scrollTo({ top: el.offsetTop - 64, behavior: 'smooth' })
-      return
-    }
-  }
-}
-
-function setConformityList(key: string, status: 'conforme' | 'nao_conforme') {
-  setConformity(key, status)
-  if (status === 'conforme') {
-    expandedListKey.value = null
-    nextTick(() => setTimeout(() => jumpNextPending(key), 400))
-  }
-}
-
-// ── Non-conformity: open justification sheet ──────────────────────────────────
-function setNaoConformeCard(fieldKey: string) {
-  setConformity(fieldKey, 'nao_conforme')
-  justificationError.value = null
-  justificationFieldKey.value = fieldKey
-  showJustificationSheet.value = true
-}
-
-const justificationError = ref<string | null>(null)
-
-function confirmJustification() {
-  const key = justificationFieldKey.value
-  if (!key) return
-  const text = (conformityJustification[key] || '').trim()
-  if (!text) {
-    justificationError.value = 'Descreva o problema encontrado.'
-    return
-  }
-  justificationError.value = null
-  triggerConformitySave()
-  showJustificationSheet.value = false
-  setTimeout(() => inspectionNext(), 250)
-}
-
-// ── Nearby dots for card ──────────────────────────────────────────────────────
-const nearbyDots = computed(() => {
-  const idx   = inspectionIndex.value
-  const all   = answerableInstances.value
-  const half  = 4
-  const start = Math.max(0, idx - half)
-  const end   = Math.min(all.length - 1, idx + half)
-  return all.slice(start, end + 1).map((inst, i) => ({
-    key:       inst.key,
-    status:    conformityStatus[inst.key] ?? 'pending',
-    isCurrent: start + i === idx,
-  }))
-})
-
-// ── Evidence count for current card instance (evidência por componente — DR-0017) ───
-const currentFieldEvidenceCount = computed(() =>
-  inspectionInstance.value
-    ? (evidenceAttachments[inspectionInstance.value.key]?.length ?? 0)
-    : 0,
-)
 </script>
 
 <template>
