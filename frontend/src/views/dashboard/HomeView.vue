@@ -53,6 +53,64 @@ const sparklinePoints = computed(() => {
     .join(' ')
 })
 
+// ── Onboarding checklist (Sprint 3) ─────────────────────────────────────────
+// Mostra quando a empresa parece nova: sem inspeções e sem formulários ativos.
+
+const showOnboarding = computed(
+  () =>
+    !contextStore.isLoadingStats &&
+    (stats.value?.total_submissions ?? 0) === 0 &&
+    formsStore.items.filter((f) => f.is_active).length === 0,
+)
+
+const onboardingSteps = computed(() => [
+  {
+    id: 'asset-types',
+    label: 'Criar tipo de ativo',
+    desc: 'Define a categoria dos ativos inspecionáveis (ex: Veículo, Prédio).',
+    done: false,
+    route: '/asset-types',
+    action: 'Criar tipo →',
+  },
+  {
+    id: 'clients',
+    label: 'Cadastrar cliente',
+    desc: 'Registre as empresas cujos ativos serão inspecionados.',
+    done: false,
+    route: '/clients',
+    action: 'Cadastrar →',
+  },
+  {
+    id: 'forms',
+    label: 'Criar formulário',
+    desc: 'Monte o checklist de inspeção com campos e pesos de conformidade.',
+    done: formsStore.items.length > 0,
+    route: '/forms',
+    action: 'Criar formulário →',
+  },
+  {
+    id: 'assets',
+    label: 'Cadastrar ativo',
+    desc: 'Registre os ativos e seus componentes vinculados ao cliente.',
+    done: false,
+    route: '/assets',
+    action: 'Cadastrar ativo →',
+  },
+  {
+    id: 'first-inspection',
+    label: 'Iniciar primeira inspeção',
+    desc: 'Tudo pronto! Execute a primeira inspeção e veja o score ao vivo.',
+    done: (stats.value?.total_submissions ?? 0) > 0,
+    route: '/submissions',
+    action: 'Nova inspeção →',
+  },
+])
+
+const onboardingProgress = computed(() => {
+  const done = onboardingSteps.value.filter((s) => s.done).length
+  return Math.round((done / onboardingSteps.value.length) * 100)
+})
+
 async function setPeriod(period: string) {
   activePeriod.value = period
   await contextStore.loadStats(period)
@@ -85,6 +143,45 @@ function statusLabel(status: string) {
         </div>
       </div>
 
+      <!-- ── ONBOARDING CHECKLIST (aparece quando a empresa é nova) — Sprint 3 ── -->
+      <div v-if="showOnboarding" class="onb-card">
+        <div class="onb-head">
+          <div>
+            <div class="onb-title">Configure o Smart Audit</div>
+            <div class="onb-sub">Siga os passos abaixo para criar sua primeira inspeção.</div>
+          </div>
+          <div class="onb-progress-wrap">
+            <div class="onb-progress-ring" :style="`--pct:${onboardingProgress}%`">
+              <span class="onb-progress-val">{{ onboardingProgress }}%</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="onb-steps">
+          <div
+            v-for="(step, i) in onboardingSteps"
+            :key="step.id"
+            class="onb-step"
+            :class="{ 'onb-step--done': step.done }"
+          >
+            <div class="onb-step-n" :class="{ 'onb-step-n--done': step.done }">
+              <span v-if="step.done">✓</span>
+              <span v-else>{{ i + 1 }}</span>
+            </div>
+            <div class="onb-step-body">
+              <div class="onb-step-label">{{ step.label }}</div>
+              <div class="onb-step-desc">{{ step.desc }}</div>
+            </div>
+            <RouterLink v-if="!step.done" :to="step.route" class="onb-step-action">
+              {{ step.action }}
+            </RouterLink>
+            <span v-else class="onb-step-done-badge">✓ Feito</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── MÉTRICAS E PAINÉIS (ocultos durante o onboarding) ── -->
+      <template v-if="!showOnboarding">
       <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; flex-wrap: wrap;">
         <div class="slabel" style="margin-bottom: 0;">Métricas</div>
         <div class="filter-tabs" style="margin-bottom: 0; width: 100%; max-width: 420px;">
@@ -248,6 +345,161 @@ function statusLabel(status: string) {
           </div>
         </div>
       </template>
+      </template>
     </div>
   </AppShell>
 </template>
+
+<style scoped>
+/* ── Onboarding card (Sprint 3) ── */
+.onb-card {
+  background: var(--sa-card, #fff);
+  border: 1px solid var(--sa-border, #e5e7eb);
+  border-radius: 14px;
+  padding: 20px 22px;
+  margin-bottom: 24px;
+}
+
+.onb-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+
+.onb-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--sa-text, #111827);
+  margin-bottom: 3px;
+}
+
+.onb-sub {
+  font-size: 12px;
+  color: var(--sa-muted, #6b7280);
+}
+
+/* Anel de progresso (CSS conic-gradient) */
+.onb-progress-ring {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: conic-gradient(var(--sa-ok, #10b981) var(--pct), #e5e7eb 0);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.onb-progress-ring::before {
+  content: '';
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--sa-card, #fff);
+  position: absolute;
+}
+
+.onb-progress-val {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--sa-text, #111827);
+  position: relative;
+  z-index: 1;
+}
+
+/* Passos */
+.onb-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.onb-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--sa-surface, #f9fafb);
+  border: 1px solid var(--sa-border, #e5e7eb);
+  transition: border-color 0.15s;
+}
+
+.onb-step--done {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+  opacity: 0.7;
+}
+
+.onb-step-n {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--sa-border, #e5e7eb);
+  color: var(--sa-muted, #6b7280);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.onb-step-n--done {
+  background: var(--sa-ok, #10b981);
+  color: #fff;
+}
+
+.onb-step-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.onb-step-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--sa-text, #111827);
+}
+
+.onb-step-desc {
+  font-size: 11px;
+  color: var(--sa-muted, #6b7280);
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.onb-step-action {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--sa-primary, #2563eb);
+  text-decoration: none;
+  padding: 4px 8px;
+  background: #eff6ff;
+  border-radius: 5px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  border: 1px solid #bfdbfe;
+  transition: background 0.12s;
+}
+
+.onb-step-action:hover {
+  background: #dbeafe;
+}
+
+.onb-step-done-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: #15803d;
+  background: #f0fdf4;
+  padding: 4px 8px;
+  border-radius: 5px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+</style>
