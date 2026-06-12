@@ -155,6 +155,11 @@ submissions
 
 ## 7. Frontend (Fase 4)
 
+> **Status (Junho 2026): ENTREGUE.** Builder com toggle "Repetir por componente", inspeção
+> renderizando por componente (via `utils/inspectionInstances` + composables) e relatório/PDF lendo
+> `components_snapshot` estão integrados em `main`. Backend Fases 2–3 já estavam implementados; ver
+> a nota de status no topo de `SMART_AUDIT_HANDOFF.md`.
+
 - **Builder** (`FormFieldEditor.vue`): marcar o **escopo de componente** de um campo (seleção de
   `asset_type`); parte da versão publicada imutável (ADR-0005).
 - **Inspeção** (`SubmissionDetailView` + `InspectionListRow`/`InspectionFieldRow`): renderizar

@@ -270,7 +270,22 @@ export type FieldType = 'boolean' | 'text' | 'number' | 'date' | 'select' | 'sec
 
 **`frontend/src/components/submissions/InspectionListRow.vue`** — compact row used exclusively in the **inspection list overlay** (`.insp-listshell`). Props: `field`, `position`, `answer`, `conformityStatus`, `conformityJustification`, `isCompleted`, `isPendingRequired`, `evidenceCount`, `isExpanded`. Expandable inline panel for answer + conformity + evidence. Emits: `toggle`, `update-answer`, `set-conformity`, `update-justification`, `request-evidence`, `request-justification`.
 
-**`frontend/src/components/forms/FormFieldEditor.vue`** — reusable field editor used in the version composer (FormDetailView and FormsView). Accepts a `FormFieldCreatePayload` via `v-model`, `index`, and `showRemove`. Emits `remove`. Configures: label, key, field type, required, weight (boolean), allow_na (boolean), options (select), instruction.
+**`frontend/src/components/forms/FormFieldEditor.vue`** — reusable field editor used in the version composer (FormDetailView and FormsView). Accepts a `FormFieldCreatePayload` via `v-model`, plus `index`, `showRemove`, optional `mode` (`'inline' | 'full'`) and `assetTypes` (`AssetType[]`). Emits `remove` and `updateKey`. Configures: label, key, field type, required, weight (boolean), allow_na (boolean), options (select), instruction, and **component scope** (DR-0002): a "Repetir por componente" toggle + asset-type selector + badge that sets `component_type_id` (only when `assetTypes` is provided; never for `section`).
+
+**`frontend/src/components/submissions/InspectionComposer.vue`** — 3-step wizard (form → client → asset) extracted from SubmissionsView. Props: `preselectedAssetId?`, `preselectedAssetLabel?`, `preselectedClientId?` — the active steps adapt to which one is set (asset-preselected → only form; client-preselected → form+asset; none → all three). Emits `created(submissionId)` and `close`. Used by SubmissionsView (no preselection) and ClientDetailView (asset/client preselection). `asset_id` stays nullable on create — retro-compatible.
+
+**`frontend/src/components/ui/AssetTree.vue`** — recursive (`defineOptions({ name: 'AssetTree' })`) asset→component tree with lazy-loaded children (`fetchAsset` on first expand). Props: `nodes`, `typeNames`, `depth?`. Emits `startInspection(asset)` and `addChild(parent)` (revealed on row hover).
+
+#### Inspection composables (`frontend/src/composables/`)
+
+`SubmissionDetailView`'s logic is extracted into four framework-pure composables (unit-testable without mounting the view). The view keeps the template and a thin `<script setup>` that wires them together and owns `populateDraft` (mutates the composable reactives directly — there is **no** `populateConformity`):
+
+- **`useConformity(submissionId, answerableInstances, onAdvance)`** → `conformityStatus`, `conformityJustification`, justification-sheet state, `setConformity`, `setNaoConformeCard`, `confirmJustification`, `buildConformityItems` (includes `asset_id` for scoped fields), `triggerConformitySave` (debounced).
+- **`useEvidence(submissionId, answerableInstances)`** → `evidenceAttachments` keyed by **instanceKey** (`field.key@asset_id` for scoped fields — DR-0017), upload/delete handlers, evidence-sheet state. Sends `{ field_key, asset_id }`; scope is derived server-side.
+- **`useInspectionProgress(answerableInstances, conformityStatus, fields, inspectionIndex)`** → `progressStats`, `liveScore` (replicates ADR-0008 weighting; rounds to integer for the live ring only — persisted score comes from the backend), `scoreRingStyle`, `allAnswered`, `formSections`, `nearbyDots`.
+- **`useInspectionSwipe({ getCurrentInstanceKey, onConformeSwipe, onNaoConformeSwipe })`** → swipe state + `cardSwipeStyle` + touch handlers for card mode.
+
+Instances come from `buildRenderRows`/`instanceKey` in `frontend/src/utils/inspectionInstances.ts` (DR-0002 expansion: one answerable instance per `field × component`).
 
 #### Submission inspection UI (`SubmissionDetailView`)
 
@@ -297,6 +312,18 @@ The upload button only shows for non-completed inspections (`v-if="!isCompleted"
 #### Report view (`SubmissionReportView`)
 
 Read-only summary for completed (and in-progress) inspections accessible at `/submissions/:id/report`. Shows score, breakdown, boolean field results, non-boolean field values, and any evidence (attachments) for each field as clickable links. PDF export via `exportSubmissionPdf` → backend `/submissions/{id}/export`.
+
+#### Client hub (`ClientDetailView`)
+
+`frontend/src/views/clients/ClientDetailView.vue` at route `/clients/:id` (name `client-detail`) is the contextual hub for a client: inline-editable header, an `AssetTree` of the client's root assets, and recent inspections. The client name in `ClientsView` links here. Starting an inspection from a tree row opens `InspectionComposer` with the asset preselected; the header button opens it with the client preselected. Recent inspections are fetched **server-side** via `GET /submissions?client_id=` (no client-side filtering): the backend joins `assets.client_id`, so inspections with no asset are naturally excluded. `fetchSubmissions(page, pageSize, status?, formId?, createdBy?, assetId?, clientId?)` carries the `clientId` argument.
+
+#### Attribute builders (zero-JSON)
+
+Asset-type and asset attributes are edited with visual builders — **never** a raw JSON textarea:
+- **`frontend/src/components/ui/AttributeSchemaBuilder.vue`** (`v-model` ↔ `attributes_schema`): a row table (name / type / required) emitting `Record<string, { type, required }>` or `null`. Reads the legacy `{ key: 'string' }` shape too. Used in `AssetTypesView` keyed by `form.id || 'new'` to remount on edit/reset.
+- **`frontend/src/components/ui/AttributeValueEditor.vue`** (`v-model` ↔ `attributes_json`, `:schema` from the selected type): renders one typed input per schema attribute. The parent (`AssetsView`) resets `attributes_json` when the selected asset type changes.
+
+Both preserve the existing store contracts (`attributes_schema` / `attributes_json` as `Record | null`).
 
 #### Attachments service
 
