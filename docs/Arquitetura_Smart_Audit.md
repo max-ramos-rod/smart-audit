@@ -193,7 +193,7 @@ Entidades principais:
 Capacidades ativas:
 
 - criacao de inspecao (com `asset_id` opcional — vínculo ao ativo inspecionado, DR-0002 Fase 1)
-- listagem com filtros (status, form_id, created_by, asset_id)
+- listagem com filtros (status, form_id, created_by, asset_id, client_id — `client_id` faz join em `assets.client_id`; alimenta o hub de cliente `ClientDetailView`)
 - detalhe (expoe `asset_id`/`asset_identifier`)
 - salvamento de respostas tipadas (todos os tipos de campo)
 - resposta N/A em booleanos com `allow_na: true` (armazenada como `value_text = "na"`)
