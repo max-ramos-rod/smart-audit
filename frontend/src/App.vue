@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 
+import BrandLogo from '@/components/ui/BrandLogo.vue'
 import { readAccessToken } from '@/services/api/storage'
 import { useContextStore } from '@/stores/context/context.store'
 
@@ -37,11 +38,7 @@ onMounted(async () => {
     <div v-if="splash" class="splash-root">
       <div class="splash-inner">
         <div class="splash-logo">
-          <div class="splash-mark">SA</div>
-          <div>
-            <div class="splash-name">Smart Audit</div>
-            <div class="splash-sub">Plataforma Operacional</div>
-          </div>
+          <BrandLogo variant="dark-mode" :height="46" />
         </div>
         <div class="splash-bar-wrap">
           <div class="splash-bar-fill" :style="{ width: pct + '%' }" />

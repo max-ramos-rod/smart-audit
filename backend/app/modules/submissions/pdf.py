@@ -9,6 +9,10 @@ _FONTS_DIR = Path(__file__).parent / "fonts"
 _FONT_REGULAR = str(_FONTS_DIR / "DejaVuSans.ttf")
 _FONT_NAME = "DejaVu"
 
+# Full brand lockup (monochrome), rasterised from the delivered monochrome.svg.
+# Used on a white header so the dark wordmark stays legible and print-friendly.
+_BRAND_LOGO = str(Path(__file__).parent / "assets" / "brand-monochrome.png")
+
 _STATUS_LABELS = {
     "draft": "Rascunho",
     "in_progress": "Em andamento",
@@ -74,12 +78,17 @@ class _PDF(FPDF):
         self.add_font(_FONT_NAME, style="I", fname=_FONT_REGULAR)
 
     def header(self) -> None:
-        self.set_fill_color(*_C_BRAND)
-        self.set_text_color(*_C_WHITE)
-        self.set_font(_FONT_NAME, "B", 11)
-        self.cell(0, 10, "Smart Audit", fill=True, align="L", new_x="LMARGIN", new_y="NEXT")
+        top = self.get_y()
+        logo_h = 9.0
+        # Full monochrome lockup on the white page (no coloured bar, no extra text).
+        self.image(_BRAND_LOGO, x=self.l_margin, y=top, h=logo_h)
+        # Thin divider under the brand lockup.
+        line_y = top + logo_h + 2
+        self.set_draw_color(*_C_LINE)
+        self.set_line_width(0.3)
+        self.line(self.l_margin, line_y, self.l_margin + self.epw, line_y)
+        self.set_y(line_y + 3)
         self.set_text_color(*_C_TEXT)
-        self.ln(2)
 
     def footer(self) -> None:
         self.set_y(-13)
