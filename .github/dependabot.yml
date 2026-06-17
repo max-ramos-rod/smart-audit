@@ -17,14 +17,6 @@ updates:
     open-pull-requests-limit: 5
     commit-message:
       prefix: "deps(frontend)"
-    ignore:
-      # vue-router 5 funde o unplugin-vue-router no core (file-based routing,
-      # opt-in) e arrasta tooling de build (@babel/generator@8 exige Node >=22.18)
-      # incompativel com a baseline fixada em Node 20. O projeto usa a API manual
-      # de rotas, sem ganho funcional na v5. Major segurado ate adotarmos
-      # file-based routing ou subir a baseline de Node. Ver PR #50.
-      - dependency-name: "vue-router"
-        update-types: ["version-update:semver-major"]
 
   # GitHub Actions usadas no CI
   - package-ecosystem: "github-actions"

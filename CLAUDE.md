@@ -62,7 +62,7 @@ python backend/scripts/export_openapi.py -o openapi.json
 
 ### Frontend
 
-> **Use Node 20 / npm 10 localmente** (mesma versão do CI — ver `.nvmrc` e `engines` em `frontend/package.json`). Node 24/npm 11 resolve dependências transitivas (`@emnapi/*`) em versões diferentes e gera um `package-lock.json` que o `npm ci` do CI rejeita. Com `nvm`: `nvm use` (lê o `.nvmrc`). Corepack respeita `"packageManager": "npm@10.9.8"`.
+> **Use Node 22 / npm 10 localmente** (mesma versão do CI — ver `.nvmrc` e `engines` em `frontend/package.json`). A baseline foi elevada de Node 20 para 22 ao adotar o vue-router 5 (cujo tooling exige Node ≥22.18). Node 24/npm 11 resolve dependências transitivas (`@emnapi/*`) em versões diferentes e gera um `package-lock.json` que o `npm ci` do CI rejeita — fique no npm 10. Com `nvm`: `nvm use` (lê o `.nvmrc`). Corepack respeita `"packageManager": "npm@10.9.8"`.
 
 ```powershell
 cd frontend
