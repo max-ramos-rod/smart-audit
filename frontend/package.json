@@ -23,7 +23,7 @@
     "format:check": "prettier --check \"src/**/*.ts\" \"e2e/**/*.ts\""
   },
   "dependencies": {
-    "@tailwindcss/vite": "^4.3.0",
+    "@tailwindcss/vite": "^4.3.1",
     "axios": "^1.8.4",
     "pinia": "^3.0.2",
     "radix-vue": "^1.9.17",
