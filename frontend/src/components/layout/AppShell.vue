@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 
+import BrandLogo from '@/components/ui/BrandLogo.vue'
 import SvgIcon from '@/components/ui/SvgIcon.vue'
 import { useAuthStore } from '@/stores/auth/auth.store'
 import { useContextStore } from '@/stores/context/context.store'
@@ -32,11 +33,7 @@ function logout() {
     <aside class="sidebar">
       <div class="sb-top">
         <div class="sb-logo">
-          <div class="sb-logo-mark">SA</div>
-          <div>
-            <div class="sb-logo-name">Smart Audit</div>
-            <div class="sb-logo-sub">Plataforma operacional</div>
-          </div>
+          <BrandLogo variant="dark-mode" :height="34" />
         </div>
       </div>
 
@@ -117,8 +114,7 @@ function logout() {
 
     <header class="mob-hdr">
       <div class="mob-hdr-brand">
-        <div class="mob-hdr-mark">SA</div>
-        <div class="mob-hdr-name">Smart Audit</div>
+        <BrandLogo variant="horizontal" :height="24" />
       </div>
       <RouterLink to="/profile" class="mob-av">{{ initials }}</RouterLink>
     </header>

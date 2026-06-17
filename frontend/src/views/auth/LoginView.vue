@@ -2,6 +2,7 @@
 import { reactive } from 'vue'
 import { useRouter } from 'vue-router'
 
+import BrandLogo from '@/components/ui/BrandLogo.vue'
 import { useAuthStore } from '@/stores/auth/auth.store'
 import { useContextStore } from '@/stores/context/context.store'
 
@@ -29,7 +30,7 @@ async function submit() {
   <div class="login-root">
     <div class="login-brand">
       <div class="lb-inner">
-        <div class="lb-mark">SA</div>
+        <BrandLogo variant="dark-mode" :height="46" class="lb-logo" />
         <h2 class="lb-h">
           Auditorias.<br />
           Rastreabilidade.<br />
@@ -50,8 +51,7 @@ async function submit() {
     <div class="lfa">
       <div class="lfb">
         <div class="lf-mob-logo">
-          <div class="lf-mob-mark">SA</div>
-          <div class="lf-mob-name">Smart Audit</div>
+          <BrandLogo variant="primary" :height="34" />
         </div>
 
         <h1 class="lf-h">Entrar na plataforma</h1>

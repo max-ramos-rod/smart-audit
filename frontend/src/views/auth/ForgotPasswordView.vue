@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 
+import BrandLogo from '@/components/ui/BrandLogo.vue'
 import { requestPasswordReset } from '@/services/auth.service'
 import { extractProblemMessage } from '@/services/api/problem'
 
@@ -30,7 +31,7 @@ async function submit() {
   <div class="login-root">
     <div class="login-brand">
       <div class="lb-inner">
-        <div class="lb-mark">SA</div>
+        <BrandLogo variant="dark-mode" :height="46" class="lb-logo" />
         <h2 class="lb-h">
           Recuperação de acesso.<br />
           Segura e direta.
@@ -49,7 +50,7 @@ async function submit() {
     <div class="lfa">
       <div class="lfb">
         <div class="lf-mob-logo">
-          <div class="lf-mob-mark">SA</div>
+          <BrandLogo variant="primary" :height="34" />
           <div class="lf-mob-name">Smart Audit</div>
         </div>
 
