@@ -38,8 +38,8 @@ Pós-auditoria, os itens acionáveis foram corrigidos:
 | §4 `PROMPT.md` ausente | ◻️ N/A | nunca foi afirmado por documento; segue inexistente |
 | §5 decisões implícitas | ✅ Resolvido | catalogadas em `docs/ai/AI_DECISIONS.md` e promovidas a ADRs em `docs/adr/` (`1ff79a5`) |
 
-> A cobertura de teste do `audit-logs` está completa: `test_audit_logs.py` (backend, total 220 passed)
-> e `audit.service.test.ts` (frontend, total 122 passed). Não há lacunas remanescentes.
+> A cobertura de teste do `audit-logs` está completa: `test_audit_logs.py` (backend, total 296 passed)
+> e `audit.service.test.ts` (frontend, total 185 passed). Não há lacunas remanescentes.
 
 ---
 
@@ -95,8 +95,8 @@ Itens em que documentação e código estão alinhados e foram verificados nesta
   auditoria do frontend (`audit.service.ts`) **não possui** `audit.service.test.ts`. A documentação
   apresenta a auditoria como consolidada sem registrar essa lacuna de cobertura.
 - **Status (2026-06-09):** ✅ a Arquitetura §9 foi atualizada e a cobertura foi criada em ambos os
-  lados: `backend/tests/integration/test_audit_logs.py` (4 testes; backend total 220 passed) e
-  `frontend/src/__tests__/audit.service.test.ts` (3 testes; frontend total 122 passed).
+  lados: `backend/tests/integration/test_audit_logs.py` (4 testes; backend total 296 passed) e
+  `frontend/src/__tests__/audit.service.test.ts` (3 testes; frontend total 185 passed).
 
 > Observação: divergências factuais anteriores (coluna `notification_reads.read`, ausência de
 > `audit-logs`/`GET /users/revoked` nas listas de rota) **já foram corrigidas** na documentação nesta

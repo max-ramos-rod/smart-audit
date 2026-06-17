@@ -24,12 +24,12 @@ Stack atual:
 - Deploy: Docker Compose (db + backend + frontend) atras de proxy reverso Nginx e Cloudflare Tunnel — ver `docs/Deploy_Smart_Audit.md`
 - CI: GitHub Actions com jobs separados para backend, frontend (Vitest) e E2E (Playwright)
 
-Baseline validado em `2026-06-09`:
+Baseline validado em `2026-06-17`:
 
-- backend: `220 passed`
-- frontend Vitest: `122 passed`
+- backend: `296 passed`
+- frontend Vitest: `185 passed`
 - frontend build: `npm run build` OK
-- E2E Playwright: `54 testes` (todos mockados, sem backend necessario)
+- E2E Playwright: `74 testes` (todos mockados, sem backend necessario)
 
 ## 2. Estado real do produto
 
@@ -672,9 +672,9 @@ Observacao: mensagens de erro do backend nao usam acentos para evitar problemas 
 
 ### Backend
 
-Estado validado em `2026-06-09`:
+Estado validado em `2026-06-17`:
 
-- `220 passed`
+- `296 passed`
 
 Cobertura atual:
 
@@ -710,9 +710,9 @@ Casos cobertos em `test_submissions_advanced.py`:
 
 ### Frontend — Vitest (unitario e de servico)
 
-Estado validado em `2026-06-09`:
+Estado validado em `2026-06-17`:
 
-- `122 passed`
+- `185 passed`
 
 Cobertura atual:
 
@@ -740,7 +740,7 @@ Cobertura atual:
 
 ### E2E — Playwright
 
-Job `e2e` no CI (`.github/workflows/ci.yml`). Todos os 54 testes usam `page.route()` para mockar chamadas de API — nao requerem backend em execucao.
+Job `e2e` no CI (`.github/workflows/ci.yml`). Todos os 74 testes usam `page.route()` para mockar chamadas de API — nao requerem backend em execucao.
 
 ## 10. Decisoes arquiteturais consolidadas
 

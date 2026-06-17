@@ -20,12 +20,12 @@ O projeto já passou da fundação inicial. Hoje ele possui:
 - dashboard, busca, notificações derivadas, auditoria e telas administrativas
 - deploy em Docker Compose atrás de proxy reverso Nginx + Cloudflare Tunnel
 
-Baseline validado em `2026-06-09`:
+Baseline validado em `2026-06-17`:
 
-- backend: `220 passed`
-- frontend Vitest: `122 passed`
+- backend: `296 passed`
+- frontend Vitest: `185 passed`
 - frontend build: `npm run build` OK
-- E2E Playwright: `54 testes` (mockados)
+- E2E Playwright: `74 testes` (mockados)
 
 Leitura de status:
 
