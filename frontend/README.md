@@ -26,8 +26,8 @@ Base inicial do frontend em Vue 3 com Vite, Pinia e Vue Router.
 
 ## Pre-requisitos
 
-- Node.js 20+
-- npm 10+
+- Node.js 22+ (ver `.nvmrc`; baseline elevada de 20 para 22 com a adocao do vue-router 5)
+- npm 10 (use npm 10, nao 11 — ver nota no CLAUDE.md)
 - backend Smart Audit rodando em `http://127.0.0.1:8003`
 
 ## Configuracao
