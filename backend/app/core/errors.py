@@ -14,7 +14,7 @@ STATUS_TITLES: dict[int, str] = {
     401: "Unauthorized",
     403: "Forbidden",
     404: "Not Found",
-    422: "Unprocessable Entity",
+    422: "Unprocessable Content",
     500: "Internal Server Error",
 }
 
@@ -55,8 +55,8 @@ async def validation_exception_handler(
 ) -> JSONResponse:
     return build_problem(
         request,
-        status_code=http_status.HTTP_422_UNPROCESSABLE_ENTITY,
-        title="Unprocessable Entity",
+        status_code=http_status.HTTP_422_UNPROCESSABLE_CONTENT,
+        title="Unprocessable Content",
         detail="A requisicao contem dados invalidos.",
         type_="https://smart-audit/errors/validation-error",
         extra={"errors": exc.errors()},
